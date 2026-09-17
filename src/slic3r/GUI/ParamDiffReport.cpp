@@ -432,10 +432,13 @@ bool export_param_diff_report(wxWindow *parent)
 
     // different_settings_to_system 的排列：[0]=process、[1..n]=filament、[n+1]=printer。
     // 線材只取第 1 槽（1 號料）——多料機每槽各有 preset，v1 先比主槽，其餘走售服端腳本。
-    const size_t n_filaments   = pb->filament_presets.size();
+    //
+    // ⚠️ printer 的索引要用**這份 vector 自己的長度**推，不能用目前的 filament_presets.size()：
+    //    那份是載入專案當下依 num_filaments + 2 配好的，而使用者載入後還可以改噴頭數
+    //    ⇒ 用現況去索引會整個錯位，把線材的鍵當成印表機的。
     const size_t idx_process   = 0;
     const size_t idx_filament  = 1;
-    const size_t idx_printer   = n_filaments + 1;
+    const size_t idx_printer   = declared.empty() ? 0 : declared.size() - 1;
 
     std::vector<DiffRow>     rows;
     std::vector<std::string> warnings;
@@ -463,8 +466,10 @@ bool export_param_diff_report(wxWindow *parent)
         auto it = pb->vendors.find("PING");
         if (it != pb->vendors.end())
             bundle_version = it->second.config_version.to_string();
+        // 刻意不翻譯：拿不到版本時印 "-" 就好。"unknown" 是太泛用的 msgid，
+        // 佔用它會讓日後別處誤用同一條翻譯。
         if (bundle_version.empty())
-            bundle_version = into_u8(_L("unknown"));
+            bundle_version = "-";
     }
 
     std::string project_name;
