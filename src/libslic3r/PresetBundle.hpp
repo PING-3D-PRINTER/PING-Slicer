@@ -224,6 +224,15 @@ public:
     // and they are being used by slicing core.
     DynamicPrintConfig          project_config;
 
+    // PING（2026-09-17，牌 c-0917-PDR-01）：載入專案時，3mf 裡宣告的 different_settings_to_system。
+    // 排列與該欄位相同：[0]=process、[1..n]=filament、[n+1]=printer，每格是 ';' 分隔的鍵名。
+    // 唯一用途＝「匯出參數差異清單」要據此分辨「使用者自訂」與「PING 後來更新標準」：
+    //   差異 ∈ 這份 ⇒ 他自己調的；差異 ∉ 這份 ⇒ 他沒動，是我們後來改了標準。
+    // ⚠️ 這是**他存檔當下、他那台機器的系統值**算出來的，不是我們現在的標準；
+    //    2026-09-17 用客戶 3mf 實測命中 26/28（漏熨燙兩顆、多報一顆空值）⇒ 近似值，不是保證。
+    // 沒有載入過專案時為空 ⇒ 差異全算「自訂」，那也是對的（自己的機器上不存在標準落差）。
+    std::vector<std::string>    project_different_settings_to_system;
+
     // There will be an entry for each system profile loaded,
     // and the system profiles will point to the VendorProfile instances owned by PresetBundle::vendors.
     VendorMap                   vendors;

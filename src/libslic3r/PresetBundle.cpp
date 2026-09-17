@@ -3508,6 +3508,11 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
     inherits_values.resize(num_filaments + 2, std::string());
     different_values.resize(num_filaments + 2, std::string());
     filament_ids.resize(num_filaments, std::string());
+    // PING（2026-09-17，牌 c-0917-PDR-01）：留一份給「匯出參數差異清單」用。
+    // 這裡是 3mf 的 different_settings_to_system 唯一完整、且已對齊 num_filaments 的地方——
+    // 上面那個 std::move 之後 config 裡就沒有了，下游也不會再看到它。
+    // 純資料保存，不參與任何既有判斷；欄位語意與注意事項見 PresetBundle.hpp 的宣告。
+    this->project_different_settings_to_system = different_values;
     // The "default_filament_profile" will be later extracted into the printer profile.
 	switch (printer_technology) {
 	case ptFFF:

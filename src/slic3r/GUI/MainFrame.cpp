@@ -44,6 +44,7 @@
 #include "libslic3r_version.h"   // 建置時產生（build/src/libslic3r/），不帶目錄前綴
 #include "PingQuotePack.hpp"
 #include "PingQuoteSmoke.hpp"
+#include "ParamDiffReport.hpp"
 #include "../Utils/Process.hpp"
 #include "format.hpp"
 // BBS
@@ -3094,6 +3095,17 @@ void MainFrame::init_menubar_as_editor()
         append_menu_item(
             export_menu, wxID_ANY, _L("Export Preset Bundle") + dots /* + "\t" + ctrl + "E"*/, _L("Export current configuration to files"),
             [this](wxCommandEvent &) { export_config(); },
+            "menu_export_config", nullptr,
+            []() { return true; }, this);
+
+        /* PING（2026-09-17，牌 c-0917-PDR-01）：匯出「目前設定 vs 系統母版」的差異清單。
+           刻意**沒有設定對話框**——Eric 0917 裁：「這一頁不用給客戶選擇吧？他只要覺得有問題，
+           就匯出即可」。比對範圍／標示未作用／內嵌資料／語言全部寫死成預設，要別的組合走售服端
+           腳本（已裁 Q7 甲），不進 UI。永遠可用（唯讀輸出、不需要模型也不需要切片結果）。 */
+        append_menu_item(
+            export_menu, wxID_ANY, _L("Export parameter difference report") + dots,
+            _L("Export a single HTML file listing how the current settings differ from the system profile"),
+            [this](wxCommandEvent &) { export_param_diff_report(this); },
             "menu_export_config", nullptr,
             []() { return true; }, this);
 
