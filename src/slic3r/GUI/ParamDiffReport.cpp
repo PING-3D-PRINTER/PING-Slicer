@@ -11,7 +11,7 @@
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/Utils.hpp"
-#include "libslic3r/libslic3r_version.h"
+#include "libslic3r_version.h"   // 建置時產生（build/src/libslic3r/），不帶目錄前綴——帶了本機找得到、CI 四平台找不到（SOP_單檔編譯檢查 §5）
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
