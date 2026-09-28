@@ -3778,10 +3778,15 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
     this->update_multi_material_filament_presets();
 
     // PING（c-0928-PDR-01 B 案）：三組都載入、選好之後才留快照（欄位語意見 PresetBundle.hpp）。
-    // 線材集合的 edited＝1 號槽（上面多料那段由後往前載，i == 0 那支才 LoadAndSelect::Always）。
-    this->project_opened_print    = { this->prints.get_edited_preset().name,    this->prints.get_edited_preset().config };
-    this->project_opened_filament = { this->filaments.get_edited_preset().name, this->filaments.get_edited_preset().config };
-    this->project_opened_printer  = { this->printers.get_edited_preset().name,  this->printers.get_edited_preset().config };
+    this->project_opened_print   = { this->prints.get_edited_preset().name,   this->prints.get_edited_preset().config };
+    this->project_opened_printer = { this->printers.get_edited_preset().name, this->printers.get_edited_preset().config };
+    // 線材逐槽（c-0929-PDR-01）：find_preset 對選中那支（1 號槽，上面多料那段只有 i == 0 是 LoadAndSelect::Always）
+    // 回編輯副本、其他支回存檔版——剛載入完兩者都等於 3mf 載進來的值。找不到的槽留空名＝之後一律不算「同一支」。
+    this->project_opened_filaments.clear();
+    for (const std::string &filament_name : this->filament_presets) {
+        const Preset *loaded = this->filaments.find_preset(filament_name, false);
+        this->project_opened_filaments.push_back(loaded ? ProjectPresetSnapshot{ loaded->name, loaded->config } : ProjectPresetSnapshot{});
+    }
 
     //BBS
     //const std::string &physical_printer = config.option<ConfigOptionString>("physical_printer_settings_id", true)->value;

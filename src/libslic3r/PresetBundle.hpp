@@ -238,9 +238,11 @@ public:
     // ⚠️ 為什麼非留不可：Orca 載入時會把 3mf 裡「沒宣告改過」的鍵直接換成本機現行系統值
     //    （Preset.cpp load_external_preset → update_non_diff_values_to_base_config），而且載入後
     //    edited／m_saved_preset 都不記得「專案原本是什麼值」⇒ 不自己留，之後就分不出來。
+    // 線材每一槽各留一份、順序同 filament_presets（c-0929-PDR-01：多料逐支比，第 2 支起原本比不到）。
     // 純資料保存，不參與任何既有判斷。
     struct ProjectPresetSnapshot { std::string name; DynamicPrintConfig config; };
-    ProjectPresetSnapshot       project_opened_print, project_opened_filament, project_opened_printer;
+    ProjectPresetSnapshot              project_opened_print, project_opened_printer;
+    std::vector<ProjectPresetSnapshot> project_opened_filaments;
 
     // There will be an entry for each system profile loaded,
     // and the system profiles will point to the VendorProfile instances owned by PresetBundle::vendors.

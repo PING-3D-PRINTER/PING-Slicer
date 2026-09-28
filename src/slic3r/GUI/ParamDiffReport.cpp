@@ -45,6 +45,7 @@ struct DiffRow
     std::string key;        // Orca key（語言中性，客戶與我們對話時最精確的指稱）
     std::string std_value;  // 系統母版的值
     std::string cur_value;  // 目前設定的值
+    int         filament     = 0;      // 第幾支線材（1 起算）；0＝印表機／製程，或專案只有一支線材（不必標）
     bool        user_changed = true;   // 「自訂」＝這顆是使用者自己動的
     bool        inert        = false;  // 「未作用」＝在本專案其他設定下不會生效
 };
@@ -235,32 +236,24 @@ std::set<std::string> project_changed_keys(const std::vector<std::string> &group
     return out;
 }
 
-// ── 蒐集一個 preset collection 的差異 ───────────────────────────────────────
-void collect(const PresetCollection &coll,
+// ── 蒐集一個 preset 對它母版的差異 ─────────────────────────────────────────
+// cur＝目前的設定（選中那支是編輯副本，含還沒存的修改）；parent＝拿來比的系統母版（找不到就別呼叫：
+// 繼承鏈斷了不是當掉的理由，報告照出、由呼叫端在報告上講清楚那一塊沒有可比的標準）。
+// opened＝開專案那一刻這一格的快照；沒開專案、或開專案之後才加的線材槽＝nullptr。
+// filament＝第幾支線材（1 起算），0＝不標。
+void collect(const Preset &edited,
+             const Preset &parent,
              const std::set<std::string> &declared_by_project,
-             const PresetBundle::ProjectPresetSnapshot &opened,
-             bool project_loaded,
-             std::vector<DiffRow> &rows,
-             std::string &parent_name,
-             bool &parent_found)
+             const PresetBundle::ProjectPresetSnapshot *opened,
+             int filament,
+             std::vector<DiffRow> &rows)
 {
-    const Preset *parent = coll.get_selected_preset_parent();
-    parent_found = parent != nullptr;
-    if (! parent_found) {
-        // 繼承鏈斷了（母版被移除、或這是外部匯入的 preset）。這不是當掉的理由——
-        // 報告照出，只是這一塊沒有可比的標準，在報告上要講清楚。
-        parent_name.clear();
-        return;
-    }
-    parent_name = parent->name;
-
-    const Preset            &edited = coll.get_edited_preset();
-    const DynamicPrintConfig &cur   = edited.config;
-    const DynamicPrintConfig &ref   = parent->config;
+    const DynamicPrintConfig &cur = edited.config;
+    const DynamicPrintConfig &ref = parent.config;
 
     // B 案（c-0928-PDR-01）：專案的宣告清單只描述「開專案時那一支」預設。開專案後換過預設 ⇒ 清單講的是別支，
     // 這一組的差異全算自訂；沒換 ⇒ 開專案之後又改過的鍵（跟快照不同）也算自訂——那是使用者現在自己改的。
-    const bool same_as_opened = project_loaded && ! opened.name.empty() && opened.name == edited.name;
+    const bool same_as_opened = opened != nullptr && ! opened->name.empty() && opened->name == edited.name;
 
     // deep_compare = true：向量型（per-extruder／per-filament）的鍵要逐格比，不能整串比。
     //
@@ -271,7 +264,7 @@ void collect(const PresetCollection &coll,
     //    （"210,210,210,210"），不拆單格——per-element 沒有公開的序列化介面，
     //    自己切逗號會在含逗號的字串型參數（自訂 G-code）上壞掉。
     std::vector<std::string> keys;
-    for (std::string k : coll.current_different_from_parent_options(true)) {
+    for (std::string k : PresetCollection::dirty_options(&edited, &parent, true)) {
         const size_t hash = k.find('#');
         if (hash != std::string::npos)
             k.erase(hash);
@@ -312,13 +305,36 @@ void collect(const PresetCollection &coll,
             row.label = key;
         row.std_value = ref.has(key) ? ref.opt_serialize(key) : std::string();
         row.cur_value = cur.has(key) ? cur.opt_serialize(key) : std::string();
+        row.filament  = filament;
         row.inert     = is_inert(key, cur);
         // 沒有專案（＝使用者在自己機器上）時，差異一律是他自己調的；有專案時再加上「開專案之後改過」（B 案）
-        const bool changed_since_open = same_as_opened && opened.config.has(key)
-                                        && opened.config.opt_serialize(key) != row.cur_value;
+        const bool changed_since_open = same_as_opened && opened->config.has(key)
+                                        && opened->config.opt_serialize(key) != row.cur_value;
         row.user_changed = ! same_as_opened || declared_by_project.count(key) > 0 || changed_since_open;
         rows.push_back(std::move(row));
     }
+}
+
+// ── 第幾支線材：拿哪一份設定、跟哪一支母版比 ─────────────────────────────────
+//
+// 跟存 3mf 時算 different_settings_to_system 的是同一套（PresetBundle::full_fff_config 多料那段），
+// 只多認一次母版改名（find_preset2，同 get_selected_preset_parent）：
+//   · 目前選中的那支 ⇒ 編輯中的副本（含還沒存的修改），母版照 get_selected_preset_parent()——跟印表機／製程同一條路
+//   · 其他支 ⇒ 存檔版；自己就是基底（系統／預設／沒有繼承）的跟自己比＝沒有差異；繼承來的跟它繼承的那支比
+// ⚠️ 其他支的母版一律取實體（find_preset2 內部是 real）：母版可能正好是目前選中、正在編輯的那支，
+//    取到編輯副本就會拿使用者還沒存的改動當標準。
+struct SlotPresets { const Preset *cur = nullptr; const Preset *parent = nullptr; };
+
+SlotPresets filament_slot(const PresetCollection &filaments, const std::string &name)
+{
+    if (name == filaments.get_selected_preset_name())
+        return { &filaments.get_edited_preset(), filaments.get_selected_preset_parent() };
+    const Preset *cur = filaments.find_preset(name, false);
+    if (cur == nullptr)
+        return {};
+    if (cur->is_system || cur->is_default || cur->inherits().empty())
+        return { cur, cur };
+    return { cur, filaments.find_preset2(cur->inherits(), false) };
 }
 
 // ── 內嵌設定值全集（Eric 2026-09-17 裁 Q6 丁）────────────────────────────────
@@ -373,7 +389,7 @@ struct PresetPair { std::string name, parent; };
 std::string build_html(const std::vector<DiffRow> &rows,
                        const PresetPair           &printer_preset,
                        const PresetPair           &process_preset,
-                       const PresetPair           &filament_preset,
+                       const std::vector<PresetPair> &filament_presets,   // 照槽位順序，一支一格
                        const std::string          &bundle_version,
                        const std::string          &project_name,
                        const std::vector<std::string> &warnings,
@@ -383,9 +399,10 @@ std::string build_html(const std::vector<DiffRow> &rows,
     o << "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">\n"
       << "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
       << "<title>" << esc(_L("Parameter Difference Report")) << "</title>\n<style>\n"
-      // PING CIS（值照 ping-cis 的 tokens.json）：白底為主、Charcoal Black 文字；
-      // 橘色只代表「你在這裡」（CIS 2026-08-24〈橘色語意收斂〉），報告裡只剩頁首小標那一點
-      << ":root{--ink:#202221;--orange:#EA4E16;--gray:#EFEFEF;--line:#E3E7E4;--muted:#5A615D;"
+      // PING CIS（值照 ping-cis 的 tokens.json）：白底為主、Charcoal Black 文字。
+      // 整份不用橘：橘色只代表「你在這裡」（CIS 2026-08-24〈橘色語意收斂〉），報告沒有這個位置；
+      // 頁首小標是品牌名的文字呈現＝白底一律炭黑（Eric 2026-09-28 裁 Q2）
+      << ":root{--ink:#202221;--gray:#EFEFEF;--line:#E3E7E4;--muted:#5A615D;"
          "--warn:#946310;--warn-bg:#FFF6DF;}\n"
       << "*{box-sizing:border-box;}\n"
       << "body{margin:0;padding:0 20px 70px;background:#fff;color:var(--ink);"
@@ -393,16 +410,25 @@ std::string build_html(const std::vector<DiffRow> &rows,
          "\"Hiragino Sans\",\"Meiryo\",system-ui,sans-serif;font-size:15px;line-height:1.75;}\n"
       << ".wrap{max-width:1060px;margin:0 auto;}\n"
       << "header{padding:40px 0 14px;border-bottom:3px solid var(--ink);}\n"
-      << ".kicker{font-size:12px;letter-spacing:.2em;color:var(--orange);font-weight:700;margin:0 0 10px;}\n"
+      << ".kicker{font-size:12px;letter-spacing:.2em;color:var(--ink);font-weight:700;margin:0 0 10px;}\n"
       << "h1{font-size:26px;line-height:1.35;margin:0 0 10px;font-weight:700;}\n"
       << ".kv{font-size:12.5px;color:var(--muted);margin:0;}\n"
       << ".kv b{color:var(--ink);}\n"
       << ".grp{font-weight:700;font-size:16px;margin:30px 0 0;padding-bottom:5px;"
          "border-bottom:1px solid var(--line);}\n"
-      << "table{width:100%;border-collapse:collapse;margin:10px 0 4px;font-size:13px;}\n"
+      // 欄寬固定、每組同一套（Eric 2026-09-28 裁 Q3）：各組的欄線上下對齊；「參數」是主識別欄，
+      // 不得比輔助的「Orca key」窄（ping-ux LAY-12 同類元件長一樣、LAY-22 主識別欄不比輔助欄窄）。
+      // 欄寬固定之後長字串不會再把欄撐開 ⇒ 表頭不再 nowrap、儲存格允許任意處斷行（長 key、長 G-code 值）
+      << "table{width:100%;border-collapse:collapse;table-layout:fixed;margin:10px 0 4px;font-size:13px;}\n"
+      << "th:nth-child(1){width:30%;} th:nth-child(2){width:24%;} th:nth-child(3),th:nth-child(4){width:16%;}"
+         " th:nth-child(5){width:14%;}\n"
       << "th{text-align:left;background:var(--gray);font-weight:700;padding:7px 9px;"
-         "border-bottom:2px solid var(--ink);white-space:nowrap;}\n"
-      << "td{padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top;}\n"
+         "border-bottom:2px solid var(--ink);}\n"
+      << "td{padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere;}\n"
+      // 多料專案：第幾支線材標在參數名前面（Eric 2026-09-28 裁 Q1），固定在同一個視線位置；
+      // 不做成徽章，免得跟右邊三種標記混在一起
+      << ".fil{font-weight:700;color:var(--muted);white-space:nowrap;margin-right:6px;padding-right:6px;"
+         "border-right:1px solid var(--line);}\n"
       << "td.key{font-family:Consolas,\"Courier New\",monospace;font-size:11px;color:var(--muted);}\n"
       << "td.v{font-weight:700;} td.v.std{color:var(--muted);font-weight:600;}\n"
       << "tr.inert td{opacity:.45;}\n"
@@ -433,8 +459,14 @@ std::string build_html(const std::vector<DiffRow> &rows,
         return t;
     };
     o << "<b>" << esc(_L("Printer")) << "</b>: " << pp(printer_preset) << " &middot; "
-      << "<b>" << esc(_L("Process")) << "</b>: "  << pp(process_preset) << " &middot; "
-      << "<b>" << esc(_L("Filament")) << "</b>: " << pp(filament_preset) << "<br>"
+      << "<b>" << esc(_L("Process")) << "</b>: "  << pp(process_preset);
+    // 一支線材照舊接在同一行；多支就一支一行（ping-ux LAY-22 多值直列），表上的「線材 N」對得回這裡
+    if (filament_presets.size() == 1)
+        o << " &middot; <b>" << esc(_L("Filament")) << "</b>: " << pp(filament_presets.front());
+    else
+        for (size_t i = 0; i < filament_presets.size(); ++i)
+            o << "<br><b>" << esc(wxString::Format(_L("Filament %d"), int(i + 1))) << "</b>: " << pp(filament_presets[i]);
+    o << "<br>"
       << "<b>" << esc(_L("Software")) << "</b>: " << esc(app_version_string()) << " &middot; "
       << "<b>" << esc(_L("Profile bundle")) << "</b>: " << esc(bundle_version) << " &middot; "
       << "<b>" << esc(_L("Generated")) << "</b>: " << esc(now_string())
@@ -467,8 +499,10 @@ std::string build_html(const std::vector<DiffRow> &rows,
         for (const DiffRow &r : rows) {
             if (r.category != cat)
                 continue;
-            o << "<tr" << (r.inert ? " class=\"inert\"" : "") << ">"
-              << "<td>" << esc(r.label) << "</td>"
+            o << "<tr" << (r.inert ? " class=\"inert\"" : "") << "><td>";
+            if (r.filament > 0)
+                o << "<span class=\"fil\">" << esc(wxString::Format(_L("Filament %d"), r.filament)) << "</span>";
+            o << esc(r.label) << "</td>"
               << "<td class=\"key\">" << esc(r.key) << "</td>"
               << "<td class=\"v std\">" << esc(r.std_value) << "</td>"
               << "<td class=\"v\">" << esc(r.cur_value) << "</td><td>";
@@ -497,6 +531,12 @@ std::string build_html(const std::vector<DiffRow> &rows,
       << "</footer>\n</div>\n";
 
     // 機器可讀的那一份。放在 </div> 之後、</body> 之前，人看報告完全不受影響。
+    // filament／filament_parent＝1 號槽（schema 1 原有欄位，意思不變）；filaments＝每一支，照槽位順序。
+    const PresetPair first_filament = filament_presets.empty() ? PresetPair{} : filament_presets.front();
+    std::string filaments_json;
+    for (const PresetPair &f : filament_presets)
+        filaments_json += std::string(filaments_json.empty() ? "" : ",") + "{\"name\":\"" + json_esc(f.name)
+                          + "\",\"parent\":\"" + json_esc(f.parent) + "\"}";
     o << "<script type=\"application/json\" id=\"ping-param-diff-data\">\n"
       << "{\"schema\":1,\"generated\":\"" << json_esc(now_string()) << "\","
       << "\"app\":\"" << json_esc(app_version_string()) << "\","
@@ -505,8 +545,9 @@ std::string build_html(const std::vector<DiffRow> &rows,
       << "\"printer_parent\":\"" << json_esc(printer_preset.parent) << "\","
       << "\"process\":\"" << json_esc(process_preset.name) << "\","
       << "\"process_parent\":\"" << json_esc(process_preset.parent) << "\","
-      << "\"filament\":\"" << json_esc(filament_preset.name) << "\","
-      << "\"filament_parent\":\"" << json_esc(filament_preset.parent) << "\","
+      << "\"filament\":\"" << json_esc(first_filament.name) << "\","
+      << "\"filament_parent\":\"" << json_esc(first_filament.parent) << "\","
+      << "\"filaments\":[" << filaments_json << "],"
       << "\"config\":" << embedded_json << "}\n"
       << "</script>\n</body></html>\n";
     return o.str();
@@ -524,35 +565,61 @@ bool export_param_diff_report(wxWindow *parent)
     const std::vector<std::string> &declared = pb->project_different_settings_to_system;
 
     // different_settings_to_system 的排列：[0]=process、[1..n]=filament、[n+1]=printer。
-    // 線材只取第 1 槽（1 號料）——多料機每槽各有 preset，v1 先比主槽，其餘走售服端腳本。
     //
     // ⚠️ printer 的索引要用**這份 vector 自己的長度**推，不能用目前的 filament_presets.size()：
     //    那份是載入專案當下依 num_filaments + 2 配好的，而使用者載入後還可以改噴頭數
-    //    ⇒ 用現況去索引會整個錯位，把線材的鍵當成印表機的。
+    //    ⇒ 用現況去索引會整個錯位，把線材的鍵當成印表機的。線材那幾格同理只認開專案時的 n 支。
     const size_t idx_process   = 0;
-    const size_t idx_filament  = 1;
     const size_t idx_printer   = declared.empty() ? 0 : declared.size() - 1;
+    const size_t n_declared_filaments = declared.size() >= 2 ? declared.size() - 2 : 0;
 
     std::vector<DiffRow>     rows;
     std::vector<std::string> warnings;
-    std::string              parent_process, parent_filament, parent_printer;
-    bool                     ok_process = false, ok_filament = false, ok_printer = false;
+    bool                     all_parents_found = true;
 
-    collect(pb->printers,  project_changed_keys(declared, idx_printer),  pb->project_opened_printer,  project_loaded,
-            rows, parent_printer,  ok_printer);
-    collect(pb->prints,    project_changed_keys(declared, idx_process),  pb->project_opened_print,    project_loaded,
-            rows, parent_process,  ok_process);
-    collect(pb->filaments, project_changed_keys(declared, idx_filament), pb->project_opened_filament, project_loaded,
-            rows, parent_filament, ok_filament);
+    // 印表機、製程：目前選中那一支對它的母版
+    auto collect_selected = [&](const PresetCollection &coll, size_t idx, const PresetBundle::ProjectPresetSnapshot &opened) {
+        const Preset *parent = coll.get_selected_preset_parent();
+        if (parent == nullptr) {
+            all_parents_found = false;
+            return PresetPair{coll.get_edited_preset().name, std::string()};
+        }
+        collect(coll.get_edited_preset(), *parent, project_changed_keys(declared, idx), project_loaded ? &opened : nullptr, 0, rows);
+        return PresetPair{coll.get_edited_preset().name, parent->name};
+    };
+    const PresetPair printer_pair = collect_selected(pb->printers, idx_printer, pb->project_opened_printer);
+    const PresetPair process_pair = collect_selected(pb->prints,   idx_process, pb->project_opened_print);
 
-    if (! ok_printer || ! ok_process || ! ok_filament)
+    // 線材逐支比（Eric 2026-09-28 裁 Q1「補」；09-17 起只比第 1 支、第 2 支起的差異報告上看不到）：
+    // 每一支各自跟自己的母版比、各自套自己那一格宣告清單 [1+i] 與快照。開專案之後才加的槽兩樣都沒有
+    // ⇒ 那一支的差異全算自訂（同「開專案後換過預設」）。專案只有一支線材就不標第幾支。
+    const size_t            n_filaments = pb->filament_presets.size();
+    std::vector<PresetPair> filament_pairs;
+    for (size_t i = 0; i < n_filaments; ++i) {
+        const std::string &name = pb->filament_presets[i];
+        const SlotPresets  slot = filament_slot(pb->filaments, name);
+        filament_pairs.push_back({name, slot.parent ? slot.parent->name : std::string()});
+        if (slot.cur == nullptr || slot.parent == nullptr) {
+            all_parents_found = false;
+            continue;
+        }
+        collect(*slot.cur, *slot.parent,
+                i < n_declared_filaments ? project_changed_keys(declared, 1 + i) : std::set<std::string>(),
+                project_loaded && i < pb->project_opened_filaments.size() ? &pb->project_opened_filaments[i] : nullptr,
+                n_filaments > 1 ? int(i + 1) : 0, rows);
+    }
+
+    if (! all_parents_found)
         warnings.push_back(into_u8(_L(
             "One or more presets have no system profile to compare against (the inheritance chain is "
             "broken, or the preset was imported from outside). Those sections are missing from this report.")));
 
-    // 先照組序（七組照原型、Orca 分類在後）、組內照 key，兩份報告才比得起來
+    // 先照組序（七組照原型、Orca 分類在後）、組內照 key、同一個 key 再照第幾支線材——
+    // 兩份報告才比得起來，而且同一顆參數的各支線材排在一起
     std::stable_sort(rows.begin(), rows.end(), [](const DiffRow &a, const DiffRow &b) {
-        return a.group != b.group ? a.group < b.group : a.key < b.key;
+        if (a.group != b.group)
+            return a.group < b.group;
+        return a.key != b.key ? a.key < b.key : a.filament < b.filament;
     });
 
     // 刻意不翻譯：拿不到版本時印 "-" 就好。"unknown" 是太泛用的 msgid，
@@ -577,9 +644,9 @@ bool export_param_diff_report(wxWindow *parent)
 
     const std::string html = build_html(
         rows,
-        PresetPair{pb->printers.get_edited_preset().name,  parent_printer},
-        PresetPair{pb->prints.get_edited_preset().name,    parent_process},
-        PresetPair{pb->filaments.get_edited_preset().name, parent_filament},
+        printer_pair,
+        process_pair,
+        filament_pairs,
         bundle_version,
         project_name,
         warnings,
