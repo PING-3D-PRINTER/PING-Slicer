@@ -278,6 +278,17 @@ std::string now_string()
     return buf;
 }
 
+// 軟體版號＝標題列那一組（BBLTopbar::SetTitle）：「PING Slicer V3.6.x」，測試版再加「 Beta T0xx」。
+// ⚠️ 不用 SLIC3R_VERSION：那是承襲 BBS 的設定檔版號（01.10.01.50），客戶與售服都認不得；
+//    原型 v2（Eric 2026-09-17 定案）寫的是「軟體：PING Slicer V3.6.1」。
+std::string app_version_string()
+{
+    std::string s = std::string("PING Slicer V") + SoftFever_VERSION;
+    if (*PING_TEST_BUILD)   // 出貨版為空字串＝不附加（同標題列）
+        s += std::string(" Beta ") + PING_TEST_BUILD;
+    return s;
+}
+
 // ── 報告本體 ────────────────────────────────────────────────────────────────
 // name ＝目前選的 preset、parent ＝拿來比的系統母版。母版名一定要印出來：
 // 差異清單只有在「跟什麼比」講清楚時才有意義，尤其客戶的 preset 可能繼承自舊名母版。
@@ -343,7 +354,7 @@ std::string build_html(const std::vector<DiffRow> &rows,
     o << "<b>" << esc(_L("Printer")) << "</b>: " << pp(printer_preset) << " &middot; "
       << "<b>" << esc(_L("Process")) << "</b>: "  << pp(process_preset) << " &middot; "
       << "<b>" << esc(_L("Filament")) << "</b>: " << pp(filament_preset) << "<br>"
-      << "<b>" << esc(_L("Software")) << "</b>: " << esc(std::string(SLIC3R_VERSION)) << " &middot; "
+      << "<b>" << esc(_L("Software")) << "</b>: " << esc(app_version_string()) << " &middot; "
       << "<b>" << esc(_L("Profile bundle")) << "</b>: " << esc(bundle_version) << " &middot; "
       << "<b>" << esc(_L("Generated")) << "</b>: " << esc(now_string())
       << "</p></header>\n";
@@ -406,7 +417,7 @@ std::string build_html(const std::vector<DiffRow> &rows,
     // 機器可讀的那一份。放在 </div> 之後、</body> 之前，人看報告完全不受影響。
     o << "<script type=\"application/json\" id=\"ping-param-diff-data\">\n"
       << "{\"schema\":1,\"generated\":\"" << json_esc(now_string()) << "\","
-      << "\"app\":\"" << json_esc(SLIC3R_VERSION) << "\","
+      << "\"app\":\"" << json_esc(app_version_string()) << "\","
       << "\"bundle\":\"" << json_esc(bundle_version) << "\","
       << "\"printer\":\"" << json_esc(printer_preset.name) << "\","
       << "\"printer_parent\":\"" << json_esc(printer_preset.parent) << "\","
