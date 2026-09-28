@@ -36,6 +36,14 @@ NEW_ENTRIES = {
     "Difference report": "差異清單",
     "Failed to write the report.": "報告寫入失敗。",
     "Export a single HTML file listing how the current settings differ from the system profile": "匯出一份 HTML，列出目前設定與系統母版的差異",
+    # PING（2026-09-28・牌 c-0928-PDR-02）：參數差異清單的七組組名（Eric 裁 Q3 照原型 v2）。
+    #   Support／Temperature／Cooling 沿用既有譯文（支撐／溫度／冷卻，與原型相同），不另加。
+    #   Travel 既有譯文是「空駛」（設定頁用語），報告照原型寫「移動」⇒ 用 msgctxt 另起一條
+    #  （.mo 存成 ctxt\x04msgid；sync_po 不會自動補 msgctxt 條目，.po 那塊是手動加的）。
+    "Shell & Strength": "外觀與強度",
+    "First Layer & Adhesion": "首層與附著",
+    "Speed & Flow": "速度與流量",
+    "ParamDiffGroup\x04Travel": "移動",
     # PING(2026-09-01・牌 c-0901-STEP-01)：STEP 工具收成「只檢查」，文案不得再承諾修補
     #（Eric 裁：修補不見得有效、不承擔那個責任）。舊 msgid 留在 .mo 當死條目，不移除。
     "Open STEP defect check": "開啟 STEP 破面檢查",

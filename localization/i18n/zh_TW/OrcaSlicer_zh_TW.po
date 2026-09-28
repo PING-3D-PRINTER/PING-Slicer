@@ -21609,3 +21609,24 @@ msgstr "標準"
 
 msgid "Updated by PING"
 msgstr "PING 已更新"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "First Layer & Adhesion"
+msgstr "首層與附著"
+
+msgid "Shell & Strength"
+msgstr "外觀與強度"
+
+msgid "Speed & Flow"
+msgstr "速度與流量"
+
+# PING（2026-09-28・牌 c-0928-PDR-02）：手動加。sync_po 不會自動補 msgctxt 條目（見 tools/ping/mo_patch.py 該條註解）；
+# 加了之後 sync_po 就會照 .mo 維護它的譯文。
+msgctxt "ParamDiffGroup"
+msgid "Travel"
+msgstr "移動"
