@@ -39,7 +39,8 @@ namespace {
 // ── 一列差異 ────────────────────────────────────────────────────────────────
 struct DiffRow
 {
-    std::string category;   // 已翻譯的主題（取自 ConfigOptionDef::category）
+    int         group = 0;  // 分組（下面的 Group；決定組的先後）
+    std::string category;   // 已翻譯的組名（七組之一，或退回 ConfigOptionDef::category）
     std::string label;      // 已翻譯的參數名
     std::string key;        // Orca key（語言中性，客戶與我們對話時最精確的指稱）
     std::string std_value;  // 系統母版的值
@@ -94,6 +95,70 @@ bool is_inert(const std::string &key, const DynamicPrintConfig &cur)
         return str_is("ironing_type", "no ironing");
 
     return false;
+}
+
+// ── 分組（Eric 2026-09-28 裁 Q3「照原型 v2 七組」）──────────────────────────────
+//
+// 組與組序＝原型 v2（原型_參數差異清單匯出_v2_20260917.html 資料列的 g: 欄）。原型只列到 27 個鍵，
+// 其餘照下面的鍵名規則推；這組規則把那 27 個鍵逐一推回原型的組（c-0928-PDR-02 實測），所以不另存一張表。
+// 規則先中先得，順序有意義：
+//   溫度        temperature／_temp            排最前：首層溫度要跟其他層並排才好比
+//   支撐        support_／tree_support_ 開頭   排在首層前：原型把 support_object_first_layer_gap 放支撐
+//   首層與附著  initial_layer／first_layer／brim／skirt（原型把 raft_first_layer_density、first_layer_flow_ratio 放這裡）
+//   冷卻        fan／cooling／slow_down
+//   移動        z_hop／retract／travel／wipe
+//   速度與流量  speed／accel／jerk／flow／volumetric
+//   外觀與強度  wall／shell／infill／seam／scarf／ironing   排在速度後：原型把 small_perimeter_speed 放速度
+// 一句話：鍵名講的是支撐、首層、冷卻、移動這幾樣東西，就歸那一組，不管它調的是速度還是流量；牆與填充的速度歸速度。
+// 都不中 ⇒ 退回 Orca 的 category：Support／Speed／Strength 併進支撐／速度與流量／外觀與強度（不併會出現兩個
+// 「支撐」），其餘用它自己的翻譯名、排在七組之後。PING 自家功能（ping_）、換料塔（tower）與沖刷（flush_）
+// 不套鍵名規則，直接用自己的 category——不然同一個功能的鍵會被拆散到好幾組。
+enum Group { gSupport, gShell, gFirstLayer, gTemperature, gSpeedFlow, gCooling, gTravel, gOrcaCategory };
+
+int group_of(const std::string &key, const std::string &category)
+{
+    auto has = [&key](const char *s) { return key.find(s) != std::string::npos; };
+    if (! boost::starts_with(key, "ping_") && ! boost::starts_with(key, "flush_") && ! has("tower")) {
+        if (has("temperature") || has("_temp_") || boost::ends_with(key, "_temp"))
+            return gTemperature;
+        // 這兩顆的 support 是「機器支援某功能」，不是支撐
+        if ((boost::starts_with(key, "support_") || boost::starts_with(key, "tree_support_"))
+            && key != "support_air_filtration" && key != "support_multi_bed_types")
+            return gSupport;
+        if (has("initial_layer") || has("first_layer") || has("brim") || has("skirt"))
+            return gFirstLayer;
+        // fan 要比對成一個字：elefant_foot_compensation 裡也有 fan。slow_down_layers＝前幾層放慢，不是冷卻降速
+        if (boost::starts_with(key, "fan_") || has("_fan") || has("cooling") || (has("slow_down") && key != "slow_down_layers"))
+            return gCooling;
+        if (boost::starts_with(key, "z_hop") || has("retract") || has("travel") || has("wipe"))
+            return gTravel;
+        if (has("speed") || has("accel") || has("jerk") || has("flow") || has("volumetric"))
+            return gSpeedFlow;
+        if (has("wall") || has("shell") || has("infill") || has("seam") || has("scarf") || has("ironing"))
+            return gShell;
+    }
+    if (category == "Support")
+        return gSupport;
+    if (category == "Speed")
+        return gSpeedFlow;
+    if (category == "Strength")
+        return gShell;
+    return gOrcaCategory;
+}
+
+// 「Travel」在 .mo 已經譯成「空駛」（設定頁的用語）；報告照原型寫「移動」⇒ 用 context 另起一條，不動設定頁那條。
+wxString group_name(int group)
+{
+    switch (group) {
+    case gSupport:     return _L("Support");
+    case gShell:       return _L("Shell & Strength");
+    case gFirstLayer:  return _L("First Layer & Adhesion");
+    case gTemperature: return _L("Temperature");
+    case gSpeedFlow:   return _L("Speed & Flow");
+    case gCooling:     return _L("Cooling");
+    case gTravel:      return _CTX(L_CONTEXT("Travel", "ParamDiffGroup"), "ParamDiffGroup");
+    default:           return wxString();
+    }
 }
 
 // ── HTML 逸出 ───────────────────────────────────────────────────────────────
@@ -237,7 +302,11 @@ void collect(const PresetCollection &coll,
 
         DiffRow row;
         row.key       = key;
-        row.category  = od->category.empty() ? into_u8(_L("Other")) : into_u8(_(od->category));
+        row.group     = group_of(key, od->category);
+        if (row.group != gOrcaCategory)
+            row.category = into_u8(group_name(row.group));
+        else   // 「Others」與空白都叫「其他」：不合併的話，英文介面會出現 Other／Others 兩組
+            row.category = into_u8(od->category.empty() || od->category == "Others" ? _L("Other") : _(od->category));
         row.label     = into_u8(_(od->full_label.empty() ? od->label : od->full_label));
         if (row.label.empty())
             row.label = key;
@@ -314,8 +383,10 @@ std::string build_html(const std::vector<DiffRow> &rows,
     o << "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">\n"
       << "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
       << "<title>" << esc(_L("Parameter Difference Report")) << "</title>\n<style>\n"
-      // PING CIS：白底為主、Charcoal Black 文字、Raised Orange 只當 accent
-      << ":root{--ink:#202221;--orange:#EA4E16;--gray:#EFEFEF;--line:#DCDCDC;--muted:#6B6E6C;}\n"
+      // PING CIS（值照 ping-cis 的 tokens.json）：白底為主、Charcoal Black 文字；
+      // 橘色只代表「你在這裡」（CIS 2026-08-24〈橘色語意收斂〉），報告裡只剩頁首小標那一點
+      << ":root{--ink:#202221;--orange:#EA4E16;--gray:#EFEFEF;--line:#E3E7E4;--muted:#5A615D;"
+         "--warn:#946310;--warn-bg:#FFF6DF;}\n"
       << "*{box-sizing:border-box;}\n"
       << "body{margin:0;padding:0 20px 70px;background:#fff;color:var(--ink);"
          "font-family:\"Noto Sans TC\",\"Source Han Sans TC\",\"Microsoft JhengHei\","
@@ -335,13 +406,16 @@ std::string build_html(const std::vector<DiffRow> &rows,
       << "td.key{font-family:Consolas,\"Courier New\",monospace;font-size:11px;color:var(--muted);}\n"
       << "td.v{font-weight:700;} td.v.std{color:var(--muted);font-weight:600;}\n"
       << "tr.inert td{opacity:.45;}\n"
-      << ".b{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;"
+      // 三種標記一樣大：每顆都帶 1px 框（沒框的那兩顆框是透明的）
+      << ".b{display:inline-block;font-size:10.5px;font-weight:700;padding:0 5px;border:1px solid transparent;"
          "border-radius:2px;white-space:nowrap;margin-right:3px;}\n"
-      << ".b.user{background:var(--orange);color:#fff;}\n"
+      // 「自訂」不用橘底白字（Eric 2026-09-28 裁 Q2 照 CIS：橘色只代表「你在這裡」，而且橘底白字對比只有 3.75:1）
+      << ".b.user{background:#fff;color:var(--ink);border-color:var(--ink);}\n"
       << ".b.drift{background:var(--ink);color:#fff;}\n"
       << ".b.inert{background:var(--gray);color:var(--muted);}\n"
       << ".note{font-size:12.5px;color:var(--muted);margin:14px 0 0;}\n"
-      << ".warn{border:1px solid var(--line);border-left:3px solid var(--orange);"
+      // 警示訊息用警示黃，不用橘（同上 CIS 那一節）
+      << ".warn{background:var(--warn-bg);color:var(--warn);border-left:3px solid var(--warn);"
          "padding:12px 16px;margin:16px 0;font-size:13.5px;}\n"
       << "footer{margin-top:44px;padding-top:14px;border-top:1px solid var(--line);"
          "font-size:12px;color:var(--muted);}\n"
@@ -355,7 +429,7 @@ std::string build_html(const std::vector<DiffRow> &rows,
     auto pp = [](const PresetPair &p) {
         std::string t = esc(p.name);
         if (! p.parent.empty() && p.parent != p.name)
-            t += " <span style=\"color:#6B6E6C\">&rarr; " + esc(p.parent) + "</span>";
+            t += " <span style=\"color:var(--muted)\">&rarr; " + esc(p.parent) + "</span>";
         return t;
     };
     o << "<b>" << esc(_L("Printer")) << "</b>: " << pp(printer_preset) << " &middot; "
@@ -375,7 +449,8 @@ std::string build_html(const std::vector<DiffRow> &rows,
           << "</p>\n";
     }
 
-    // 依主題分組（Eric 2026-09-17 裁「版面甲」）。組內維持鍵名排序，跨版本比對才穩定。
+    // 依主題分組（Eric 2026-09-17 裁「版面甲」）。rows 已照「組序、key」排好（見 export_param_diff_report）
+    // ⇒ 照出現順序收組，就是原型的組序；組內維持鍵名排序，跨版本比對才穩定。
     std::vector<std::string> cats;
     for (const DiffRow &r : rows)
         if (std::find(cats.begin(), cats.end(), r.category) == cats.end())
@@ -385,7 +460,7 @@ std::string build_html(const std::vector<DiffRow> &rows,
         size_t n = std::count_if(rows.begin(), rows.end(),
                                  [&cat](const DiffRow &r) { return r.category == cat; });
         o << "<div class=\"grp\">" << esc(cat) << " <span style=\"font-weight:400;"
-          << "color:#6B6E6C;font-size:12px\">(" << n << ")</span></div>\n<table><tr>"
+          << "color:var(--muted);font-size:12px\">(" << n << ")</span></div>\n<table><tr>"
           << "<th>" << esc(_L("Parameter")) << "</th><th>Orca key</th>"
           << "<th>" << esc(_L("Standard value")) << "</th><th>" << esc(_L("Current value")) << "</th>"
           << "<th>" << esc(_L("Flag")) << "</th></tr>\n";
@@ -475,19 +550,25 @@ bool export_param_diff_report(wxWindow *parent)
             "One or more presets have no system profile to compare against (the inheritance chain is "
             "broken, or the preset was imported from outside). Those sections are missing from this report.")));
 
-    // 依主題分組排序：先照 category 出現順序、組內照 key，兩份報告才比得起來
-    std::stable_sort(rows.begin(), rows.end(),
-                     [](const DiffRow &a, const DiffRow &b) { return a.key < b.key; });
+    // 先照組序（七組照原型、Orca 分類在後）、組內照 key，兩份報告才比得起來
+    std::stable_sort(rows.begin(), rows.end(), [](const DiffRow &a, const DiffRow &b) {
+        return a.group != b.group ? a.group < b.group : a.key < b.key;
+    });
 
-    std::string bundle_version;
+    // 刻意不翻譯：拿不到版本時印 "-" 就好。"unknown" 是太泛用的 msgid，
+    // 佔用它會讓日後別處誤用同一條翻譯。
+    std::string bundle_version = "-";
     {
+        // 照 PING.json 的寫法印（01.00.01.24）：Semver::to_string() 會吃掉前導零（1.0.1.24），而售服與治理文件
+        // 講的都是檔案上那個寫法。BBS 的四段版號每段本來就是兩位（semver.c：第四段存成 patch＝CC×100＋DD）
+        // ⇒ 補零就逐字還原，不必再讀一次 PING.json。
         auto it = pb->vendors.find("PING");
-        if (it != pb->vendors.end())
-            bundle_version = it->second.config_version.to_string();
-        // 刻意不翻譯：拿不到版本時印 "-" 就好。"unknown" 是太泛用的 msgid，
-        // 佔用它會讓日後別處誤用同一條翻譯。
-        if (bundle_version.empty())
-            bundle_version = "-";
+        if (it != pb->vendors.end() && it->second.config_version.valid()) {
+            const Semver &v = it->second.config_version;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%02d.%02d.%02d.%02d", v.maj(), v.min(), v.patch() / 100, v.patch() % 100);
+            bundle_version = buf;
+        }
     }
 
     std::string project_name;
