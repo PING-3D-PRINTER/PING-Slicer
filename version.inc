@@ -26,3 +26,8 @@ set(PING_TEST_BUILD "T065")
 if (NOT DEFINED ORCA_UPDATER_SIG_KEY)
     set(ORCA_UPDATER_SIG_KEY "" CACHE STRING "Base64url encoded updater signature key")
 endif()
+
+# 試用包覆寫（c-0928-PDR-01；只存在於 claude/pdr-0928-trial，永不併任何線）。
+# 這條分支＝功能分支 claude/pdr-0928＋這一顆，只為了 build 給 Eric 試用的包：標題列顯示「Beta PDR」，
+# 不會被誤認成 T065；非 T 版、不佔 T 號、不進內部共用入口、不給客戶。上車時併的是功能分支，不是這條。
+set(PING_TEST_BUILD "PDR")
