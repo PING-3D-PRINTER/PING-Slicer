@@ -3777,6 +3777,12 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
 	this->update_compatible(PresetSelectCompatibleType::Never);
     this->update_multi_material_filament_presets();
 
+    // PING（c-0928-PDR-01 B 案）：三組都載入、選好之後才留快照（欄位語意見 PresetBundle.hpp）。
+    // 線材集合的 edited＝1 號槽（上面多料那段由後往前載，i == 0 那支才 LoadAndSelect::Always）。
+    this->project_opened_print    = { this->prints.get_edited_preset().name,    this->prints.get_edited_preset().config };
+    this->project_opened_filament = { this->filaments.get_edited_preset().name, this->filaments.get_edited_preset().config };
+    this->project_opened_printer  = { this->printers.get_edited_preset().name,  this->printers.get_edited_preset().config };
+
     //BBS
     //const std::string &physical_printer = config.option<ConfigOptionString>("physical_printer_settings_id", true)->value;
     const std::string physical_printer;

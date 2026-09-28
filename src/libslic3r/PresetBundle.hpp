@@ -233,6 +233,15 @@ public:
     // 沒有載入過專案時為空 ⇒ 差異全算「自訂」，那也是對的（自己的機器上不存在標準落差）。
     std::vector<std::string>    project_different_settings_to_system;
 
+    // PING（2026-09-28，牌 c-0928-PDR-01 B 案）：與上面那份同一時刻，留下三組預設「剛載入完」的名稱與設定值。
+    // 唯一用途＝「匯出參數差異清單」分辨「開專案之後又改過」的鍵——那是使用者自己改的，不能標成「PING 已更新」。
+    // ⚠️ 為什麼非留不可：Orca 載入時會把 3mf 裡「沒宣告改過」的鍵直接換成本機現行系統值
+    //    （Preset.cpp load_external_preset → update_non_diff_values_to_base_config），而且載入後
+    //    edited／m_saved_preset 都不記得「專案原本是什麼值」⇒ 不自己留，之後就分不出來。
+    // 純資料保存，不參與任何既有判斷。
+    struct ProjectPresetSnapshot { std::string name; DynamicPrintConfig config; };
+    ProjectPresetSnapshot       project_opened_print, project_opened_filament, project_opened_printer;
+
     // There will be an entry for each system profile loaded,
     // and the system profiles will point to the VendorProfile instances owned by PresetBundle::vendors.
     VendorMap                   vendors;

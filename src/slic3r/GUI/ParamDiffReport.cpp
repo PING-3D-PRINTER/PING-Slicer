@@ -173,6 +173,7 @@ std::set<std::string> project_changed_keys(const std::vector<std::string> &group
 // ── 蒐集一個 preset collection 的差異 ───────────────────────────────────────
 void collect(const PresetCollection &coll,
              const std::set<std::string> &declared_by_project,
+             const PresetBundle::ProjectPresetSnapshot &opened,
              bool project_loaded,
              std::vector<DiffRow> &rows,
              std::string &parent_name,
@@ -191,6 +192,10 @@ void collect(const PresetCollection &coll,
     const Preset            &edited = coll.get_edited_preset();
     const DynamicPrintConfig &cur   = edited.config;
     const DynamicPrintConfig &ref   = parent->config;
+
+    // B 案（c-0928-PDR-01）：專案的宣告清單只描述「開專案時那一支」預設。開專案後換過預設 ⇒ 清單講的是別支，
+    // 這一組的差異全算自訂；沒換 ⇒ 開專案之後又改過的鍵（跟快照不同）也算自訂——那是使用者現在自己改的。
+    const bool same_as_opened = project_loaded && ! opened.name.empty() && opened.name == edited.name;
 
     // deep_compare = true：向量型（per-extruder／per-filament）的鍵要逐格比，不能整串比。
     //
@@ -239,8 +244,10 @@ void collect(const PresetCollection &coll,
         row.std_value = ref.has(key) ? ref.opt_serialize(key) : std::string();
         row.cur_value = cur.has(key) ? cur.opt_serialize(key) : std::string();
         row.inert     = is_inert(key, cur);
-        // 沒有專案（＝使用者在自己機器上）時，差異一律是他自己調的
-        row.user_changed = ! project_loaded || declared_by_project.count(key) > 0;
+        // 沒有專案（＝使用者在自己機器上）時，差異一律是他自己調的；有專案時再加上「開專案之後改過」（B 案）
+        const bool changed_since_open = same_as_opened && opened.config.has(key)
+                                        && opened.config.opt_serialize(key) != row.cur_value;
+        row.user_changed = ! same_as_opened || declared_by_project.count(key) > 0 || changed_since_open;
         rows.push_back(std::move(row));
     }
 }
@@ -456,11 +463,11 @@ bool export_param_diff_report(wxWindow *parent)
     std::string              parent_process, parent_filament, parent_printer;
     bool                     ok_process = false, ok_filament = false, ok_printer = false;
 
-    collect(pb->printers,  project_changed_keys(declared, idx_printer),  project_loaded,
+    collect(pb->printers,  project_changed_keys(declared, idx_printer),  pb->project_opened_printer,  project_loaded,
             rows, parent_printer,  ok_printer);
-    collect(pb->prints,    project_changed_keys(declared, idx_process),  project_loaded,
+    collect(pb->prints,    project_changed_keys(declared, idx_process),  pb->project_opened_print,    project_loaded,
             rows, parent_process,  ok_process);
-    collect(pb->filaments, project_changed_keys(declared, idx_filament), project_loaded,
+    collect(pb->filaments, project_changed_keys(declared, idx_filament), pb->project_opened_filament, project_loaded,
             rows, parent_filament, ok_filament);
 
     if (! ok_printer || ! ok_process || ! ok_filament)
