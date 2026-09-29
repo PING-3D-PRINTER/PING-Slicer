@@ -29,15 +29,6 @@
    "h": 1200
   },
   {
-   "file": "a_wolf.jpg",
-   "name": "狼",
-   "cat": "動物",
-   "mode": "dual",
-   "subject": "pet_short",
-   "w": 1200,
-   "h": 800
-  },
-  {
    "file": "a_kitten.jpg",
    "name": "幼貓",
    "cat": "動物",
