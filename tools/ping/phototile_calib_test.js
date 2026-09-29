@@ -618,14 +618,16 @@ function fakeImg(){
     const h = x => require('crypto').createHash('sha256').update(x, 'utf8').digest('hex');
     /* 這兩顆值的來源＝根 repo 照片磚_色彩校正/色彩校正_四料48格.3mf（make_calib_quad_3mf.py 預設參數產出、
        附自我驗證 49 支全過）。🔴 要改這兩顆值之前先回答一句：新幾何實印驗證過了嗎？
-       沒有就不要改它，要改的是程式。 */
-    assert.strictEqual(h(c.model), '685ed37e8626bf17abce6478017da630042ebbe3e80016fa064c77617972ff38', '3dmodel.model 不同');
+       沒有就不要改它，要改的是程式。
+       2026-09-30 改過一次（厚 10→20，Eric「照建議」＝開發中清單 #40 Q3 甲；model 值原 685ed37e…，cfg 不變）：
+       那一問的答案＝厚 20 的四料 48 格 0929 在 .142 實印過（循環塔版、Eric 看過）；本檔這版（舊洗料柱）還沒印過，#21 改循環塔後照舊要重印。 */
+    assert.strictEqual(h(c.model), 'fe1a9b53dca482e6fb13b341a6725b58507a82df78ae809733bcfe61c30c3067', '3dmodel.model 不同');
     assert.strictEqual(h(c.cfg),   '086a100d10fdd0ad6e0da221759eea39f92aca1bd775a36b320d41868b4cf110', 'model_settings.config 不同');
   });
-  await check('48 格（6 對 × 8 階）＋洗料柱＝49 支；正面 80×60、厚 10 mm（Orca 上限 64）', () => {
+  await check('48 格（6 對 × 8 階）＋洗料柱＝49 支；正面 80×60、厚 20 mm（Orca 上限 64）', () => {
     const c = E.buildCalibQuadParts({ colors: QCOL, names: QNAME });
     assert.strictEqual(c.cells, 48); assert.strictEqual(c.partCount, 49);
-    assert.strictEqual(c.width, 80); assert.strictEqual(c.height, 60); assert.strictEqual(c.thick, 10);
+    assert.strictEqual(c.width, 80); assert.strictEqual(c.height, 60); assert.strictEqual(c.thick, 20);
     assert(c.partCount <= 64, '超過 Orca 零件上限');
   });
   await check('🔴 零件名符合 C++ parse_photo_part_name：尾端 A B C D 四個 token、和＝100、有 #RRGGBB', () => {
@@ -643,13 +645,13 @@ function fakeImg(){
   });
   await check('整組（磚＋洗料柱）置中在原點 ⇒ 3MF 座標＝G-code 座標（0914 v2 實切踩過）', () => {
     const c = E.buildCalibQuadParts({ colors: QCOL, names: QNAME });
-    /* 聯集 X 範圍 [0, 80+15+25=120] ⇒ 要平移 -60；Y [0,10] ⇒ -5 */
-    assert(c.model.includes('transform="1 0 0 0 1 0 0 0 1 -60 -5 0"'), '未置中，或置中時沒含洗料柱');
+    /* 聯集 X 範圍 [0, 80+15+25=120] ⇒ 要平移 -60；Y [0,20] ⇒ -10 */
+    assert(c.model.includes('transform="1 0 0 0 1 0 0 0 1 -60 -10 0"'), '未置中，或置中時沒含洗料柱');
   });
   await check('pillarMm:0 ⇒ 退回無柱幾何（48 支）；料色不合法 ⇒ 拒產（陽性對照）', () => {
     const c = E.buildCalibQuadParts({ colors: QCOL, names: QNAME, pillarMm: 0 });
     assert.strictEqual(c.partCount, 48);
-    assert(c.model.includes('transform="1 0 0 0 1 0 0 0 1 -40 -5 0"'), '無柱時該以 80 置中');
+    assert(c.model.includes('transform="1 0 0 0 1 0 0 0 1 -40 -10 0"'), '無柱時該以 80 置中');
     assert.throws(() => E.buildCalibQuadParts({ colors: ['#F2F0EB','#C0392B','不是色','#1A1A1A'] }));
     assert.throws(() => E.buildCalibQuadParts({ colors: ['#F2F0EB','#C0392B'] }));
   });

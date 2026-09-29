@@ -653,7 +653,7 @@ function calibSpecText(){
   const who=window.PhotoTileMatFlow ? PhotoTileMatFlow.calLabelHtml() : cols.join(' · ');
   /* 幾何數字一律問引擎（CALIB_STRIP_GEO／CALIB_QUAD_GEO＝唯一來源）——頁面自己寫一份就是 v1／v2c 分叉的成因 */
   if(slotCount===4){
-    const g=(eng&&eng.calibQuadGeo)?eng.calibQuadGeo():{cellMm:10,thickMm:10,levels:8,pillarMm:25};
+    const g=(eng&&eng.calibQuadGeo)?eng.calibQuadGeo():{cellMm:10,thickMm:20,levels:8,pillarMm:25};
     return `${who}｜四料 48 格（六對 × ${g.levels} 階，${g.cellMm*g.levels}×${g.cellMm*6}×${g.thickMm} mm）＋${g.pillarMm} mm 洗料柱——<b>六對一次做到位</b>，不砍成只做白配其他三色。`;
   }
   const S=(eng&&eng.calibStripDefaultS)?eng.calibStripDefaultS(cols[0],cols[1]):[];
