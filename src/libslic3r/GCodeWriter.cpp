@@ -176,6 +176,9 @@ std::string GCodeWriter::set_bed_temperature(int temperature, bool wait)
 
 std::string GCodeWriter::set_chamber_temperature(int temperature, bool wait)
 {
+    // PING (#33 Q3): no PING Klipper printer knows M141/M191 (unknown command: nothing heats, nothing waits).
+    if (FLAVOR_IS(gcfKlipper))
+        return {};
     std::string code, comment;
     std::ostringstream gcode;
 
@@ -195,6 +198,25 @@ std::string GCodeWriter::set_chamber_temperature(int temperature, bool wait)
         gcode << code << " S" << temperature << ";" << comment << "\n";
     }
     return gcode.str();
+}
+
+// PING 2026-09-29（ORCA 牌 c-0929-MCR-01；Eric 裁「功能還有，就不藏了，先把源頭確認清楚」）：
+// Klipper 2024-03 起以 MINIMUM_CRUISE_RATIO 取代 ACCEL_TO_DECEL，之後把舊參數整個移除。PING 機隊實查
+// （Tailscale 在線 18 台；核心正本樹 5bd94a7f 與 Pi＋Duet 線機上 toolhead.py 同一份 md5 857f57f9）只認
+// MINIMUM_CRUISE_RATIO，ACCEL_TO_DECEL 被靜默略過 ⇒「煞車速度」原本在機台上沒有作用。
+// 這裡把同一個百分比換算成 MCR＝1－百分比（Klipper 要求 0 ≤ MCR < 1，夾在 0～0.99）一起送；
+// ACCEL_TO_DECEL 照送，給仍吃舊參數的舊韌體（兩邊都會靜默略過自己不認得的那一個）。
+// 只在值改變時送：一次列印通常只送一次，也不會蓋掉校正列印自己送的 MINIMUM_CRUISE_RATIO=0
+// （GCode.cpp 的 Calib_Input_shaping_freq／damp）。
+std::string GCodeWriter::min_cruise_ratio_param()
+{
+    const double mcr = std::clamp(1. - this->config.accel_to_decel_factor.value / 100., 0., 0.99);
+    if (m_last_min_cruise_ratio >= 0. && is_approx(mcr, m_last_min_cruise_ratio))
+        return std::string();
+    m_last_min_cruise_ratio = mcr;
+    std::ostringstream s;
+    s << " MINIMUM_CRUISE_RATIO=" << mcr;
+    return s.str();
 }
 
 // copied from PrusaSlicer
@@ -224,6 +246,7 @@ std::string GCodeWriter::set_acceleration_internal(Acceleration type, unsigned i
         gcode << "SET_VELOCITY_LIMIT ACCEL=" << acceleration;
         if (this->config.accel_to_decel_enable) {
             gcode << " ACCEL_TO_DECEL=" << acceleration * this->config.accel_to_decel_factor / 100;
+            gcode << this->min_cruise_ratio_param(); // PING c-0929-MCR-01：必須在下面的註解（;）之前
             if (GCodeWriter::full_gcode_comment)
                 gcode << " ; adjust ACCEL_TO_DECEL";
         }
@@ -292,6 +315,7 @@ std::string GCodeWriter::set_accel_and_jerk(unsigned int acceleration, double je
         gcode << " ACCEL=" << acceleration;
         if (this->config.accel_to_decel_enable) {
             gcode << " ACCEL_TO_DECEL=" << acceleration * this->config.accel_to_decel_factor / 100;
+            gcode << this->min_cruise_ratio_param(); // PING c-0929-MCR-01
         }
         m_last_acceleration = acceleration;
         is_empty = false;
@@ -355,6 +379,13 @@ std::string GCodeWriter::set_pressure_advance(double pa) const
             gcode << "M900 K" <<std::setprecision(4)<< pa << "; Override pressure advance value\n";
     }
     return gcode.str();
+}
+
+// PING (#33 Q2): Klipper keeps the pressure advance of the previous filament / job until the printer restarts, so a
+// filament with "Enable pressure advance" unchecked has to send 0 instead of nothing. Other flavors keep sending nothing.
+std::string GCodeWriter::disable_pressure_advance() const
+{
+    return FLAVOR_IS(gcfKlipper) ? set_pressure_advance(0) : std::string();
 }
 
 std::string GCodeWriter::set_input_shaping(char axis, float damp, float freq, std::string type) const
@@ -1064,8 +1095,12 @@ std::string GCodeWriter::set_fan(unsigned int speed) const
 }
 
 //BBS: set additional fan speed for BBS machine only
-std::string GCodeWriter::set_additional_fan(unsigned int speed)
+std::string GCodeWriter::set_additional_fan(const GCodeFlavor gcode_flavor, unsigned int speed)
 {
+    // PING (#33 Q3): Klipper's M106 ignores P, so "M106 P2" (and "M106 P3" of the exhaust fan) would drive the
+    // part-cooling fan; PING printers have neither fan => never emit them on Klipper.
+    if (gcode_flavor == gcfKlipper)
+        return {};
     std::ostringstream gcode;
 
     gcode << "M106 " << "P2 " << "S" << (int)(255.0 * speed / 100.0);
@@ -1079,8 +1114,16 @@ std::string GCodeWriter::set_additional_fan(unsigned int speed)
     return gcode.str();
 }
 
-std::string GCodeWriter::set_exhaust_fan( int speed,bool add_eol)
+std::string GCodeWriter::set_additional_fan(unsigned int speed) const
 {
+    return GCodeWriter::set_additional_fan(this->config.gcode_flavor, speed);
+}
+
+std::string GCodeWriter::set_exhaust_fan(int speed, bool add_eol) const
+{
+    // PING (#33 Q3): see set_additional_fan().
+    if (FLAVOR_IS(gcfKlipper))
+        return {};
     std::ostringstream gcode;
     gcode << "M106" << " P3" << " S" << (int)(speed / 100.0 * 255);
 

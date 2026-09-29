@@ -223,7 +223,7 @@
     "support_top_z_distance": "0",
     "support_type": "normal(auto)",
     "thick_bridges": "0",
-    "thick_internal_bridges": "1",
+    "thick_internal_bridges": "0",
     "timelapse_type": "0",
     "top_bottom_infill_wall_overlap": "5%",
     "top_shell_layers": "4",

@@ -22,6 +22,7 @@ public:
         m_single_extruder_multi_material(false),
         m_last_acceleration(0), m_max_acceleration(0),m_last_travel_acceleration(0), m_max_travel_acceleration(0),
         m_last_jerk(0), m_max_jerk_x(0), m_max_jerk_y(0),
+        m_last_min_cruise_ratio(-1.),
         m_last_bed_temperature(0), m_last_bed_temperature_reached(true),
         m_lifted(0),
         m_to_lift(0),
@@ -58,6 +59,7 @@ public:
     std::string set_accel_and_jerk(unsigned int acceleration, double jerk);
     std::string set_junction_deviation(double junction_deviation); 
     std::string set_pressure_advance(double pa) const;
+    std::string disable_pressure_advance() const;
     std::string set_input_shaping(char axis, float damp, float freq, std::string type) const;
     std::string reset_e(bool force = false);
     std::string update_progress(unsigned int num, unsigned int tot, bool allow_100 = false) const;
@@ -103,8 +105,10 @@ public:
     // Keeping the state is left to the CoolingBuffer, which runs asynchronously on another thread.
     std::string set_fan(unsigned int speed) const;
     //BBS: set additional fan speed for BBS machine only
-    static std::string set_additional_fan(unsigned int speed);
-    static std::string set_exhaust_fan(int speed,bool add_eol);
+    // To be called by the CoolingBuffer from another thread.
+    static std::string set_additional_fan(const GCodeFlavor gcode_flavor, unsigned int speed);
+    std::string set_additional_fan(unsigned int speed) const;
+    std::string set_exhaust_fan(int speed, bool add_eol) const;
     //BBS
     void set_object_start_str(std::string start_string) { m_gcode_label_objects_start = start_string; }
     bool is_object_start_str_empty() { return m_gcode_label_objects_start.empty(); }
@@ -143,6 +147,8 @@ public:
     double          m_max_jerk_x;
     double          m_max_jerk_y;
     double          m_last_jerk;
+    // PING c-0929-MCR-01：上一次送出的 MINIMUM_CRUISE_RATIO（-1＝本檔還沒送過）
+    double          m_last_min_cruise_ratio;
     double          m_max_jerk_z;
     double          m_max_jerk_e;
     double          m_max_junction_deviation;
@@ -189,6 +195,8 @@ public:
     std::string _spiral_travel_to_z(double z, const Vec2d &ij_offset, const std::string &comment);
     std::string _retract(double length, double restart_extra, const std::string &comment);
     std::string set_acceleration_internal(Acceleration type, unsigned int acceleration);
+    // PING c-0929-MCR-01：「煞車速度」換算成 Klipper 的 MINIMUM_CRUISE_RATIO（值沒變就回空字串）
+    std::string min_cruise_ratio_param();
 
 };
 

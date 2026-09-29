@@ -937,6 +937,13 @@ def normalize_unified_values(proc, ff=False):
     #    （層高 0.3：判懸空的逐層外擴門檻 0.52mm→0.17mm，敏感度約 3 倍），現場回報「60 支撐太多」。
     #    ⚠ 出貨線從未被 60 汙染（本規則係首次新增，原全庫 30＝V3.0 底稿值）。
     proc["support_threshold_angle"] = "35"
+    # ⑦ 增厚內部橋接關（Eric 2026-09-29 裁，開發中清單 #35；牌 c-0929-CAR-03）。原話：「增厚內部橋接選項需要取消
+    #    若打勾 在內部橋接的部分層高會變厚 流量會變多」（T065 截圖 FD800 Pro 同進 0.6／0.3mm：內部橋接層線高 0.58）。
+    #    源頭＝Orca 預設 true，參數端 GUI 匯出的 config 全帶 "1"、本檔照抄 ⇒ 371 支製程全明寫 1，查無任何裁定。
+    #    關掉後內部橋接照一般層高＋上面 ⑤ 的 bridge_flow 0.95 印；增厚外部橋接 thick_bridges 本來就全 0，不動。
+    #    ⚠ 照片磚不跟（Eric 同日 Q1「照建議」）：磚體 0% 填充、頂部第一層內部橋接要跨整個空腔＝增厚正在幫忙；
+    #      照片磚本來就不走本函式（emit_phototile），要改得去那裡。Classic 前代複製 Fast 已正規化的製程＝自然跟進。
+    proc["thick_internal_bridges"] = "0"
     return proc
 
 # ★ 支撐介面值（Eric 2026-08-04 裁，V2.1「密度表示」→Orca「間距表示」換算；蓋 0714「間距一律 0.1」）：
@@ -3132,6 +3139,29 @@ def main(src_base):
         zh_set += 1
     if zh_set:
         print("  Z 抬升＝口徑（0.6→0.6／1.0→1；照片磚與 Classic 與 0.2/0.25 不套）：改 %d 台" % zh_set)
+
+    # 4b-4d. ★ 機型「支援空氣過濾」「支援控制列印設備內部溫度」一律關（Eric 2026-09-29 裁 Q3 甲「照建議」；
+    #   開發中清單 #33，牌 c-0929-NOP-03；報告 `無作用參數盤點_20260929.html` B1／B2）：
+    #   PING 沒有任何機型有可控排風扇或艙溫加熱——Klipper 的 M106 不看 P（排風扇的 M106 P3 會打到主冷卻風扇）、
+    #   18 台都不認得 M141／M191。兩個鍵原本是交付來源與範本帶進來的 1（本產生器原本 0 處提到它們）⇒
+    #   線材頁「排風扇」「列印設備內部溫度」兩組在簡易模式就看得到。改 0 後由 Tab.cpp 的顯示開關把兩組藏起來；
+    #   輸出端另由 GCodeWriter 對 Klipper 擋住（兩道各管一件，不互相依賴）。
+    #   ⚠ 引擎預設是 true（PrintConfig.cpp）⇒ 缺鍵＝吃預設 1，所以沒有這兩個鍵的葉檔也照寫。
+    #   🔵 Classic（Marlin）一起關：Eric 裁的範圍就是 149 支全部（Classic 也沒有這兩種硬體）。
+    #   ℹ️ `auxiliary_fan`（輔助冷卻風扇）本來就 149 支全 0，不在本段。守衛＝verify_profiles.py 檢查 10-c。
+    SUPPORT_OFF = {"support_air_filtration": "0", "support_chamber_temp_control": "0"}
+    so_set = 0
+    for _fp in sorted(glob.glob(os.path.join(PINGDIR, "machine", "*.json"))):
+        _d = json.load(io.open(_fp, encoding="utf-8"))
+        if _d.get("type") != "machine" or _d.get("instantiation") != "true":
+            continue
+        if all(_d.get(k) == v for k, v in SUPPORT_OFF.items()):
+            continue
+        _d.update(SUPPORT_OFF)
+        jdump(_fp, _d)
+        so_set += 1
+    if so_set:
+        print("  機型「支援空氣過濾／支援控制列印設備內部溫度」一律關：改 %d 台" % so_set)
 
     # 4b-5b. ★ 線材收縮補償全庫一致＝100%（Eric 2026-08-09 裁 A；回報中心「線材收縮補償將被停用」單）
     #

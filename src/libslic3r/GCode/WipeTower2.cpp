@@ -1413,6 +1413,14 @@ void WipeTower2::set_extruder(size_t idx, const PrintConfig& config)
 
 
 
+// PING (#33 Q1): "M220 S100" only keeps the ramming speeds exact. Klipper has no M220 B/R (Marlin only), so there it
+// permanently resets the speed factor set on the printer panel => on Klipper, force 100 % only when a ramming switch
+// is on. Other flavors are unchanged.
+static bool need_speed_override(GCodeFlavor flavor, bool filament_ramming, bool multitool_ramming)
+{
+    return flavor != gcfKlipper || filament_ramming || multitool_ramming;
+}
+
 // Returns gcode to prime the nozzles at the front edge of the print bed.
 std::vector<WipeTower::ToolChangeResult> WipeTower2::prime(
 	// print_z of the first layer.
@@ -1456,10 +1464,12 @@ std::vector<WipeTower::ToolChangeResult> WipeTower2::prime(
         if (idx_tool == 0) {
             writer.append(";--------------------\n"
                           "; CP PRIMING START\n")
-                  .append(";--------------------\n")
-                  .speed_override_backup()
-                  .speed_override(100)
-                  .set_initial_position(Vec2f::Zero())	// Always move to the starting position
+                  .append(";--------------------\n");
+            if (need_speed_override(m_gcode_flavor, m_enable_filament_ramming,
+                                    std::any_of(tools.begin(), tools.end(), [this](unsigned int t) { return m_filpar[t].multitool_ramming; })))
+                writer.speed_override_backup()
+                      .speed_override(100);
+            writer.set_initial_position(Vec2f::Zero())	// Always move to the starting position
                   .travel(cleaning_box.ld, 7200);
             if (m_set_extruder_trimpot)
                 writer.set_extruder_trimpot(750); 			// Increase the extruder driver current to allow fast ramming.
@@ -1564,8 +1574,11 @@ WipeTower::ToolChangeResult WipeTower2::tool_change(size_t tool)
         writer.append(";" + GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Wipe_Tower_Start) + "\n");
     }
 
-    writer.speed_override_backup();
-	writer.speed_override(100);
+    if (need_speed_override(m_gcode_flavor, m_enable_filament_ramming,
+                            m_current_tool < m_filpar.size() && m_filpar[m_current_tool].multitool_ramming)) {
+        writer.speed_override_backup();
+        writer.speed_override(100);
+    }
 
 	Vec2f initial_position = cleaning_box.ld + Vec2f(0.f, m_depth_traversed);
     writer.set_initial_position(initial_position, m_wipe_tower_width, m_wipe_tower_depth, m_internal_rotation);

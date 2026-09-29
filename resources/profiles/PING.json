@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.24",
+    "version": "01.00.01.26",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
