@@ -457,9 +457,11 @@ void WebViewPanel::show_failed_notice(bool show)
         auto *reload = new Button(m_failed_notice, _L("Reload"));
         reload->SetStyle(ButtonStyle::Regular, ButtonType::Choice);
         reload->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { rebuild_browser("reload button", false); });
+        // 按鈕緊接在訊息後面（ping-ux 七律 #3：動作要貼著它所指的訊息；寬螢幕放最右邊會隔一整列）。
         auto *row = new wxBoxSizer(wxHORIZONTAL);
-        row->Add(text, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(16));
+        row->Add(text, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(16));
         row->Add(reload, 0, wxALIGN_CENTER_VERTICAL | wxALL, FromDIP(8));
+        row->AddStretchSpacer(1);
         m_failed_notice->SetSizer(row);
         m_failed_notice->Hide();
         // 放在內嵌網頁上方（內嵌網頁永遠是 sizer 的最後一項，見 create_browser）。
