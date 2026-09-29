@@ -3133,6 +3133,29 @@ def main(src_base):
     if zh_set:
         print("  Z 抬升＝口徑（0.6→0.6／1.0→1；照片磚與 Classic 與 0.2/0.25 不套）：改 %d 台" % zh_set)
 
+    # 4b-4d. ★ 機型「支援空氣過濾」「支援控制列印設備內部溫度」一律關（Eric 2026-09-29 裁 Q3 甲「照建議」；
+    #   開發中清單 #33，牌 c-0929-NOP-03；報告 `無作用參數盤點_20260929.html` B1／B2）：
+    #   PING 沒有任何機型有可控排風扇或艙溫加熱——Klipper 的 M106 不看 P（排風扇的 M106 P3 會打到主冷卻風扇）、
+    #   18 台都不認得 M141／M191。兩個鍵原本是交付來源與範本帶進來的 1（本產生器原本 0 處提到它們）⇒
+    #   線材頁「排風扇」「列印設備內部溫度」兩組在簡易模式就看得到。改 0 後由 Tab.cpp 的顯示開關把兩組藏起來；
+    #   輸出端另由 GCodeWriter 對 Klipper 擋住（兩道各管一件，不互相依賴）。
+    #   ⚠ 引擎預設是 true（PrintConfig.cpp）⇒ 缺鍵＝吃預設 1，所以沒有這兩個鍵的葉檔也照寫。
+    #   🔵 Classic（Marlin）一起關：Eric 裁的範圍就是 149 支全部（Classic 也沒有這兩種硬體）。
+    #   ℹ️ `auxiliary_fan`（輔助冷卻風扇）本來就 149 支全 0，不在本段。守衛＝verify_profiles.py 檢查 10-c。
+    SUPPORT_OFF = {"support_air_filtration": "0", "support_chamber_temp_control": "0"}
+    so_set = 0
+    for _fp in sorted(glob.glob(os.path.join(PINGDIR, "machine", "*.json"))):
+        _d = json.load(io.open(_fp, encoding="utf-8"))
+        if _d.get("type") != "machine" or _d.get("instantiation") != "true":
+            continue
+        if all(_d.get(k) == v for k, v in SUPPORT_OFF.items()):
+            continue
+        _d.update(SUPPORT_OFF)
+        jdump(_fp, _d)
+        so_set += 1
+    if so_set:
+        print("  機型「支援空氣過濾／支援控制列印設備內部溫度」一律關：改 %d 台" % so_set)
+
     # 4b-5b. ★ 線材收縮補償全庫一致＝100%（Eric 2026-08-09 裁 A；回報中心「線材收縮補償將被停用」單）
     #
     # 🔴 引擎規則（`Print.cpp:3623 has_same_shrinkage_compensations`）：**所有用到的料，
