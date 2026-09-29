@@ -4550,6 +4550,10 @@ void TabFilament::toggle_options()
 
       toggle_option("additional_cooling_fan_speed", cfg.opt_bool("auxiliary_fan"));
 
+      // PING (#33 Q3): no PING printer has an exhaust fan => hide the whole group with the printer's "Support air filtration".
+      for (auto el : {"activate_air_filtration", "during_print_exhaust_fan_speed", "complete_print_exhaust_fan_speed"})
+          toggle_line(el, cfg.opt_bool("support_air_filtration"));
+
       // Orca: toggle dont slow down for external perimeters if
       bool has_slow_down_for_layer_cooling = m_config->opt_bool("slow_down_for_layer_cooling", 0);
       toggle_option("dont_slow_down_outer_wall", has_slow_down_for_layer_cooling);
@@ -4598,6 +4602,7 @@ void TabFilament::toggle_options()
 
         bool support_chamber_temp_control = this->m_preset_bundle->printers.get_edited_preset().config.opt_bool("support_chamber_temp_control");
         toggle_line("chamber_temperature", support_chamber_temp_control);
+        toggle_line("activate_chamber_temp_control", support_chamber_temp_control); // PING (#33 Q3): hide the whole group
 
         std::string volumetric_speed_cos = m_config->opt_string("volumetric_speed_coefficients", 0u);
         bool enable_fit = volumetric_speed_cos != "0 0 0 0 0 0";
