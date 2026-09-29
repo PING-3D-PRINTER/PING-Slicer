@@ -25,22 +25,8 @@ PrinterWebView::PrinterWebView(wxWindow *parent)
  {
 
     wxBoxSizer* topsizer = new wxBoxSizer(wxVERTICAL);
-
-      // Create the webview
-    m_browser = WebView::CreateWebView(this, "");
-    if (m_browser == nullptr) {
-        wxLogError("Could not init m_browser");
-        return;
-    }
-
-    m_browser->Bind(wxEVT_WEBVIEW_ERROR, &PrinterWebView::OnError, this);
-    m_browser->Bind(wxEVT_WEBVIEW_LOADED, &PrinterWebView::OnLoaded, this);
-
     SetSizer(topsizer);
-
-    topsizer->Add(m_browser, wxSizerFlags().Expand().Proportion(1));
-
-    update_mode();
+    // PING #34（L1）：內嵌網頁不在這裡建，第一次要顯示時才建（ensure_browser）。
 
     // Log backend information
     /* m_browser->GetUserAgent() may lead crash
@@ -69,16 +55,37 @@ PrinterWebView::~PrinterWebView()
 }
 
 
+void PrinterWebView::ensure_browser()
+{
+    if (m_browser != nullptr)
+        return;
+    if (!WebView::CreationAllowed()) {
+        // 開機初始化還沒做完就被顯示（正常不會發生）：放行後、而且這頁還顯示著，才建。
+        WebView::CallWhenCreationAllowed(this, [this] {
+            if (IsShown())
+                Show(true);
+        });
+        return;
+    }
+    m_browser = WebView::CreateWebView(this, "");
+    m_browser->Bind(wxEVT_WEBVIEW_ERROR, &PrinterWebView::OnError, this);
+    m_browser->Bind(wxEVT_WEBVIEW_LOADED, &PrinterWebView::OnLoaded, this);
+    GetSizer()->Add(m_browser, wxSizerFlags().Expand().Proportion(1));
+    Layout();
+    update_mode();
+    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": printer web view created on first show";
+}
+
 void PrinterWebView::load_url(wxString& url, wxString apikey)
 {
 //    this->Show();
 //    this->Raise();
-    if (m_browser == nullptr)
-        return;
     m_apikey = apikey;
     m_apikey_sent = false;
 
-    if (this->IsShown()) {
+    if (this->IsShown())
+        ensure_browser();
+    if (this->IsShown() && m_browser != nullptr) {
         m_url_deferred.clear();
         m_browser->LoadURL(url);
     } else {
@@ -90,21 +97,26 @@ void PrinterWebView::load_url(wxString& url, wxString apikey)
 
 bool PrinterWebView::Show(bool show)
 {
-    if (show && !m_url_deferred.empty()) {
-        m_browser->LoadURL(m_url_deferred);
-        m_url_deferred.clear();
+    if (show) {
+        ensure_browser();
+        if (m_browser != nullptr && !m_url_deferred.empty()) {
+            m_browser->LoadURL(m_url_deferred);
+            m_url_deferred.clear();
+        }
     }
     return wxPanel::Show(show);
 }
 
 void PrinterWebView::reload()
 {
-    m_browser->Reload();
+    if (m_browser)
+        m_browser->Reload();
 }
 
 void PrinterWebView::update_mode()
 {
-    m_browser->EnableAccessToDevTools(wxGetApp().app_config->get_bool("developer_mode"));
+    if (m_browser)
+        m_browser->EnableAccessToDevTools(wxGetApp().app_config->get_bool("developer_mode"));
 }
 
 /**
@@ -123,7 +135,7 @@ void PrinterWebView::OnClose(wxCloseEvent& evt)
 
 void PrinterWebView::SendAPIKey()
 {
-    if (m_apikey_sent || m_apikey.IsEmpty())
+    if (m_apikey_sent || m_apikey.IsEmpty() || m_browser == nullptr)
         return;
     m_apikey_sent   = true;
     wxString script = wxString::Format(R"(

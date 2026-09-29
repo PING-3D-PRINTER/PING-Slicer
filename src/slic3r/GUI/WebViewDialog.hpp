@@ -25,6 +25,8 @@
 #include "wx/textctrl.h"
 #include <wx/timer.h>
 
+#include <chrono>
+
 
 namespace Slic3r {
 
@@ -109,8 +111,30 @@ public:
 
     void update_mode();
 private:
+    /* PING #34：首頁內嵌網頁的建立／看門狗／重建（修正計畫 L1＋L2，Eric 2026-09-29 裁 D1 A／D2 A／D3 60 秒）。
+       面板照常在開機時建；裡面的 WebView2 延到開機初始化做完才建（WebView::AllowCreation）。
+       還沒建好之前，load_url() 只記下要去的頁，RunScript() 直接略過（首頁載好後自己會再要資料）。 */
+    void create_browser(const char *why);
+    void rebuild_browser(const char *why, bool automatic);
+    bool is_current_browser(const wxEvent &evt) const;
+    void mark_browser_alive(const char *how);
+    void OnBrowserBackendReady(wxCommandEvent &evt);
+    void OnBrowserProcessFailed(wxCommandEvent &evt);
+    void OnHomeWatchdog(wxTimerEvent &evt);
+    void show_failed_notice(bool show);
 
-    wxWebView* m_browser;
+    wxString   m_target_url;                // 內嵌網頁應該顯示的頁（建立／重建時載入這一頁）
+    wxTimer    m_home_watchdog;             // 從建立起算 60 秒頁面都沒活起來 ⇒ 重建
+    std::chrono::steady_clock::time_point m_browser_created_at{};
+    std::chrono::steady_clock::time_point m_backend_ready_at{};
+    bool       m_backend_ready{false};      // 目前這個內嵌網頁的後端就緒事件收到了（重建時決定能不能刪舊的）
+    bool       m_browser_alive{false};      // 頁面送過訊息或導覽成功過（＝活著、使用者可能正在用）
+    int        m_auto_rebuilds{0};          // 自動重建次數（上限 2）
+    bool       m_rebuild_pending{false};
+    bool       m_closing{false};
+    wxPanel   *m_failed_notice{nullptr};    // D2：使用中失效時的一行提示＋重新載入
+
+    wxWebView* m_browser{nullptr};
     wxBoxSizer *bSizer_toolbar;
     // These controls are not created in public Release builds. Keep them
     // explicitly null so shared navigation helpers can safely run there.

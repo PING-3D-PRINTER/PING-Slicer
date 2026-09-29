@@ -6,6 +6,8 @@
 #include "slic3r/GUI/MainFrame.hpp"
 #include "slic3r/GUI/PhotoTileCapability.hpp"
 #include <sstream>
+#include "slic3r/GUI/Widgets/Button.hpp"
+#include "slic3r/GUI/Widgets/Label.hpp"
 #include "slic3r/GUI/Widgets/WebView.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r_version.h"
@@ -56,6 +58,29 @@ namespace GUI {
            照片磚與首頁**維持 file://**（它們只用 <script>、不需要 XHR），本次不動。 */
         return wxString::Format("https://%s/web/step-repair/index.html?embedded=1", WebView::virtual_host());
     }
+
+    // PING #34：看門狗等多久（D3＝60 秒，從內嵌網頁開始建立起算；Eric 2026-09-29 照建議）與自動重建上限。
+    constexpr int HOME_WATCHDOG_MS       = 60 * 1000;
+    constexpr int HOME_MAX_AUTO_REBUILDS = 2;
+
+    long long ms_since(std::chrono::steady_clock::time_point t)
+    {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t).count();
+    }
+
+    /* 【僅驗證用】環境變數 PING_TEST_HOME_BREAK=N：前 N 次建立的首頁內嵌網頁改載一個不存在的頁 ⇒ 頁面永遠活不起來，
+       用來決定性地走到看門狗、自動重建與上限後的提示（同照片磚宿主 test_break_engine_url 的做法）。沒設＝不作用。 */
+    wxString take_test_break_url()
+    {
+        static int remaining = [] {
+            wxString v;
+            return wxGetEnv("PING_TEST_HOME_BREAK", &v) ? wxAtoi(v) : 0;
+        }();
+        if (remaining <= 0)
+            return wxEmptyString;
+        --remaining;
+        return wxString::Format("file://%s/web/homepage/__ping_test_missing__.html", from_u8(resources_dir()));
+    }
     }
 
     wxDECLARE_EVENT(EVT_RESPONSE_MESSAGE, wxCommandEvent);
@@ -72,8 +97,9 @@ namespace GUI {
 
 WebViewPanel::WebViewPanel(wxWindow *parent)
         : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize)
+        , m_home_watchdog(this)
  {
-    wxString url = homepage_url();
+    m_target_url = homepage_url();
 
     wxBoxSizer* topsizer = new wxBoxSizer(wxVERTICAL);
     
@@ -116,16 +142,8 @@ WebViewPanel::WebViewPanel(wxWindow *parent)
     // Create the info panel
     m_info = new wxInfoBar(this);
     topsizer->Add(m_info, wxSizerFlags().Expand());
-    // Create the webview
-    m_browser = WebView::CreateWebView(this, url);
-    if (m_browser == nullptr) {
-        wxLogError("Could not init m_browser");
-        return;
-    }
-    m_browser->Hide();
+    // PING #34：內嵌網頁本身不在這裡建（見建構子最後的 CallWhenCreationAllowed 與 create_browser()）。
     SetSizer(topsizer);
-
-    topsizer->Add(m_browser, wxSizerFlags().Expand().Proportion(1));
 
     // Log backend information
     /* m_browser->GetUserAgent() may lead crash
@@ -252,12 +270,22 @@ WebViewPanel::WebViewPanel(wxWindow *parent)
     Bind(wxEVT_IDLE, &WebViewPanel::OnIdle, this);
     Bind(wxEVT_CLOSE_WINDOW, &WebViewPanel::OnClose, this);
 
+    // PING #34
+    Bind(EVT_WEBVIEW_BACKEND_READY, &WebViewPanel::OnBrowserBackendReady, this);
+    Bind(EVT_WEBVIEW_PROCESS_FAILED, &WebViewPanel::OnBrowserProcessFailed, this);
+    Bind(wxEVT_TIMER, &WebViewPanel::OnHomeWatchdog, this, m_home_watchdog.GetId());
+
     m_LoginUpdateTimer = nullptr;
+
+    // PING #34（L1）：開機初始化做完才建內嵌網頁；之後（例如切換語言重建主視窗）登記就是立刻建。
+    WebView::CallWhenCreationAllowed(this, [this] { create_browser("startup"); });
  }
 
 WebViewPanel::~WebViewPanel()
 {
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << " Start";
+    m_closing = true;
+    m_home_watchdog.Stop();
     SetEvtHandlerEnabled(false);
     
     delete m_tools_menu;
@@ -280,9 +308,172 @@ void WebViewPanel::load_url(wxString& url)
 
     if (wxGetApp().get_mode() == comDevelop)
         wxLogMessage("Loading URL: %s", url);
+    m_target_url = url;
+    if (m_browser == nullptr) // PING #34：還沒建好（開機初始化還沒做完／重建中）⇒ 建好時就載這一頁
+        return;
     m_browser->LoadURL(url);
     m_browser->SetFocus();
     UpdateState();
+}
+
+/* PING #34（L1）：真的建立內嵌網頁。開機時由 WebView::AllowCreation()（post_init 之後）呼叫，
+   重建時由 rebuild_browser() 呼叫。建好之後 60 秒內頁面沒活起來（第一個訊息或導覽成功）就交給看門狗。 */
+void WebViewPanel::create_browser(const char *why)
+{
+    if (m_browser != nullptr || m_closing || wxGetApp().is_closing())
+        return;
+    // 切換語言重建主視窗時，舊主視窗 Destroy() 之後要等下一次閒置才真的刪；這段期間不在舊面板裡建。
+    if (wxPendingDelete.Member(wxGetTopLevelParent(this)))
+        return;
+    wxString url = m_target_url.IsEmpty() ? homepage_url() : m_target_url;
+    const wxString broken = take_test_break_url();
+    if (!broken.IsEmpty()) {
+        BOOST_LOG_TRIVIAL(warning) << "WebViewPanel: PING_TEST_HOME_BREAK in effect, loading a missing page instead";
+        url = broken;
+    }
+    m_browser_alive      = false;
+    m_backend_ready      = false;
+    m_browser_created_at = std::chrono::steady_clock::now();
+    m_browser            = WebView::CreateWebView(this, url);
+    m_browser->Hide(); // 導覽完成才顯示（OnNavigationComplete），同原本
+    GetSizer()->Add(m_browser, wxSizerFlags().Expand().Proportion(1));
+    Layout();
+    BOOST_LOG_TRIVIAL(info) << "WebViewPanel: browser created (" << why << ")";
+#ifdef __WIN32__
+    m_home_watchdog.StartOnce(HOME_WATCHDOG_MS); // 只有 WebView2 有這個病；其他平台照舊
+#endif
+}
+
+/* PING #34（L2）：把內嵌網頁拆掉重建。automatic＝看門狗／頁面還沒活起來就失效（有上限）；
+   否則是使用者按了「重新載入」。重建一律排到下一輪事件迴圈，不在任何回呼裡做，
+   舊內嵌網頁晚到的回呼就碰不到新物件。 */
+void WebViewPanel::rebuild_browser(const char *why, bool automatic)
+{
+    if (m_closing || m_rebuild_pending)
+        return;
+    if (automatic && m_auto_rebuilds >= HOME_MAX_AUTO_REBUILDS) {
+        BOOST_LOG_TRIVIAL(error) << "WebViewPanel: page still not alive after " << m_auto_rebuilds
+                                 << " automatic rebuilds (" << why << "), showing the reload notice";
+        show_failed_notice(true);
+        return;
+    }
+    if (automatic)
+        ++m_auto_rebuilds;
+    m_rebuild_pending = true;
+    m_home_watchdog.Stop();
+    BOOST_LOG_TRIVIAL(warning) << "WebViewPanel: rebuilding the browser (" << why << "), "
+                               << (automatic ? "automatic " + std::to_string(m_auto_rebuilds) + "/" + std::to_string(HOME_MAX_AUTO_REBUILDS) : std::string("by user"));
+    CallAfter([this, why] {
+        m_rebuild_pending = false;
+        if (m_closing)
+            return;
+        if (wxWebView *old = m_browser) {
+            // wx 的建立回呼、以及它在「控制器建好」時登記的 AddScript 完成回呼，綁的都是裸指標：
+            // 後端還沒建好、或才剛建好（完成回呼可能還在路上）就刪掉，晚到的回呼會打到已釋放的物件。
+            // 所以只刪「後端就緒超過 5 秒」的；其餘藏起來留著（它之後想載的頁會在 OnNavigationRequest 被擋掉）。
+            const bool settled = m_backend_ready && ms_since(m_backend_ready_at) >= 5000 && old->GetNativeBackend() != nullptr;
+            m_browser = nullptr;
+            GetSizer()->Detach(old);
+            old->Hide();
+            if (settled)
+                old->Destroy();
+            else
+                BOOST_LOG_TRIVIAL(warning) << "WebViewPanel: old browser not settled (backend not ready or just ready), kept hidden instead of deleted";
+        }
+        show_failed_notice(false);
+        create_browser(why);
+    });
+}
+
+bool WebViewPanel::is_current_browser(const wxEvent &evt) const
+{
+    return m_browser != nullptr && evt.GetId() == m_browser->GetId();
+}
+
+void WebViewPanel::mark_browser_alive(const char *how)
+{
+    if (m_browser_alive)
+        return;
+    m_browser_alive = true;
+    m_auto_rebuilds = 0;
+    m_home_watchdog.Stop();
+    show_failed_notice(false);
+    // 「內嵌網頁建好 → 活起來」的秒數：之後客戶回報首頁空白，看 log 就知道是不是這個病。
+    BOOST_LOG_TRIVIAL(info) << "WebViewPanel: page alive (" << how << ") " << ms_since(m_browser_created_at)
+                            << " ms after the browser was created";
+}
+
+void WebViewPanel::OnBrowserBackendReady(wxCommandEvent &evt)
+{
+    if (!is_current_browser(evt))
+        return;
+    m_backend_ready    = true;
+    m_backend_ready_at = std::chrono::steady_clock::now();
+    BOOST_LOG_TRIVIAL(info) << "WebViewPanel: browser backend ready " << ms_since(m_browser_created_at)
+                            << " ms after the browser was created";
+}
+
+void WebViewPanel::OnBrowserProcessFailed(wxCommandEvent &evt)
+{
+    if (!is_current_browser(evt)) // 已經換掉的舊內嵌網頁
+        return;
+    const bool page_dead = evt.GetExtraLong() != 0;
+    BOOST_LOG_TRIVIAL(warning) << "WebViewPanel: WebView2 process failed, kind " << evt.GetInt() << (page_dead ? " (page dead)" : " (recoverable)")
+                               << ", page " << (m_browser_alive ? "in use" : "not alive yet");
+    if (!page_dead)
+        return;
+    if (m_browser_alive)
+        show_failed_notice(true); // D2 A：使用中失效不自動重建（會丟掉使用者正在做的東西），讓使用者自己按
+    else
+        rebuild_browser("process failed before the page came alive", true);
+}
+
+void WebViewPanel::OnHomeWatchdog(wxTimerEvent &WXUNUSED(evt))
+{
+    if (m_browser_alive || m_browser == nullptr)
+        return;
+    // 主視窗縮到最小時頁面可能暫停，不算失效；等它還原再看。
+    if (auto *mainframe = wxGetApp().mainframe; mainframe != nullptr && mainframe->IsIconized()) {
+        m_home_watchdog.StartOnce(HOME_WATCHDOG_MS);
+        return;
+    }
+    rebuild_browser("watchdog: page not alive within 60 s", true);
+}
+
+/* PING #34（D2）：一行提示「⚠ 頁面已失效」＋「重新載入」。平常不存在；第一次要用時才建，放在內嵌網頁上方。
+   顏色＝ping-cis 警示訊息（system-desktop：底 color.warning.bg #FFF6DF、字 color.warning.fg #946310；
+   深色模式照面板底、字用 color.warning.fg.on-dark #FF9A52）；按鈕沿用 App 既有 Button 一般樣式。
+   不擋操作（ping-ux FBK-07），頁面活起來就收掉（FBK-50）。 */
+void WebViewPanel::show_failed_notice(bool show)
+{
+    if (show && m_failed_notice == nullptr) {
+        const bool dark = wxGetApp().dark_mode();
+        m_failed_notice = new wxPanel(this);
+        if (!dark)
+            m_failed_notice->SetBackgroundColour(wxColour("#FFF6DF"));
+        auto *text = new wxStaticText(m_failed_notice, wxID_ANY, wxString::FromUTF8("\xE2\x9A\xA0 ") + _L("The page has stopped working."));
+        text->SetForegroundColour(wxColour(dark ? "#FF9A52" : "#946310"));
+        text->SetFont(Label::Body_14);
+        auto *reload = new Button(m_failed_notice, _L("Reload"));
+        reload->SetStyle(ButtonStyle::Regular, ButtonType::Choice);
+        reload->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { rebuild_browser("reload button", false); });
+        // 按鈕緊接在訊息後面（ping-ux 七律 #3：動作要貼著它所指的訊息；寬螢幕放最右邊會隔一整列）。
+        auto *row = new wxBoxSizer(wxHORIZONTAL);
+        row->Add(text, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(16));
+        row->Add(reload, 0, wxALIGN_CENTER_VERTICAL | wxALL, FromDIP(8));
+        row->AddStretchSpacer(1);
+        m_failed_notice->SetSizer(row);
+        m_failed_notice->Hide();
+        // 放在內嵌網頁上方（內嵌網頁永遠是 sizer 的最後一項，見 create_browser）。
+        wxSizer *sizer = GetSizer();
+        const size_t at = (m_browser != nullptr && sizer->GetItem(m_browser) != nullptr) ? sizer->GetItemCount() - 1 : sizer->GetItemCount();
+        sizer->Insert(at, m_failed_notice, wxSizerFlags().Expand());
+    }
+    if (m_failed_notice == nullptr || m_failed_notice->IsShown() == show)
+        return;
+    BOOST_LOG_TRIVIAL(info) << "WebViewPanel: reload notice " << (show ? "shown" : "hidden");
+    m_failed_notice->Show(show);
+    Layout();
 }
 
 void WebViewPanel::ShowHomepage()
@@ -531,6 +722,8 @@ void WebViewPanel::SendPendingPhotoTileImage()
     */
 void WebViewPanel::UpdateState()
 {
+    if (m_browser == nullptr)
+        return;
 #if !BBL_RELEASE_TO_PUBLIC
     if (m_browser->CanGoBack()) {
         m_button_back->Enable(true);
@@ -560,6 +753,8 @@ void WebViewPanel::UpdateState()
 
 void WebViewPanel::OnIdle(wxIdleEvent& WXUNUSED(evt))
 {
+    if (m_browser == nullptr)
+        return;
 #if !BBL_RELEASE_TO_PUBLIC
     if (m_browser->IsBusy())
     {
@@ -579,6 +774,8 @@ void WebViewPanel::OnIdle(wxIdleEvent& WXUNUSED(evt))
     */
 void WebViewPanel::OnUrl(wxCommandEvent& WXUNUSED(evt))
 {
+    if (m_browser == nullptr)
+        return;
     if (wxGetApp().get_mode() == comDevelop)
         wxLogMessage(m_url->GetValue());
     m_browser->LoadURL(m_url->GetValue());
@@ -591,6 +788,8 @@ void WebViewPanel::OnUrl(wxCommandEvent& WXUNUSED(evt))
     */
 void WebViewPanel::OnBack(wxCommandEvent& WXUNUSED(evt))
 {
+    if (m_browser == nullptr)
+        return;
     m_browser->GoBack();
     UpdateState();
 }
@@ -600,6 +799,8 @@ void WebViewPanel::OnBack(wxCommandEvent& WXUNUSED(evt))
     */
 void WebViewPanel::OnForward(wxCommandEvent& WXUNUSED(evt))
 {
+    if (m_browser == nullptr)
+        return;
     m_browser->GoForward();
     UpdateState();
 }
@@ -609,6 +810,8 @@ void WebViewPanel::OnForward(wxCommandEvent& WXUNUSED(evt))
     */
 void WebViewPanel::OnStop(wxCommandEvent& WXUNUSED(evt))
 {
+    if (m_browser == nullptr)
+        return;
     m_browser->Stop();
     UpdateState();
 }
@@ -618,42 +821,52 @@ void WebViewPanel::OnStop(wxCommandEvent& WXUNUSED(evt))
     */
 void WebViewPanel::OnReload(wxCommandEvent& WXUNUSED(evt))
 {
+    if (m_browser == nullptr)
+        return;
     m_browser->Reload();
     UpdateState();
 }
 
 void WebViewPanel::OnCut(wxCommandEvent& WXUNUSED(evt))
 {
-    m_browser->Cut();
+    if (m_browser)
+        m_browser->Cut();
 }
 
 void WebViewPanel::OnCopy(wxCommandEvent& WXUNUSED(evt))
 {
-    m_browser->Copy();
+    if (m_browser)
+        m_browser->Copy();
 }
 
 void WebViewPanel::OnPaste(wxCommandEvent& WXUNUSED(evt))
 {
-    m_browser->Paste();
+    if (m_browser)
+        m_browser->Paste();
 }
 
 void WebViewPanel::OnUndo(wxCommandEvent& WXUNUSED(evt))
 {
-    m_browser->Undo();
+    if (m_browser)
+        m_browser->Undo();
 }
 
 void WebViewPanel::OnRedo(wxCommandEvent& WXUNUSED(evt))
 {
-    m_browser->Redo();
+    if (m_browser)
+        m_browser->Redo();
 }
 
 void WebViewPanel::OnMode(wxCommandEvent& WXUNUSED(evt))
 {
-    m_browser->SetEditable(m_edit_mode->IsChecked());
+    if (m_browser)
+        m_browser->SetEditable(m_edit_mode->IsChecked());
 }
 
 void WebViewPanel::OnLoadScheme(wxCommandEvent& WXUNUSED(evt))
 {
+    if (m_browser == nullptr)
+        return;
     wxPathList pathlist;
     pathlist.Add(".");
     pathlist.Add("..");
@@ -671,17 +884,20 @@ void WebViewPanel::OnLoadScheme(wxCommandEvent& WXUNUSED(evt))
 
 void WebViewPanel::OnUseMemoryFS(wxCommandEvent& WXUNUSED(evt))
 {
-    m_browser->LoadURL("memory:page1.htm");
+    if (m_browser)
+        m_browser->LoadURL("memory:page1.htm");
 }
 
 void WebViewPanel::OnEnableContextMenu(wxCommandEvent& evt)
 {
-    m_browser->EnableContextMenu(evt.IsChecked());
+    if (m_browser)
+        m_browser->EnableContextMenu(evt.IsChecked());
 }
 
 void WebViewPanel::OnEnableDevTools(wxCommandEvent& evt)
 {
-    m_browser->EnableAccessToDevTools(evt.IsChecked());
+    if (m_browser)
+        m_browser->EnableAccessToDevTools(evt.IsChecked());
 }
 
 void WebViewPanel::OnClose(wxCloseEvent& evt)
@@ -823,6 +1039,11 @@ void WebViewPanel::update_mode()
 void WebViewPanel::OnNavigationRequest(wxWebViewEvent& evt)
 {
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << ": " << evt.GetURL().ToUTF8().data();
+    if (!is_current_browser(evt)) {
+        // PING #34：重建時沒刪掉的舊內嵌網頁（後端還沒建好的那種，見 rebuild_browser）不准載任何頁。
+        evt.Veto();
+        return;
+    }
     const wxString &url = evt.GetURL();
     if (url.StartsWith("File://") || url.StartsWith("file://")) {
         if (!url.Contains("/web/homepage/index.html") &&
@@ -869,6 +1090,10 @@ void WebViewPanel::OnNavigationRequest(wxWebViewEvent& evt)
     */
 void WebViewPanel::OnNavigationComplete(wxWebViewEvent& evt)
 {
+    if (!is_current_browser(evt))
+        return;
+    // PING #34：導覽成功也算活著——STEP 破面檢查頁載入時不會主動送訊息。
+    mark_browser_alive("navigation completed");
     m_browser->Show();
     Layout();
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << ": " << evt.GetURL().ToUTF8().data();
@@ -884,6 +1109,8 @@ void WebViewPanel::OnNavigationComplete(wxWebViewEvent& evt)
 void WebViewPanel::OnDocumentLoaded(wxWebViewEvent& evt)
 {
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << ": " << evt.GetTarget().ToUTF8().data();
+    if (!is_current_browser(evt))
+        return;
     // Only notify if the document is the main frame, not a subframe
     if (evt.GetURL() == m_browser->GetCurrentURL())
     {
@@ -922,7 +1149,7 @@ void WebViewPanel::OnNewWindow(wxWebViewEvent& evt)
 
     //If we handle new window events then just load them in this window as we
     //are a single window browser
-    if (m_tools_handle_new_window->IsChecked())
+    if (m_tools_handle_new_window->IsChecked() && is_current_browser(evt))
         m_browser->LoadURL(evt.GetURL());
 
     UpdateState();
@@ -931,6 +1158,9 @@ void WebViewPanel::OnNewWindow(wxWebViewEvent& evt)
 void WebViewPanel::OnScriptMessage(wxWebViewEvent& evt)
 {
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << ": " << evt.GetString().ToUTF8().data();
+    if (!is_current_browser(evt))
+        return;
+    mark_browser_alive("first script message"); // PING #34
     // update login status
     if (m_LoginUpdateTimer == nullptr) {
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " Create Timer";
@@ -967,6 +1197,8 @@ void WebViewPanel::OnScriptResponseMessage(wxCommandEvent& WXUNUSED(evt))
     */
 void WebViewPanel::OnViewSourceRequest(wxCommandEvent& WXUNUSED(evt))
 {
+    if (m_browser == nullptr)
+        return;
     SourceViewDialog dlg(this, m_browser->GetPageSource());
     dlg.ShowModal();
 }
@@ -976,6 +1208,8 @@ void WebViewPanel::OnViewSourceRequest(wxCommandEvent& WXUNUSED(evt))
     */
 void WebViewPanel::OnViewTextRequest(wxCommandEvent& WXUNUSED(evt))
 {
+    if (m_browser == nullptr)
+        return;
     wxDialog textViewDialog(this, wxID_ANY, "Page Text",
         wxDefaultPosition, wxSize(700, 500),
         wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER);
@@ -997,7 +1231,7 @@ void WebViewPanel::OnViewTextRequest(wxCommandEvent& WXUNUSED(evt))
     */
 void WebViewPanel::OnToolsClicked(wxCommandEvent& WXUNUSED(evt))
 {
-    if (m_browser->GetCurrentURL() == "")
+    if (m_browser == nullptr || m_browser->GetCurrentURL() == "")
         return;
 
     m_edit_cut->Enable(m_browser->CanCut());
@@ -1113,7 +1347,7 @@ void WebViewPanel::OnAddUserScript(wxCommandEvent& WXUNUSED(evt))
         userScript,
         wxOK | wxCANCEL | wxCENTRE | wxTE_MULTILINE
     );
-    if (dialog.ShowModal() != wxID_OK)
+    if (dialog.ShowModal() != wxID_OK || m_browser == nullptr)
         return;
 
     if (!m_browser->AddUserScript(dialog.GetValue()))
@@ -1131,7 +1365,7 @@ void WebViewPanel::OnSetCustomUserAgent(wxCommandEvent& WXUNUSED(evt))
         customUserAgent,
         wxOK | wxCANCEL | wxCENTRE
     );
-    if (dialog.ShowModal() != wxID_OK)
+    if (dialog.ShowModal() != wxID_OK || m_browser == nullptr)
         return;
 
     if (!m_browser->SetUserAgent(customUserAgent))
@@ -1140,17 +1374,20 @@ void WebViewPanel::OnSetCustomUserAgent(wxCommandEvent& WXUNUSED(evt))
 
 void WebViewPanel::OnClearSelection(wxCommandEvent& WXUNUSED(evt))
 {
-    m_browser->ClearSelection();
+    if (m_browser)
+        m_browser->ClearSelection();
 }
 
 void WebViewPanel::OnDeleteSelection(wxCommandEvent& WXUNUSED(evt))
 {
-    m_browser->DeleteSelection();
+    if (m_browser)
+        m_browser->DeleteSelection();
 }
 
 void WebViewPanel::OnSelectAll(wxCommandEvent& WXUNUSED(evt))
 {
-    m_browser->SelectAll();
+    if (m_browser)
+        m_browser->SelectAll();
 }
 
 /**
@@ -1158,6 +1395,8 @@ void WebViewPanel::OnSelectAll(wxCommandEvent& WXUNUSED(evt))
     */
 void WebViewPanel::OnError(wxWebViewEvent& evt)
 {
+    if (!is_current_browser(evt))
+        return;
 #define WX_ERROR_CASE(type) \
     case type: \
     category = #type; \

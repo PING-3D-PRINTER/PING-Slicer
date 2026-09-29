@@ -1299,6 +1299,13 @@ void GUI_App::post_init()
     // Sets window property to mainframe so other instances can indentify it.
     OtherInstanceMessageHandler::init_windows_properties(mainframe, m_instance_hash_int);
 #endif //WIN32
+
+    /* PING #34（L1）：開機初始化做完了，現在才建內嵌網頁（首頁、開著的自訂攝影機）。
+       排到下一輪事件迴圈＝主程式已經在處理訊息，WebView2 的建立回呼不會再被開機的長工作擋住。 */
+    CallAfter([this] {
+        if (!is_closing())
+            WebView::AllowCreation();
+    });
 }
 
 wxDEFINE_EVENT(EVT_ENTER_FORCE_UPGRADE, wxCommandEvent);
