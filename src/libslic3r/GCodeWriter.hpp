@@ -22,6 +22,7 @@ public:
         m_single_extruder_multi_material(false),
         m_last_acceleration(0), m_max_acceleration(0),m_last_travel_acceleration(0), m_max_travel_acceleration(0),
         m_last_jerk(0), m_max_jerk_x(0), m_max_jerk_y(0),
+        m_last_min_cruise_ratio(-1.),
         m_last_bed_temperature(0), m_last_bed_temperature_reached(true),
         m_lifted(0),
         m_to_lift(0),
@@ -143,6 +144,8 @@ public:
     double          m_max_jerk_x;
     double          m_max_jerk_y;
     double          m_last_jerk;
+    // PING c-0929-MCR-01：上一次送出的 MINIMUM_CRUISE_RATIO（-1＝本檔還沒送過）
+    double          m_last_min_cruise_ratio;
     double          m_max_jerk_z;
     double          m_max_jerk_e;
     double          m_max_junction_deviation;
@@ -189,6 +192,8 @@ public:
     std::string _spiral_travel_to_z(double z, const Vec2d &ij_offset, const std::string &comment);
     std::string _retract(double length, double restart_extra, const std::string &comment);
     std::string set_acceleration_internal(Acceleration type, unsigned int acceleration);
+    // PING c-0929-MCR-01：「煞車速度」換算成 Klipper 的 MINIMUM_CRUISE_RATIO（值沒變就回空字串）
+    std::string min_cruise_ratio_param();
 
 };
 
