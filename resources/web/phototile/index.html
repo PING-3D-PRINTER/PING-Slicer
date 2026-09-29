@@ -516,6 +516,12 @@ let params = { klevels:8,                        // 2026-09-07 平躺（疊色�
                p2aBlock:true,                    // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
                calibGen:true,                    // ④-2 用校正值決定色階（0914 Q3 甲救回 3fc1a61f2f 的功能；資料可疑時引擎護欄自動不套，見 engine.js calibGenLadder）
                calibStretch:true };               // 乙案：套表時把圖的明暗範圍壓進料的可印範圍再分階（0914：深灰料 L* 48 使三色巴哥中間階空掉）；待 Eric 裁，先做可關的預設開
+/* 厚度預設跟著料數：四料 20、雙料 10（Eric 2026-09-29 22:3x 裁，開發中清單 #40；原話「這個是 0.6 噴嘴，應該是要厚一點」）。
+   跟圈數 cycleLaps 同一個做法：使用者沒自己改過厚度＝料數一變就換成該料數的預設；改過就是他的值，換料數不蓋（EFF-09）。
+   放在狀態區宣告：renderSlots() 在頁面初始化就會跑，晚宣告的 const／let 會踩到 TDZ。
+   ⚠ 厚度下限（規格 R9-11 Q4＝高÷15、最少 10；開發中清單 #22）落地時，下限疊在這個預設上面，不取代它。 */
+const PT_THICK_DEFAULT={2:10, 4:20};
+let ptThickUserSet=false;
 /* P2A 預設開的依據（2026-08-22 Eric 裁 A，把 0729 唯一未結的「預設開關」補上）：
    ①0729 gcode 量化定讞——磚縫點 5,460，合法集合 100%（交界 99.9%＋側窄面 fallback 0.1%）、
      正面 0／背面 0／連續疤 0，交界縫距深度中央偏移中位 0.10mm＝縫釘在接觸面正中央；Eric 切片預覽眼驗過。
@@ -610,6 +616,7 @@ function renderSlots(){
   ptMatApply(window.PhotoTileMatFlow ? PhotoTileMatFlow.info() : null);
   if(typeof renderCycleUI==='function') renderCycleUI();   // 料數變＝圈數欄跟著變（放在 ptMatApply 後：它可能壓色階數）
   if(window.PhotoTileMatFlow) PhotoTileMatFlow.refresh();   // 料數變了 ⇒ 第 1 步跟著換（雙料挑 2／四料挑 4）
+  ptApplyThickDefault();                                     // 料數變了 ⇒ 厚度預設跟著換（#40；使用者改過就不動）
   /* §11 R11-9：料數換了內建範例也要換（雙料灰階／四料彩色）。掛這裡＝四個 slotCount 切換點都會經過。 */
   if(typeof ptGalRender==='function') ptGalRender();
 }
@@ -646,7 +653,7 @@ function calibSpecText(){
   const who=window.PhotoTileMatFlow ? PhotoTileMatFlow.calLabelHtml() : cols.join(' · ');
   /* 幾何數字一律問引擎（CALIB_STRIP_GEO／CALIB_QUAD_GEO＝唯一來源）——頁面自己寫一份就是 v1／v2c 分叉的成因 */
   if(slotCount===4){
-    const g=(eng&&eng.calibQuadGeo)?eng.calibQuadGeo():{cellMm:10,thickMm:10,levels:8,pillarMm:25};
+    const g=(eng&&eng.calibQuadGeo)?eng.calibQuadGeo():{cellMm:10,thickMm:20,levels:8,pillarMm:25};
     return `${who}｜四料 48 格（六對 × ${g.levels} 階，${g.cellMm*g.levels}×${g.cellMm*6}×${g.thickMm} mm）＋${g.pillarMm} mm 洗料柱——<b>六對一次做到位</b>，不砍成只做白配其他三色。`;
   }
   const S=(eng&&eng.calibStripDefaultS)?eng.calibStripDefaultS(cols[0],cols[1]):[];
@@ -1667,8 +1674,8 @@ function updateSizeInfo(){
     const ratio=srcBitmap ? `原圖 ${srcBitmap.width}×${srcBitmap.height}` : '載入圖片後';
     el.classList.toggle('warn',!sizeAspectLocked);
     el.textContent=sizeAspectLocked
-      ? `${ratio}；改寬或高，另一邊會自動等比例換算，不會變形。厚度＝換色清料空間`
-      : `⚠ 已解除比例鎖定；寬高比例不同時，照片磚會變形。厚度＝換色清料空間`;
+      ? `${ratio}；改寬或高，另一邊會自動等比例換算，不會變形。厚度＝換色清料空間（四料預設 20、雙料 10 mm）`
+      : `⚠ 已解除比例鎖定；寬高比例不同時，照片磚會變形。厚度＝換色清料空間（四料預設 20、雙料 10 mm）`;
   }
   const pe=document.getElementById('pillarInfo');
   if(pe) pe.textContent=params.pillar
@@ -1700,8 +1707,18 @@ document.getElementById('aspectLock').onchange=e=>{
   else updateSizeInfo();
 };
 document.getElementById('tIn').onchange=e=>{
-  params.thick=Math.max(2,Math.min(30,parseFloat(e.target.value)||10)); e.target.value=params.thick;
+  const v=parseFloat(e.target.value)||0;
+  ptThickUserSet=v>0;                                        // 打了數字＝他的值，之後換料數不蓋；清空／0＝回到跟著料數的預設（#40）
+  params.thick=Math.max(2,Math.min(30, v>0 ? v : (PT_THICK_DEFAULT[slotCount]||10))); e.target.value=params.thick;
 };
+/* #40：料數一變（renderSlots）就呼叫；使用者自己改過厚度就不動 */
+function ptApplyThickDefault(){
+  if(ptThickUserSet) return;
+  const t=PT_THICK_DEFAULT[slotCount]||10;
+  if(params.thick===t) return;
+  params.thick=t;
+  const el=document.getElementById('tIn'); if(el) el.value=t;
+}
 const noiseIn=document.getElementById('noiseIn');
 noiseIn.oninput=e=>{
   const value=parseFloat(e.target.value);
