@@ -227,6 +227,7 @@ std::unique_ptr<Tower> create(const Print& print, std::string& why)
     st.size_mm = (float) owner->config().ping_pt_cycle_size.value;
     st.gap_mm  = (float) owner->config().ping_pt_cycle_gap.value;
     st.brim_mm = (float) owner->config().ping_pt_cycle_brim.value;
+    st.max_flow = (float) owner->config().ping_pt_cycle_max_flow.value;
     std::map<int, std::string> palette;
     if (!collect_palette(print.model(), palette, why)) return nullptr;
 
@@ -280,10 +281,18 @@ std::unique_ptr<Tower> create(const Print& print, std::string& why)
 
     auto tower = std::make_unique<Tower>(st, palette, nozzle, center, size, behind);
     BOOST_LOG_TRIVIAL(info) << "PING photo-tile cycle tower: mode=" << st.mode << " laps=" << owner->config().ping_pt_cycle_laps.value
-                            << " size=" << size << " center=(" << c_mm.x() << "," << c_mm.y() << ")"
+                            << " size=" << size << " max_flow=" << st.max_flow << " center=(" << c_mm.x() << "," << c_mm.y() << ")"
                             << (behind ? " [behind the tile: beside did not fit]" : "") << " palette=" << palette.size()
                             << " pure-E0 tools=" << tower->pure_light_tools().size();
     return tower;
+}
+
+double Tower::tower_speed(double outer_wall_speed, double mm3_per_mm) const
+{
+    double speed = outer_wall_speed > 0. ? outer_wall_speed : 60.;
+    if (m_settings.max_flow > 0.f && mm3_per_mm > 0.)
+        speed = std::min(speed, double(m_settings.max_flow) / mm3_per_mm);
+    return speed;
 }
 
 Tower::Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point center, float size, bool behind)

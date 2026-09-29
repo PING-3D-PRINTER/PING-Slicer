@@ -4302,7 +4302,8 @@ std::string GCode::ping_cycle_tower_layer(const Print& print, const std::vector<
 
     std::string gcode;
     { std::ostringstream os; os << "; PING photo-tile cycle tower begin z=" << print_z << "\n"; gcode += os.str(); }
-    const double speed = print.default_region_config().outer_wall_speed.value > 0 ? print.default_region_config().outer_wall_speed.value : 60.;
+    // 塔速＝外牆速度、但流量不超過塔自己的上限（Eric 2026-09-30 #39，見 Tower::tower_speed）
+    const double speed = m_ping_cycle->tower_speed(print.default_region_config().outer_wall_speed.value, g.mm3_per_mm);
     // 🔴 每色進塔（Eric 2026-09-14 Q1「做」，牌 c-0914-PTI-01）：層首只洗本層**第一個顏色**的圈，其餘顏色到
     // process_layer 換料迴圈裡、各自開印前才進塔（ping_cycle_tower_visit）。第 0 層（brim 層）照舊整塔——
     // 實印證實有效的 B 檔同樣沒動第 0 層；split 不適用（四料／圈數不夠分＝少於色數＋1）也照舊整塔。
@@ -4379,7 +4380,7 @@ std::string GCode::ping_cycle_tower_visit(const Print& print, const std::vector<
     const PingCycle::LayerGeometry& g = m_ping_cycle->geometry_for(layer_height, false);
     if (!g.problem.empty())
         throw Slic3r::SlicingError(std::string("PING photo-tile cycle tower: ") + g.problem);
-    const double speed = print.default_region_config().outer_wall_speed.value > 0 ? print.default_region_config().outer_wall_speed.value : 60.;
+    const double speed = m_ping_cycle->tower_speed(print.default_region_config().outer_wall_speed.value, g.mm3_per_mm);   // 同層首那趟（#39）
 
     std::string gcode;
     { std::ostringstream os; os << "; PING photo-tile cycle tower visit begin T" << extruder_id << " z=" << print_z << "\n"; gcode += os.str(); }

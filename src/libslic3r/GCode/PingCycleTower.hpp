@@ -48,6 +48,7 @@ struct Settings {
     float                  size_mm = 0.f;     // 0＝預設 25 mm 固定（Eric 2026-09-08；原式 44 × 口徑/0.4 已停用）
     float                  gap_mm  = 15.f;    // 塔與模型外緣距離
     float                  brim_mm = 8.f;     // 首層外擴 brim（用**最後一段**＝最淺那段的料，見 GCode.cpp）
+    float                  max_flow = 11.f;   // 塔流量上限 mm³/s（ping_pt_cycle_max_flow；0＝不設上限）。見 Tower::tower_speed()
     int                    stage_count() const { return (int) stages.size(); }
     int                    total_laps() const { int n = 0; for (const StageSpec& s : stages) n += s.laps; return n; }
 };
@@ -129,6 +130,11 @@ public:
     Point                                center()    const { return m_center; }   // scaled
     // 該層高的幾何（快取）；problem 非空＝這層不能做塔
     const LayerGeometry&                 geometry_for(float layer_height, bool first_layer);
+    // 塔的列印速度 mm/s：製程外牆速度（沒設＝60），但流量不超過 Settings::max_flow。
+    // 🔴 Eric 2026-09-30「照建議」（開發中清單 #39）：原本塔直接跟外牆速度（照片磚 120 mm/s）⇒ 四料 0.6 塔＝22 mm³/s，
+    //    切成純白那一瞬間單支料推不動、擠出機回彈；減半（11 mm³/s）就不回彈、外牆也較均勻偏白（ORCA SOP 無頭切片 §22-9）。
+    //    用流量而不是 mm/s 定：塔線寬＝口徑，0.4 本來就低於 11 ⇒ 不變；1.0 壓到約 25～27 mm/s。首層照舊由 _extrude 換成首層速度。
+    double                               tower_speed(double outer_wall_speed, double mm3_per_mm) const;
     // 離線報表用：塔外輪廓（scaled，已含位置）
     const Polygon&                       outline() const { return m_outline; }
 
