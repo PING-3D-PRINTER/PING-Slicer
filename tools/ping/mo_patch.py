@@ -246,6 +246,9 @@ NEW_ENTRIES = {
     #   src/slic3r/GUI/GUI_Factories.cpp（右鍵選單）／src/slic3r/GUI/GUI_ObjectList.cpp（零件名）
     "Add corner fixing block": "新增角落固定塊",
     "Corner fixing block": "角落固定塊",
+    # PING(2026-09-29・牌 c-0929-HOME-01)：首頁內嵌網頁使用中失效時的一行提示（開發中清單 #34，Eric 裁 D2 A＝只提示、讓使用者按「重新載入」）。
+    #   src/slic3r/GUI/WebViewDialog.cpp（show_failed_notice）；按鈕沿用既有「Reload」＝「重新載入」。
+    "The page has stopped working.": "頁面已失效",
 }
 
 

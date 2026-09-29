@@ -48,11 +48,13 @@ public:
 
 private:
     void SendAPIKey();
+    // PING #34（L1）：內嵌網頁第一次要顯示時才建（開機時建會跟首頁一起被 WebView2 收掉）。
+    void ensure_browser();
 
-    wxWebView* m_browser;
+    wxWebView* m_browser{nullptr};
     long m_zoomFactor;
     wxString m_apikey;
-    bool m_apikey_sent;
+    bool m_apikey_sent{false};
 
     wxString m_url_deferred;
 

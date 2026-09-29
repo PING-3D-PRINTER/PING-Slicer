@@ -461,6 +461,7 @@ protected:
     ScalableButton *m_button_abort;
     Button *        m_button_clean;
     wxWebView *     m_custom_camera_view{nullptr};
+    wxBoxSizer *    m_camera_view_sizer{nullptr};   // PING #34：攝影機內嵌網頁用到時才建，建好放進這個 sizer
     wxSimplebook*   m_extruder_book;
     std::vector<ExtruderImage *> m_extruderImage;
 
@@ -591,6 +592,7 @@ public:
     MachineObject* obj{nullptr};
     void init_bitmaps();
     wxBoxSizer *create_monitoring_page();
+    wxWebView  *ensure_custom_camera_view();         // PING #34（L1）：自訂攝影機內嵌網頁第一次要用時才建
     wxBoxSizer *create_machine_control_page(wxWindow *parent);
 
     wxBoxSizer *create_temp_axis_group(wxWindow *parent);

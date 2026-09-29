@@ -13,12 +13,15 @@
 #include <wx/osx/webview_webkit.h>
 #endif
 #include <wx/uri.h>
+#include <wx/weakref.h>
 #if defined(__WIN32__) || defined(__WXMAC__)
 #include "wx/private/jsscriptwrapper.h"
 #endif
 
 #ifdef __WIN32__
 #include <WebView2.h>
+#include <wrl.h>
+#include <wrl/event.h>
 #include <Shellapi.h>
 #include <slic3r/Utils/Http.hpp>
 #elif defined __linux__
@@ -102,6 +105,14 @@ DWORD DownloadAndInstallWV2RT() {
 class WebViewEdge : public wxWebViewEdge
 {
 public:
+    ~WebViewEdge() override
+    {
+        // PING #34：拆掉自己註冊的 ProcessFailed（wx 的 impl 解構時只拆它自己註冊的那幾個）。
+        if (m_processFailedToken.value != 0)
+            if (auto webView2 = (ICoreWebView2 *) GetNativeBackend())
+                webView2->remove_ProcessFailed(m_processFailedToken);
+    }
+
     bool SetUserAgent(const wxString &userAgent)
     {
         bool dark = userAgent.Contains("dark");
@@ -109,19 +120,20 @@ public:
 
         ICoreWebView2 *webView2 = (ICoreWebView2 *) GetNativeBackend();
         if (webView2) {
-            ICoreWebView2Settings *settings;
-            HRESULT                hr = webView2->get_Settings(&settings);
-            if (hr == S_OK) {
-                ICoreWebView2Settings2 *settings2;
-                hr = settings->QueryInterface(&settings2);
-                if (hr == S_OK) {
+            // PING #34（Codex 一輪）：原本成功時沒放掉 settings；get_Settings 失敗時對未初始化的指標 Release——
+            // 後端失效後切深色模式（RecreateAll）就會走到那條路。
+            bool                   ok       = false;
+            ICoreWebView2Settings *settings = nullptr;
+            if (webView2->get_Settings(&settings) == S_OK && settings) {
+                ICoreWebView2Settings2 *settings2 = nullptr;
+                if (settings->QueryInterface(&settings2) == S_OK && settings2) {
                     settings2->put_UserAgent(userAgent.wc_str());
                     settings2->Release();
-                    return true;
+                    ok = true;
                 }
+                settings->Release();
             }
-            settings->Release();
-            return false;
+            return ok;
         }
         pendingUserAgent = userAgent;
         return true;
@@ -161,19 +173,19 @@ public:
     {
         ICoreWebView2 *webView2 = (ICoreWebView2 *) GetNativeBackend();
         if (webView2) {
-            ICoreWebView2_13 * webView2_13;
-            HRESULT           hr = webView2->QueryInterface(&webView2_13);
-            if (hr == S_OK) {
-                ICoreWebView2Profile *profile;
-                hr = webView2_13->get_Profile(&profile);
-                if (hr == S_OK) {
+            // PING #34（Codex 一輪）：原本成功時沒放掉 webView2_13。
+            bool              ok          = false;
+            ICoreWebView2_13 *webView2_13 = nullptr;
+            if (webView2->QueryInterface(&webView2_13) == S_OK && webView2_13) {
+                ICoreWebView2Profile *profile = nullptr;
+                if (webView2_13->get_Profile(&profile) == S_OK && profile) {
                     profile->put_PreferredColorScheme(colorScheme);
                     profile->Release();
-                    return true;
+                    ok = true;
                 }
                 webView2_13->Release();
             }
-            return false;
+            return ok;
         }
         pendingColorScheme = colorScheme;
         return true;
@@ -201,13 +213,53 @@ public:
             thiz->pendingColorScheme = COREWEBVIEW2_PREFERRED_COLOR_SCHEME_AUTO;
             thiz->SetColorScheme(colorScheme);
         }
+        if (!m_backendSeen)
+            if (auto webView2 = (ICoreWebView2 *) GetNativeBackend())
+                const_cast<WebViewEdge *>(this)->OnBackendAvailable(webView2);
         wxWebViewEdge::DoGetClientSize(x, y);
     };
 private:
+    /* PING #34：這版 wx 沒有「後端建好了」的事件，也沒註冊 ProcessFailed。後端第一次出現的地方＝wx 的
+       「控制器建好」回呼裡、導覽之前的 UpdateBounds()（它會走到上面的 DoGetClientSize）。
+       在回呼裡只做兩件輕的事：註冊 ProcessFailed、排一個「後端就緒」事件；怎麼處理都交給面板在回呼外做。 */
+    void OnBackendAvailable(ICoreWebView2 *webView2)
+    {
+        m_backendSeen = true;
+        wxWeakRef<wxWindow> self(this);
+        HRESULT             hr = webView2->add_ProcessFailed(
+            Microsoft::WRL::Callback<ICoreWebView2ProcessFailedEventHandler>(
+                [self](ICoreWebView2 *, ICoreWebView2ProcessFailedEventArgs *args) -> HRESULT {
+                    try { // 例外不可穿越 COM 回呼（SOP_WebView2 §一）
+                        COREWEBVIEW2_PROCESS_FAILED_KIND kind = COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
+                        if (args)
+                            args->get_ProcessFailedKind(&kind);
+                        // 只有瀏覽器程序或主頁面程序結束才算頁面死了；GPU／子框架／未回應等 Chromium 會自己恢復（SOP_WebView2 §四）。
+                        const bool page_dead = kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED ||
+                                               kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED;
+                        if (wxWindow *w = self.get()) {
+                            auto *evt = new wxCommandEvent(EVT_WEBVIEW_PROCESS_FAILED, w->GetId());
+                            evt->SetEventObject(w);
+                            evt->SetInt(int(kind));
+                            evt->SetExtraLong(page_dead ? 1 : 0);
+                            wxQueueEvent(w, evt);
+                        }
+                    } catch (...) {}
+                    return S_OK;
+                }).Get(),
+            &m_processFailedToken);
+        if (FAILED(hr))
+            BOOST_LOG_TRIVIAL(warning) << "WebView: add_ProcessFailed failed, hr=" << hr;
+        auto *evt = new wxCommandEvent(EVT_WEBVIEW_BACKEND_READY, GetId());
+        evt->SetEventObject(this);
+        wxQueueEvent(this, evt);
+    }
+
     wxString pendingUserAgent;
     wxString pendingVirtualHost;
     wxString pendingVirtualFolder;
     COREWEBVIEW2_PREFERRED_COLOR_SCHEME pendingColorScheme = COREWEBVIEW2_PREFERRED_COLOR_SCHEME_AUTO;
+    bool                   m_backendSeen = false;
+    EventRegistrationToken m_processFailedToken{};
 };
 
 #elif defined __WXOSX__
@@ -259,9 +311,43 @@ class FakeWebView : public wxWebView
 };
 
 wxDEFINE_EVENT(EVT_WEBVIEW_RECREATED, wxCommandEvent);
+wxDEFINE_EVENT(EVT_WEBVIEW_BACKEND_READY, wxCommandEvent);
+wxDEFINE_EVENT(EVT_WEBVIEW_PROCESS_FAILED, wxCommandEvent);
 
 static std::vector<wxWebView*> g_webviews;
 static std::vector<wxWebView*> g_delay_webviews;
+
+/* PING #34（L1）的建立閘門（說明見 WebView.hpp）。只有 Windows（WebView2）有這個病，
+   其他平台一開始就放行＝照舊在建構時建立。 */
+#ifdef __WIN32__
+static bool g_creation_allowed = false;
+#else
+static bool g_creation_allowed = true;
+#endif
+static std::vector<std::pair<wxWeakRef<wxWindow>, std::function<void()>>> g_creation_waiting;
+
+bool WebView::CreationAllowed() { return g_creation_allowed; }
+
+void WebView::AllowCreation()
+{
+    if (g_creation_allowed)
+        return;
+    g_creation_allowed = true;
+    auto waiting       = std::move(g_creation_waiting);
+    g_creation_waiting.clear();
+    BOOST_LOG_TRIVIAL(info) << "WebView: creation allowed after post_init, " << waiting.size() << " waiting";
+    for (auto &w : waiting)
+        if (w.first.get() != nullptr)
+            w.second();
+}
+
+void WebView::CallWhenCreationAllowed(wxWindow *owner, std::function<void()> fn)
+{
+    if (g_creation_allowed)
+        fn();
+    else
+        g_creation_waiting.emplace_back(wxWeakRef<wxWindow>(owner), std::move(fn));
+}
 
 class WebViewRef : public wxObjectRefData
 {
@@ -317,7 +403,9 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, wxString const & url)
         webView->SetUserAgent(wxString::Format("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                                                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.52 BBL-Slicer/v%s (%s) BBL-Language/%s",
                                                SLIC3R_VERSION, Slic3r::GUI::wxGetApp().dark_mode() ? "dark" : "light", language_code.mb_str()));
-        webView->Create(parent, wxID_ANY, url2, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
+        // PING #34（Codex 一輪）：原本不看回傳值；失敗（沒有執行階段／環境建立呼叫失敗）至少要留紀錄。
+        if (!webView->Create(parent, wxID_ANY, url2, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE))
+            BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << ": wxWebViewEdge::Create failed";
         // We register the wxfs:// protocol for testing purposes
         webView->RegisterHandler(wxSharedPtr<wxWebViewHandler>(new wxWebViewArchiveHandler("bbl")));
         // And the memory: file system
