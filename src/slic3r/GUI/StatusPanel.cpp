@@ -1498,7 +1498,8 @@ wxBoxSizer *StatusBasePanel::create_monitoring_page()
         const std::string js_request_pip = R"(
             document.querySelector('video').requestPictureInPicture();
         )";
-        m_custom_camera_view->RunScript(js_request_pip);
+        if (m_custom_camera_view)
+            m_custom_camera_view->RunScript(js_request_pip);
     });
     m_camera_switch_button->Hide();
 
@@ -1529,11 +1530,32 @@ wxBoxSizer *StatusBasePanel::create_monitoring_page()
     m_media_ctrl = new wxMediaCtrl2(this);
     m_media_ctrl->SetMinSize(wxSize(PAGE_MIN_WIDTH, FromDIP(288)));
 
+    // PING #34（L1）：自訂攝影機的內嵌網頁不在這裡建，見 ensure_custom_camera_view()。
+    m_media_play_ctrl = new MediaPlayCtrl(this, m_media_ctrl, wxDefaultPosition, wxSize(-1, FromDIP(40)));
+
+    sizer->Add(m_media_ctrl, 1, wxEXPAND | wxALL, 0);
+    sizer->Add(m_media_play_ctrl, 0, wxEXPAND | wxALL, 0);
+    m_camera_view_sizer = sizer;
+//    media_ctrl_panel->SetSizer(bSizer_monitoring);
+//    media_ctrl_panel->Layout();
+//
+//    sizer->Add(media_ctrl_panel, 1, wxEXPAND | wxALL, 1);
+
+    if (wxGetApp().app_config->get("camera", "enable_custom_source") == "true") {
+        // 開機時就開著自訂攝影機：等開機初始化做完才建內嵌網頁。
+        WebView::CallWhenCreationAllowed(this, [this] { handle_camera_source_change(); });
+    }
+
+    return sizer;
+}
+
+wxWebView *StatusBasePanel::ensure_custom_camera_view()
+{
+    if (m_custom_camera_view != nullptr)
+        return m_custom_camera_view;
     m_custom_camera_view = WebView::CreateWebView(this, wxEmptyString);
     m_custom_camera_view->EnableContextMenu(false);
     Bind(wxEVT_WEBVIEW_NAVIGATING, &StatusBasePanel::on_webview_navigating, this, m_custom_camera_view->GetId());
-
-    m_media_play_ctrl = new MediaPlayCtrl(this, m_media_ctrl, wxDefaultPosition, wxSize(-1, FromDIP(40)));
     m_custom_camera_view->Hide();
     m_custom_camera_view->Bind(wxEVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, [this](wxWebViewEvent& evt) {
         if (evt.GetString() == "leavepictureinpicture") {
@@ -1545,20 +1567,14 @@ wxBoxSizer *StatusBasePanel::create_monitoring_page()
             toggle_builtin_camera();
         }
     });
-
-    sizer->Add(m_media_ctrl, 1, wxEXPAND | wxALL, 0);
-    sizer->Add(m_custom_camera_view, 1, wxEXPAND | wxALL, 0);
-    sizer->Add(m_media_play_ctrl, 0, wxEXPAND | wxALL, 0);
-//    media_ctrl_panel->SetSizer(bSizer_monitoring);
-//    media_ctrl_panel->Layout();
-//
-//    sizer->Add(media_ctrl_panel, 1, wxEXPAND | wxALL, 1);
-
-    if (wxGetApp().app_config->get("camera", "enable_custom_source") == "true") {
-        handle_camera_source_change();
-    }
-
-    return sizer;
+    // 放回原本的位置：內建攝影機畫面與播放控制列之間。
+    size_t at = 0;
+    for (size_t i = 0; i < m_camera_view_sizer->GetItemCount(); ++i)
+        if (m_camera_view_sizer->GetItem(i)->GetWindow() == m_media_ctrl)
+            at = i + 1;
+    m_camera_view_sizer->Insert(at, m_custom_camera_view, 1, wxEXPAND | wxALL, 0);
+    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": custom camera web view created on first use";
+    return m_custom_camera_view;
 }
 
 void StatusBasePanel::on_webview_navigating(wxWebViewEvent& evt) {
@@ -4859,7 +4875,7 @@ void StatusBasePanel::handle_camera_source_change()
     const auto enabled = wxGetApp().app_config->get("camera", "enable_custom_source") == "true";
 
     if (enabled && !new_cam_url.empty()) {
-        m_custom_camera_view->LoadURL(new_cam_url);
+        ensure_custom_camera_view()->LoadURL(new_cam_url);
         toggle_custom_camera();
         m_camera_switch_button->Show();
     } else {
@@ -4870,7 +4886,8 @@ void StatusBasePanel::handle_camera_source_change()
 
 void StatusBasePanel::toggle_builtin_camera()
 {
-    m_custom_camera_view->Hide();
+    if (m_custom_camera_view)
+        m_custom_camera_view->Hide();
     m_media_ctrl->Show();
     m_media_play_ctrl->Show();
 }
@@ -4880,7 +4897,7 @@ void StatusBasePanel::toggle_custom_camera()
     const auto enabled = wxGetApp().app_config->get("camera", "enable_custom_source") == "true";
 
     if (enabled) {
-        m_custom_camera_view->Show();
+        ensure_custom_camera_view()->Show();
         m_media_ctrl->Hide();
         m_media_play_ctrl->Hide();
     }
@@ -4910,7 +4927,8 @@ void StatusBasePanel::remove_controls()
             window.wx.postMessage('enterpictureinpicture');
         });
     )";
-    m_custom_camera_view->RunScript(js_cleanup_video_element);
+    if (m_custom_camera_view)
+        m_custom_camera_view->RunScript(js_cleanup_video_element);
 }
 
 void StatusPanel::on_camera_leave(wxMouseEvent& event)

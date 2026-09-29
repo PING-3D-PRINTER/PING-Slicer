@@ -1044,6 +1044,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,  ping_pt_cycle_size))   // 塔身 mm；0＝44×(口徑/0.4)
     ((ConfigOptionFloat,  ping_pt_cycle_gap))    // 與模型外緣距離 mm
     ((ConfigOptionFloat,  ping_pt_cycle_brim))   // 首層外擴 brim mm
+    ((ConfigOptionFloat,  ping_pt_cycle_max_flow)) // 塔流量上限 mm³/s，預設 11；0＝不設上限（跟外牆速度）。工作室不寫這個鍵
 )
 
 // This object is mapped to Perl as Slic3r::Config::PrintRegion.

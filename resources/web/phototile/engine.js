@@ -272,8 +272,10 @@ function filterLabels(labels, img, P, paletteSize, strategy){
    🔴 **洗料柱高度＝整塊高，不可縮**：同一層要換 8 次比例，柱矮於某層 ⇒ 那層以上沒被洗過、
       量到的是殘料污染色（R6-6 實作細節 2）。
    🔴 **整組置中要含洗料柱**：只用 -width/2 會讓磚置中、柱整根凸在右邊，重心偏到床邊。
+   🔴 **厚 20（原 10）**：Eric 2026-09-30「照建議」（開發中清單 #40 Q3 甲）＝四料校正片跟四料照片磚預設厚度同為 20（厚度＝換色清料空間，
+      條件不同量到的色就對不上）。python 參考正本 make_calib_quad_3mf.py 同步改、參考 3MF 重產，雜湊釘在 phototile_calib_test.js。
    ================================================================= */
-const CALIB_QUAD_GEO={cellMm:10, thickMm:10, levels:8, pillarMm:25, pillarGapMm:15};
+const CALIB_QUAD_GEO={cellMm:10, thickMm:20, levels:8, pillarMm:25, pillarGapMm:15};
 function calibQuadGeo(){ return Object.assign({}, CALIB_QUAD_GEO); }
 /* 產出的 3MF 內容一律 LF。本檔原始碼是 CRLF ⇒ 用 fromCharCode 講死，免得哪天被編輯器或補丁工具改成 CRLF，
    那會讓與 python 參考正本的逐位元比對整張表轉紅，而原因看起來跟幾何完全無關。 */

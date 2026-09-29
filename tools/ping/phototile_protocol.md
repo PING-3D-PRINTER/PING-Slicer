@@ -131,6 +131,7 @@ runtime 檢測 → 建 env（獨立 user-data）→ 建 controller（隱藏 HWND
 - request 多一欄 `cycle`：`{enabled, laps:"1,2"|"1,1,1,2", sizeMm（塔邊長 mm，工作室固定送 25；缺席或 0＝引擎補 25。Eric 2026-09-08 定，取代原「44×口徑/0.4 等比放大」）, gapMm, brimMm}`（圈數預設 Eric 2026-09-08 第 4 階段裁；原 2,4／2,2,2,4 真切塔比模型本體重 3 倍）；**缺席＝關**（3MF／請求字串與舊版位元組全等）。宿主 `PhotoTileEngineRequest::cycle*` 只在開啟時寫入。
 - 開啟時引擎：①不再產舊固定比洗料柱零件 ②`Metadata/model_settings.config` 的照片磚 `<object>` 多六個 metadata 鍵 `ping_pt_cycle=1`／`ping_pt_cycle_mode`／`ping_pt_cycle_laps`／`ping_pt_cycle_size`／`ping_pt_cycle_gap`／`ping_pt_cycle_brim`（bbs_3mf 匯入→`ModelObject::config`→`PrintObjectConfig`，另存重開都在）③`ping_phototile.json.params.cycle` 記同一組值。
 - 切片端：`libslic3r/GCode/PingCycleTower.*` 讀物件設定，`ToolOrdering::ping_reorder_for_cycle_tower` **模型段照亮度分數淺→深完全排序**（Eric 2026-09-09 裁「丙」：亮度＝雙料 S／四料 (A×3+B×2+C×1+D×0)/300；`stable_sort` ⇒ 同分維持原生順序；不在 palette 的槽留原位。原規則「純 E0 先其餘保序」已停用——實測 333 層只有 24 層碰巧淺→深，65 層洗白後第一段就上純黑），`GCode::ping_cycle_tower_layer` 層首插塔（真實 offset 圈、配方命令 M605x 直寫、離塔後明寫第一段模型配方）。離線對照答案＝`照片磚_循環洗料塔/cycle_core.py`。
+- 🆕 第七個物件鍵 `ping_pt_cycle_max_flow`（mm³/s，預設 11；0＝不設上限）＝塔的流量上限：塔速＝`min(外牆速度, 上限 ÷ 塔截面)`，首層照舊首層速度（Eric 2026-09-30「照建議」，ORCA 開發中清單 #39；起因＝四料 0.6 塔 120 mm/s＝22 mm³/s 切白回彈）。**工作室刻意不寫這個鍵**：預設值只在 C++ 一處、舊 3MF 重切也吃得到；要試別的值就在 3MF 的照片磚 `<object>` 加一行 metadata。
 
 ### 8.2 色彩校正（0914 Q3 甲，additive；schema 仍 1；牌 c-0914-PTI-04）
 

@@ -21,7 +21,7 @@ set(SLIC3R_VERSION "01.10.01.50")
 # 🔴 **出貨版必須留空字串**（空＝標題不附加任何測試版標記）——版本治理：出貨版不得帶測試版標記。
 # 流程＝照既有「build 前原子預留 T 號」：預留 → 改這一行 → push → build ⇒ 成品自帶版次、不可能標錯。
 # ⛔ 不用「執行期讀資源檔」的做法：打包後改檔會破壞 digest 鏈（SOP §2 成品 SHA-256 須與官方 digest MATCH）。
-set(PING_TEST_BUILD "T067")
+set(PING_TEST_BUILD "T068")
 
 if (NOT DEFINED ORCA_UPDATER_SIG_KEY)
     set(ORCA_UPDATER_SIG_KEY "" CACHE STRING "Base64url encoded updater signature key")
