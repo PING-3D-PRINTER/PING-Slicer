@@ -791,13 +791,13 @@ for name, (kind, d) in presets.items():
                 # ⚠ 內聯清單，不吃 embed_params 的常數（兩支是獨立程式）。新增照片磚專用線材時兩邊都要加——
                 #   0730 就是漏了這一行，照片磚支被掃成回抽 3、靜默蓋掉零回抽 20 天。正本＝embed_params.pt_fil_specs。
                 is_pt = name in (PT_FIL_PLA_V, PT_FIL_PLA_FD_V, PT_FIL_PLA_FDHF_V)
-                # 🔴 四料照片磚噴溫 190（Eric 2026-09-10 裁「四料使用的照片磚參數要特別降到 190 度」）。
-                #    只有 `PING PLA(照片磚)`＝FF600／FF800 照片磚六台專用支；雙料照片磚兩支維持 210（Eric 同日裁「雙料不改」）。
-                #    ⚠️ 與 2026-07-17「0.6 實機 190 塞頭」相反，是 Eric 0910 明確改裁；若實印再塞頭，回退點＝embed_params 的 PT_FIL_PLA 那兩行＋本條。
+                # 🔴 四料照片磚噴溫 210（Eric 2026-09-29 22:3x 裁「改回 210」，回退 0910「降到 190」那一裁）。
+                #    只有 `PING PLA(照片磚)`＝FF600／FF800 照片磚六台專用支；雙料照片磚兩支一直是 210（0910「雙料不改」）。
+                #    證據＝.142 溫度對照：190 換成白／黑供料不足兩次重現、210 消失（SOP 無頭切片 §22-8）。正本＝embed_params 的 PT_FIL_PLA 那兩行。
                 if name == PT_FIL_PLA_V:
                     for _tk in ("nozzle_temperature", "nozzle_temperature_initial_layer"):
-                        if _v(_tk) != "190":
-                            err(f"[四料照片磚噴溫 190 0910] {name}: {_tk}={_v(_tk)!r}, expected '190'")
+                        if _v(_tk) != "210":
+                            err(f"[四料照片磚噴溫 210 0929] {name}: {_tk}={_v(_tk)!r}, expected '210'")
                 elif name in (PT_FIL_PLA_FD_V, PT_FIL_PLA_FDHF_V):
                     for _tk in ("nozzle_temperature", "nozzle_temperature_initial_layer"):
                         if _v(_tk) != "210":
