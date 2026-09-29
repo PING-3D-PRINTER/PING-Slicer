@@ -176,6 +176,9 @@ std::string GCodeWriter::set_bed_temperature(int temperature, bool wait)
 
 std::string GCodeWriter::set_chamber_temperature(int temperature, bool wait)
 {
+    // PING (#33 Q3): no PING Klipper printer knows M141/M191 (unknown command: nothing heats, nothing waits).
+    if (FLAVOR_IS(gcfKlipper))
+        return {};
     std::string code, comment;
     std::ostringstream gcode;
 
@@ -376,6 +379,13 @@ std::string GCodeWriter::set_pressure_advance(double pa) const
             gcode << "M900 K" <<std::setprecision(4)<< pa << "; Override pressure advance value\n";
     }
     return gcode.str();
+}
+
+// PING (#33 Q2): Klipper keeps the pressure advance of the previous filament / job until the printer restarts, so a
+// filament with "Enable pressure advance" unchecked has to send 0 instead of nothing. Other flavors keep sending nothing.
+std::string GCodeWriter::disable_pressure_advance() const
+{
+    return FLAVOR_IS(gcfKlipper) ? set_pressure_advance(0) : std::string();
 }
 
 std::string GCodeWriter::set_input_shaping(char axis, float damp, float freq, std::string type) const
@@ -1085,8 +1095,12 @@ std::string GCodeWriter::set_fan(unsigned int speed) const
 }
 
 //BBS: set additional fan speed for BBS machine only
-std::string GCodeWriter::set_additional_fan(unsigned int speed)
+std::string GCodeWriter::set_additional_fan(const GCodeFlavor gcode_flavor, unsigned int speed)
 {
+    // PING (#33 Q3): Klipper's M106 ignores P, so "M106 P2" (and "M106 P3" of the exhaust fan) would drive the
+    // part-cooling fan; PING printers have neither fan => never emit them on Klipper.
+    if (gcode_flavor == gcfKlipper)
+        return {};
     std::ostringstream gcode;
 
     gcode << "M106 " << "P2 " << "S" << (int)(255.0 * speed / 100.0);
@@ -1100,8 +1114,16 @@ std::string GCodeWriter::set_additional_fan(unsigned int speed)
     return gcode.str();
 }
 
-std::string GCodeWriter::set_exhaust_fan( int speed,bool add_eol)
+std::string GCodeWriter::set_additional_fan(unsigned int speed) const
 {
+    return GCodeWriter::set_additional_fan(this->config.gcode_flavor, speed);
+}
+
+std::string GCodeWriter::set_exhaust_fan(int speed, bool add_eol) const
+{
+    // PING (#33 Q3): see set_additional_fan().
+    if (FLAVOR_IS(gcfKlipper))
+        return {};
     std::ostringstream gcode;
     gcode << "M106" << " P3" << " S" << (int)(speed / 100.0 * 255);
 

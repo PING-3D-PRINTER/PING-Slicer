@@ -292,6 +292,14 @@ for name, (kind, d) in presets.items():
             _zh_want = {"0.6": ["0.6"], "1.0": ["1"], "1": ["1"]}.get(_zh_nz, ["0.4"])
             if d.get("z_hop") != _zh_want:
                 err(f"[Z 抬升＝口徑 0910] {name}: z_hop={d.get('z_hop')!r}, expected {_zh_want!r}")
+        # 🆕 檢查 10-c（Eric 2026-09-29 裁 Q3 甲，開發中清單 #33，牌 c-0929-NOP-03）：
+        #   機型「支援空氣過濾」「支援控制列印設備內部溫度」一律明寫 0——PING 沒有可控排風扇也沒有艙溫加熱
+        #   （M106 P3 會打到主冷卻風扇、M141／M191 機台不認得）。引擎預設是 true ⇒ 缺鍵＝1，缺鍵也算錯。
+        #   Classic 一起：Eric 裁的範圍是 149 支全部。產生器＝embed_params 4b-4d。
+        if d.get("instantiation") == "true":
+            for key in ("support_air_filtration", "support_chamber_temp_control"):
+                if d.get(key) != "0":
+                    err(f"[機型支援排風扇／艙溫＝關 0929] {name}: {key}={d.get(key)!r}, expected '0'")
         # 檢查 10（Eric 2026-07-17 裁「全機隊」）：機器動力學＝Klipper 實值（時間預估校正）；
         # DL1016 與 Classic 前代機跳過
         if ("machine_max_acceleration_x" in d and "DL1016" not in name

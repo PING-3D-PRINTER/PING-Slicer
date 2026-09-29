@@ -1074,7 +1074,8 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
             // Orca: Adaptive PA
             // Reset Adaptive PA processor last PA value
             gcodegen.m_pa_processor->resetPreviousPA(gcodegen.config().pressure_advance.get_at(new_filament_id));
-        }
+        } else
+            gcode += gcodegen.writer().disable_pressure_advance(); // PING (#33 Q2)
 
         // A phony move to the end position at the wipe tower.
         gcodegen.writer().travel_to_xy((end_pos + plate_origin_2d).cast<double>());
@@ -1350,7 +1351,8 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
             // Orca: Adaptive PA
             // Reset Adaptive PA processor last PA value
             gcodegen.m_pa_processor->resetPreviousPA(gcodegen.config().pressure_advance.get_at(new_extruder_id));
-        }
+        } else if (new_extruder_id != -1)
+            gcode += gcodegen.writer().disable_pressure_advance(); // PING (#33 Q2)
 
         // A phony move to the end position at the wipe tower.
         gcodegen.writer().travel_to_xy((end_pos + plate_origin_2d).cast<double>());
@@ -7580,7 +7582,8 @@ std::string GCode::set_extruder(unsigned int new_filament_id, double print_z, bo
             // Orca: Adaptive PA
             // Reset Adaptive PA processor last PA value
             m_pa_processor->resetPreviousPA(m_config.pressure_advance.get_at(new_filament_id));
-        }
+        } else
+            gcode += m_writer.disable_pressure_advance(); // PING (#33 Q2)
 
         gcode += m_writer.toolchange(new_filament_id);
         return gcode;
@@ -7878,7 +7881,8 @@ std::string GCode::set_extruder(unsigned int new_filament_id, double print_z, bo
         // Orca: Adaptive PA
         // Reset Adaptive PA processor last PA value
         m_pa_processor->resetPreviousPA(m_config.pressure_advance.get_at(new_filament_id));
-    }
+    } else
+        gcode += m_writer.disable_pressure_advance(); // PING (#33 Q2)
     //Orca: tool changer or IDEX's firmware may change Z position, so we set it to unknown/undefined
     m_last_pos_defined = false;
 
