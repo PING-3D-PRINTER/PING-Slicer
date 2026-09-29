@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "coreVersion": "1.1.0-alpha.6",
+  "coreVersion": "1.1.0-alpha.7",
   "protocolVersion": 1,
   "owner": "聯造實業有限公司 / PING Slicer",
   "artifact": "step-repair-browser-release",
   "files": [
     {
       "path": "NOTICE.md",
-      "bytes": 390,
-      "sha256": "c1442fe995b6b5a8bb5e6f5d4525f2e9e99fbacf71e66589d944d449be919c47"
+      "bytes": 5332,
+      "sha256": "2a6636b461e278afb84129c1bf4bc2792b836a19fa3c8d530b671ec223ab3fcb"
     },
     {
       "path": "assets/replicad_single.wasm",
@@ -18,12 +18,62 @@
     {
       "path": "assets/step-repair.js",
       "bytes": 877391,
-      "sha256": "0b1cfe042c61f50e71112b955f20f3543a311bfe1a38cfe85283c914657bddee"
+      "sha256": "88bb4f379a8c90d5945564af62c3831096878f625b3c4eb7c0a8ccd8aa06a250"
     },
     {
       "path": "index.html",
       "bytes": 6952,
       "sha256": "8f126ece32519d8aedfdf853c1faacd0b8b1f27b7a6826133dc4d4ed84cdbca6"
+    },
+    {
+      "path": "licenses/OCCT-LGPL-2.1.txt",
+      "bytes": 26434,
+      "sha256": "e237fa56668030e928551ddd60f05df5fe957f75eab874bbd017e085ed722e7c"
+    },
+    {
+      "path": "licenses/OCCT-LGPL-exception-1.0.txt",
+      "bytes": 663,
+      "sha256": "04580a884ea6cea294402649ff7b5cbb167d47462d1340a4ed33e550db10a81b"
+    },
+    {
+      "path": "licenses/OCCT-embedded-notices.txt",
+      "bytes": 2784,
+      "sha256": "f2405d68e2c5d05270e819aea418290f6603899a5d333f861f27ce85c59126b0"
+    },
+    {
+      "path": "licenses/emscripten-MIT-NCSA.txt",
+      "bytes": 5093,
+      "sha256": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86"
+    },
+    {
+      "path": "licenses/flatbush-ISC.txt",
+      "bytes": 750,
+      "sha256": "08a9d45b1300baf1925a966bcbec26cf9bd4137883d96b79089cba2c72d872bc"
+    },
+    {
+      "path": "licenses/flatqueue-ISC.txt",
+      "bytes": 750,
+      "sha256": "08a9d45b1300baf1925a966bcbec26cf9bd4137883d96b79089cba2c72d872bc"
+    },
+    {
+      "path": "licenses/inventory.json",
+      "bytes": 5964,
+      "sha256": "12cd953e8e9bdfa23c235ca83bbd709d50566638779b49e50f7963664a84c7b4"
+    },
+    {
+      "path": "licenses/musl-MIT.txt",
+      "bytes": 6204,
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    {
+      "path": "licenses/opencascade.js-LGPL-2.1.txt",
+      "bytes": 26526,
+      "sha256": "20c17d8b8c48a600800dfd14f95d5cb9ff47066a9641ddeab48dc54aec96e331"
+    },
+    {
+      "path": "licenses/opentype.js-MIT.txt",
+      "bytes": 1085,
+      "sha256": "a5b87c9bc191e7f9c06b07bd7cbbed3ed846dfdb50e859484b2c245aa1ab2e61"
     },
     {
       "path": "licenses/replicad-MIT.txt",
@@ -34,6 +84,26 @@
       "path": "licenses/replicad-opencascadejs-MIT.txt",
       "bytes": 1063,
       "sha256": "7a3c098c1cf5d8de05efa0b930e7c8398c221da2a59032b617057fb7f122cf70"
+    },
+    {
+      "path": "licenses/string.prototype.codepointat-MIT.txt",
+      "bytes": 1077,
+      "sha256": "483acb265f182907d1caf6cff9c16c96f31325ed23792832cc5d8b12d5f88c8a"
+    },
+    {
+      "path": "licenses/three-MIT.txt",
+      "bytes": 1081,
+      "sha256": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+    },
+    {
+      "path": "licenses/tiny-inflate-MIT.txt",
+      "bytes": 1077,
+      "sha256": "c0df7f551401f8f80197ff31bf69b8cd23727d127423403282514d242a3ab132"
+    },
+    {
+      "path": "licenses/vite-MIT.txt",
+      "bytes": 1162,
+      "sha256": "e373c2e74cd342b9e74d0b8813a8fddf3c9788515669a79c2ac238195673d38b"
     }
   ]
 }

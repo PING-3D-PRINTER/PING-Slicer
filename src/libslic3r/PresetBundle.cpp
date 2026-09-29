@@ -3508,6 +3508,11 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
     inherits_values.resize(num_filaments + 2, std::string());
     different_values.resize(num_filaments + 2, std::string());
     filament_ids.resize(num_filaments, std::string());
+    // PING（2026-09-17，牌 c-0917-PDR-01）：留一份給「匯出參數差異清單」用。
+    // 這裡是 3mf 的 different_settings_to_system 唯一完整、且已對齊 num_filaments 的地方——
+    // 上面那個 std::move 之後 config 裡就沒有了，下游也不會再看到它。
+    // 純資料保存，不參與任何既有判斷；欄位語意與注意事項見 PresetBundle.hpp 的宣告。
+    this->project_different_settings_to_system = different_values;
     // The "default_filament_profile" will be later extracted into the printer profile.
 	switch (printer_technology) {
 	case ptFFF:
@@ -3771,6 +3776,17 @@ void PresetBundle::load_config_file_config(const std::string &name_or_path, bool
 
 	this->update_compatible(PresetSelectCompatibleType::Never);
     this->update_multi_material_filament_presets();
+
+    // PING（c-0928-PDR-01 B 案）：三組都載入、選好之後才留快照（欄位語意見 PresetBundle.hpp）。
+    this->project_opened_print   = { this->prints.get_edited_preset().name,   this->prints.get_edited_preset().config };
+    this->project_opened_printer = { this->printers.get_edited_preset().name, this->printers.get_edited_preset().config };
+    // 線材逐槽（c-0929-PDR-01）：find_preset 對選中那支（1 號槽，上面多料那段只有 i == 0 是 LoadAndSelect::Always）
+    // 回編輯副本、其他支回存檔版——剛載入完兩者都等於 3mf 載進來的值。找不到的槽留空名＝之後一律不算「同一支」。
+    this->project_opened_filaments.clear();
+    for (const std::string &filament_name : this->filament_presets) {
+        const Preset *loaded = this->filaments.find_preset(filament_name, false);
+        this->project_opened_filaments.push_back(loaded ? ProjectPresetSnapshot{ loaded->name, loaded->config } : ProjectPresetSnapshot{});
+    }
 
     //BBS
     //const std::string &physical_printer = config.option<ConfigOptionString>("physical_printer_settings_id", true)->value;
