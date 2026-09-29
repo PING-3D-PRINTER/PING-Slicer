@@ -1562,7 +1562,7 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionFloat(0.));
 
-    // PING 照片磚「每層循環洗料塔」（WT 線 2026-09-08）——六個物件層設定，由工作室寫進 3MF、不在 UI 露出（comDevelop）。
+    // PING 照片磚「每層循環洗料塔」（WT 線 2026-09-08）——物件層設定，前六個由工作室寫進 3MF、不在 UI 露出（comDevelop）。
     def = this->add("ping_pt_cycle", coBool);
     def->label = L("PING photo-tile cycle tower");
     def->category = L("PING");
@@ -1610,6 +1610,17 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->mode = comDevelop;
     def->set_default_value(new ConfigOptionFloat(8.));
+
+    // 第七個（Eric 2026-09-30「照建議」，ORCA 開發中清單 #39）：塔的流量上限。工作室**不寫**這個鍵 ⇒ 預設值就是現行值，舊 3MF 重切也吃得到。
+    // 用 mm³/s 而不是 mm/s：塔線寬＝口徑，同樣 60 mm/s 在 0.4 是 5、在 1.0 是 24 mm³/s（計畫_四料照片磚三項_20260929.html §三）。
+    def = this->add("ping_pt_cycle_max_flow", coFloat);
+    def->label = L("PING cycle tower max volumetric speed");
+    def->category = L("PING");
+    def->tooltip = L("The cycle tower prints at the outer wall speed, lowered so that it never extrudes more than this volume per second. 0 = no limit (outer wall speed).");
+    def->sidetext = L(u8"mm³/s");
+    def->min = 0;
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionFloat(11.));
 
     // PING 角落固定塊（CFB 線 2026-09-21）——逐零件旗標，由「新增角落固定塊」寫進零件設定、不在 UI 露出（comDevelop）。
     def = this->add("ping_keep_clear_of_parts", coBool);
