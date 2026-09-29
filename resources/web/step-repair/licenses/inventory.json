@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "_": [
+    "Third-party inventory of the STEP Repair Core browser release (PING, 2026-09-26, claim c-0926-LIC-01).",
+    "vite.config.js checks at build time that every npm package, virtual module and emitted file in the bundle is listed here (same version, same wasm SHA-256) and that every listed license file exists. Mismatches are printed as warnings; for now they do not stop the build.",
+    "How each entry was verified, with sources: ../_授權查核_20260926.md. Human-readable summary: ../NOTICE.md."
+  ],
+  "packages": {
+    "replicad": {
+      "version": "0.23.1",
+      "license": "MIT",
+      "copyright": "Copyright 2023 QuaroTech Sàrl",
+      "files": ["replicad-MIT.txt"],
+      "source": "https://registry.npmjs.org/replicad/-/replicad-0.23.1.tgz",
+      "inlinesEvidence": "sources list of node_modules/replicad/dist/replicad.js.map (and of opentype.js/dist/opentype.module.js.map)",
+      "inlines": [
+        {
+          "name": "opentype.js",
+          "version": "1.3.4",
+          "license": "MIT",
+          "copyright": "Copyright (c) 2020 Frederik De Bleser",
+          "files": ["opentype.js-MIT.txt"],
+          "inlines": [
+            {
+              "name": "tiny-inflate",
+              "version": "^1.0.3 (as bundled in opentype.js 1.3.4)",
+              "license": "MIT",
+              "copyright": "Copyright (c) 2015-present Devon Govett",
+              "files": ["tiny-inflate-MIT.txt"]
+            },
+            {
+              "name": "string.prototype.codepointat",
+              "version": "0.2.0 (header comment in opentype.module.js)",
+              "license": "MIT",
+              "copyright": "Copyright Mathias Bynens",
+              "files": ["string.prototype.codepointat-MIT.txt"]
+            }
+          ]
+        },
+        {
+          "name": "flatbush",
+          "version": "4.0.0",
+          "license": "ISC",
+          "copyright": "Copyright (c) 2022, Vladimir Agafonkin",
+          "files": ["flatbush-ISC.txt"]
+        },
+        {
+          "name": "flatqueue",
+          "version": "2.0.3",
+          "license": "ISC",
+          "copyright": "Copyright (c) 2022, Vladimir Agafonkin",
+          "files": ["flatqueue-ISC.txt"]
+        }
+      ]
+    },
+    "replicad-opencascadejs": {
+      "version": "0.23.0",
+      "license": "MIT (the npm package's own files: JavaScript loader and build configuration)",
+      "copyright": "Copyright 2023 QuaroTech Sàrl",
+      "files": ["replicad-opencascadejs-MIT.txt", "emscripten-MIT-NCSA.txt"],
+      "source": "https://registry.npmjs.org/replicad-opencascadejs/-/replicad-opencascadejs-0.23.0.tgz",
+      "sourceIntegrity": "sha512-igS4U9dgclqAoLAI8rLJxDJAKH2iRMRHlUwFAl5L2Q5yrP0F33D8VKlk7rZ1AFb/zQVWrouNXMK4G2QfLDYVGQ==",
+      "note": "src/replicad_single.js is an Emscripten-generated loader. The compiled Open CASCADE Technology inside the .wasm is not MIT: see assets."
+    },
+    "three": {
+      "version": "0.185.1",
+      "license": "MIT",
+      "copyright": "Copyright © 2010-2026 three.js authors",
+      "files": ["three-MIT.txt"],
+      "source": "https://registry.npmjs.org/three/-/three-0.185.1.tgz",
+      "note": "build/three.core.js, build/three.module.js, examples/jsm/controls/OrbitControls.js, examples/jsm/renderers/CSS2DRenderer.js"
+    }
+  },
+  "virtualModules": {
+    "vite/modulepreload-polyfill.js": {
+      "from": "vite 5.4.21 (build tool helper injected into the bundle)",
+      "license": "MIT",
+      "copyright": "Copyright (c) 2019-present, VoidZero Inc. and Vite contributors",
+      "files": ["vite-MIT.txt"]
+    }
+  },
+  "firstPartyAssets": ["index.html", "assets/step-repair.css"],
+  "assets": {
+    "assets/replicad_single.wasm": {
+      "sha256": "2e07c45b83267b38d3102ec411fad11e7ce2ed71854084e461c5ab5fee94aaff",
+      "bytes": 10855736,
+      "fromPackage": "replicad-opencascadejs@0.23.0 src/replicad_single.wasm (rebuilt upstream in sgenoud/replicad commit bcc344da9a, 2026-04-03)",
+      "components": [
+        {
+          "name": "Open CASCADE Technology (OCCT)",
+          "version": "7.6.2",
+          "license": "LGPL-2.1-only WITH OCCT-exception-1.0",
+          "copyright": "Copyright (c) 1999-2020 by OPEN CASCADE S.A.S. (OCCT 7.6.2 documentation); individual source files carry their own lines",
+          "files": ["OCCT-LGPL-2.1.txt", "OCCT-LGPL-exception-1.0.txt", "OCCT-embedded-notices.txt"],
+          "source": "https://github.com/Open-Cascade-SAS/OCCT/tree/V7_6_2",
+          "commit": "bb368e271e24f63078129283148ce83db6b9670a"
+        },
+        {
+          "name": "opencascade.js (Embind bindings generator, OCCT patches, build scripts)",
+          "version": "2.0.0-beta.b5ff984 (Docker image donalffons/opencascade.js:latest, last updated 2023-03-23)",
+          "license": "LGPL-2.1",
+          "files": ["opencascade.js-LGPL-2.1.txt"],
+          "source": "https://github.com/donalffons/opencascade.js/tree/b5ff9847200016dce0d92fe747fc38a945771dc5",
+          "commit": "b5ff9847200016dce0d92fe747fc38a945771dc5"
+        },
+        {
+          "name": "replicad-opencascadejs build configuration (list of bound symbols and additional C++ code)",
+          "version": "0.23.0",
+          "license": "MIT",
+          "files": ["replicad-opencascadejs-MIT.txt"],
+          "source": "https://github.com/sgenoud/replicad/tree/19fb8212e0bb12a07a7a49f96950f8903903d469/packages/replicad-opencascadejs",
+          "commit": "19fb8212e0bb12a07a7a49f96950f8903903d469"
+        },
+        {
+          "name": "Emscripten runtime and system libraries",
+          "version": "3.1.14 (from the build image Dockerfile; the .wasm itself carries no producers section)",
+          "license": "MIT OR NCSA (Emscripten); MIT (musl libc); Apache-2.0 WITH LLVM-exception (libc++, libc++abi, compiler-rt)",
+          "files": ["emscripten-MIT-NCSA.txt", "musl-MIT.txt"],
+          "source": "https://github.com/emscripten-core/emscripten/tree/3.1.14"
+        }
+      ]
+    }
+  }
+}
