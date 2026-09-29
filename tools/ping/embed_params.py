@@ -2644,10 +2644,12 @@ def main(src_base):
                 pt.update({"name":PT_FIL_PLA, "alias":PT_FIL_PLA,
                            "setting_id":"PINGFILPTPLA", "filament_id":"PINGFILPTPLA",
                            "filament_max_volumetric_speed":["30"],
-                           # 🔴 噴溫 190（Eric 2026-09-10 裁：「四料照片磚跟雙料照片磚用的噴頭不一樣，四料使用的照片磚參數要特別降到 190 度」）。
-                           #    只降照片磚專用支，母體 `PING PLA - 四料同進噴頭` 維持 210。⚠️ 與 2026-07-17「0.6 實機 190 塞頭」相反，
-                           #    是 Eric 0910 明確改裁、塞頭風險由他承擔；實印再塞頭的回退點就是這兩行。溫度統一鐵律：兩個噴溫鍵一起設。
-                           "nozzle_temperature":["190"], "nozzle_temperature_initial_layer":["190"]})
+                           # 🔴 噴溫 210（Eric 2026-09-29 22:3x 裁「改回 210」＝回退 0910「四料照片磚降到 190」那一裁）。
+                           #    證據＝.142（FF600 Lite 四料同進 0.6）溫度對照：190 換成白／黑供料不足、兩個獨立趟次都重現，200 大幅縮短，
+                           #    210 消失；210 的四料色彩校正片沒有缺料（SOP 無頭切片 §22-8，牌 c-0929-PTC-03）。回到跟母體同值
+                           #   （也回到 2026-07-17「0.6 實機 190 塞頭」那條）。仍明寫不刪鍵：這支的噴溫被單獨裁過，母體將來改要另外裁
+                           #   （verify 同步釘 210）。溫度統一鐵律：兩個噴溫鍵一起設。
+                           "nozzle_temperature":["210"], "nozzle_temperature_initial_layer":["210"]})
                 pt.pop("renamed_from", None)
                 pt["compatible_printers"] = sorted(
                     x["name"] for x in mac_list
