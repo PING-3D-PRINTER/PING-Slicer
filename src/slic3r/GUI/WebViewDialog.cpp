@@ -322,6 +322,9 @@ void WebViewPanel::create_browser(const char *why)
 {
     if (m_browser != nullptr || m_closing || wxGetApp().is_closing())
         return;
+    // 切換語言重建主視窗時，舊主視窗 Destroy() 之後要等下一次閒置才真的刪；這段期間不在舊面板裡建。
+    if (wxPendingDelete.Member(wxGetTopLevelParent(this)))
+        return;
     wxString url = m_target_url.IsEmpty() ? homepage_url() : m_target_url;
     const wxString broken = take_test_break_url();
     if (!broken.IsEmpty()) {
@@ -329,6 +332,7 @@ void WebViewPanel::create_browser(const char *why)
         url = broken;
     }
     m_browser_alive      = false;
+    m_backend_ready      = false;
     m_browser_created_at = std::chrono::steady_clock::now();
     m_browser            = WebView::CreateWebView(this, url);
     m_browser->Hide(); // 導覽完成才顯示（OnNavigationComplete），同原本
@@ -364,15 +368,17 @@ void WebViewPanel::rebuild_browser(const char *why, bool automatic)
         if (m_closing)
             return;
         if (wxWebView *old = m_browser) {
+            // wx 的建立回呼、以及它在「控制器建好」時登記的 AddScript 完成回呼，綁的都是裸指標：
+            // 後端還沒建好、或才剛建好（完成回呼可能還在路上）就刪掉，晚到的回呼會打到已釋放的物件。
+            // 所以只刪「後端就緒超過 5 秒」的；其餘藏起來留著（它之後想載的頁會在 OnNavigationRequest 被擋掉）。
+            const bool settled = m_backend_ready && ms_since(m_backend_ready_at) >= 5000 && old->GetNativeBackend() != nullptr;
             m_browser = nullptr;
             GetSizer()->Detach(old);
             old->Hide();
-            // wx 的建立回呼綁的是裸指標：後端還沒建好就刪掉，晚到的回呼會打到已釋放的物件。
-            // 所以只刪「後端已建好」的；還沒建好的藏起來留著（它之後想載的頁會在 OnNavigationRequest 被擋掉）。
-            if (old->GetNativeBackend() != nullptr)
+            if (settled)
                 old->Destroy();
             else
-                BOOST_LOG_TRIVIAL(warning) << "WebViewPanel: old browser never finished creating, kept hidden instead of deleted";
+                BOOST_LOG_TRIVIAL(warning) << "WebViewPanel: old browser not settled (backend not ready or just ready), kept hidden instead of deleted";
         }
         show_failed_notice(false);
         create_browser(why);
@@ -399,9 +405,12 @@ void WebViewPanel::mark_browser_alive(const char *how)
 
 void WebViewPanel::OnBrowserBackendReady(wxCommandEvent &evt)
 {
-    if (is_current_browser(evt))
-        BOOST_LOG_TRIVIAL(info) << "WebViewPanel: browser backend ready " << ms_since(m_browser_created_at)
-                                << " ms after the browser was created";
+    if (!is_current_browser(evt))
+        return;
+    m_backend_ready    = true;
+    m_backend_ready_at = std::chrono::steady_clock::now();
+    BOOST_LOG_TRIVIAL(info) << "WebViewPanel: browser backend ready " << ms_since(m_browser_created_at)
+                            << " ms after the browser was created";
 }
 
 void WebViewPanel::OnBrowserProcessFailed(wxCommandEvent &evt)

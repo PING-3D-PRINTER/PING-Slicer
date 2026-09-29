@@ -126,6 +126,8 @@ private:
     wxString   m_target_url;                // 內嵌網頁應該顯示的頁（建立／重建時載入這一頁）
     wxTimer    m_home_watchdog;             // 從建立起算 60 秒頁面都沒活起來 ⇒ 重建
     std::chrono::steady_clock::time_point m_browser_created_at{};
+    std::chrono::steady_clock::time_point m_backend_ready_at{};
+    bool       m_backend_ready{false};      // 目前這個內嵌網頁的後端就緒事件收到了（重建時決定能不能刪舊的）
     bool       m_browser_alive{false};      // 頁面送過訊息或導覽成功過（＝活著、使用者可能正在用）
     int        m_auto_rebuilds{0};          // 自動重建次數（上限 2）
     bool       m_rebuild_pending{false};
