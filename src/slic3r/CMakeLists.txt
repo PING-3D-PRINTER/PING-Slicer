@@ -371,6 +371,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/PhysicalPrinterDialog.hpp
     GUI/PingMixEditor.cpp
     GUI/PingMixEditor.hpp
+    GUI/ParamDiffReport.cpp
+    GUI/ParamDiffReport.hpp
     GUI/PingQuotePack.cpp
     GUI/PingQuotePack.hpp
     GUI/PingQuoteFormat.cpp
