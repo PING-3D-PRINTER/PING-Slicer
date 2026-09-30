@@ -2486,8 +2486,10 @@ void ObjectList::add_corner_fixing_block()
     // 料：預設槽 2（易拆支撐料）；單料機只有一槽，自動退回槽 1（Eric 2026-09-20 裁 Q3）。
     const int extruder_id = filaments_count() > 1 ? 2 : 1;
 
-    // 預設尺寸。使用者用既有的縮放工具改，所以這裡只要是個合理的起點即可。
-    const double block_w = 12., block_d = 12., block_h = 5.;
+    // 預設尺寸 30×30×10（Eric 2026-09-30「尺寸:長寬高30*30*10」；取代 0925 收斂決策單 Q12「12×12×5 維持」）。
+    // 擺法不變＝塊中心對外框角（Eric 09-30「照建議」Q5 甲）⇒ 往外伸 15。件寬或深 < 30 mm 時相鄰兩角的塊會重疊，
+    // 下面找空角會跳過、四角都不行就疊回右前——照現行，不另外處理。使用者照舊用縮放工具改。
+    const double block_w = 30., block_d = 30., block_h = 10.;
 
     const wxString block_label = _L("Corner fixing block");
     const std::string block_name = into_u8(block_label);
@@ -2560,14 +2562,20 @@ void ObjectList::add_corner_fixing_block()
 
     new_volume->name = block_name;
 
-    // Eric 裁的結構：外牆 1、頂層 0（不封頂）、料走槽 2（2026-09-20）；稀疏填充 10%（2026-09-21 實走後改裁：
-    // 「沒有填充，強度不夠」；填充圖樣不覆寫、跟製程走）。
-    // 底層**刻意不覆寫**——製程預設本來就是實心底層，那正是「跟棧板／Brim 結合的那幾層」，
-    // 沒必要在這裡編一個數字進去。
-    new_volume->config.set_key_value("extruder",             new ConfigOptionInt(extruder_id));
-    new_volume->config.set_key_value("wall_loops",           new ConfigOptionInt(1));
-    new_volume->config.set_key_value("top_shell_layers",     new ConfigOptionInt(0));
-    new_volume->config.set_key_value("sparse_infill_density", new ConfigOptionPercent(10));
+    // Eric 裁的結構（2026-09-30「外牆改2 底層改2 填充改0」）：外牆 2、底層 2、頂層 0（不封頂）、稀疏填充 0、料走槽 2；
+    // 填充圖樣不覆寫、跟製程走。這組取代三條舊裁示：
+    //   - 外牆 1（09-20、09-21「外牆維持 1」）→ 2。
+    //   - 稀疏填充 10%（09-21 實走後「沒有填充，強度不夠」，那時外牆只有 1）→ 0。**填充 0 的前提＝外牆 2 撐**
+    //     （塊是空心 L 盒，Eric 09-30「照建議」Q7）；外牆若改回 1，要回頭看這一條，不要只把填充改回去。
+    //   - 底層跟製程走（09-20）→ 逐塊 2 層。底厚一定要一起設 0：否則製程的底厚（0.8 mm）會把 0.2 層高撐回 4 層
+    //     （底層數與底厚取多的那個，PrintObject::discover_vertical_shells；Eric 09-30「照建議」Q6）。
+    // 只影響新加的塊；舊專案裡已經加好的塊，尺寸與這些設定都存在專案檔裡，不變。
+    new_volume->config.set_key_value("extruder",               new ConfigOptionInt(extruder_id));
+    new_volume->config.set_key_value("wall_loops",             new ConfigOptionInt(2));
+    new_volume->config.set_key_value("top_shell_layers",       new ConfigOptionInt(0));
+    new_volume->config.set_key_value("bottom_shell_layers",    new ConfigOptionInt(2));
+    new_volume->config.set_key_value("bottom_shell_thickness", new ConfigOptionFloat(0.));
+    new_volume->config.set_key_value("sparse_infill_density",  new ConfigOptionPercent(0));
     // 切片時讓出同物件其他零件外擴 1×噴頭口徑：不吃主體、縫一直在（Eric 2026-09-21 裁問題 1 甲）。
     new_volume->config.set_key_value("ping_keep_clear_of_parts", new ConfigOptionBool(true));
     new_volume->source.is_from_builtin_objects = true;
