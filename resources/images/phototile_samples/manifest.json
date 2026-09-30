@@ -1,5 +1,5 @@
 {
- "_說明": "照片磚內建範例圖清單（§11 R11-3／R11-7／R11-9）。mode＝這張給哪個料數用（雙料看灰階、四料看彩色）；cat＝分類。subject＝題材（款式庫 subjects 的 id；點範例直接套、不跳「這張照片的主角是？」——Eric 2026-09-18 裁，牌 c-0918-PTS-01；幼貓歸長毛＝Eric 裁）。內建範例不可刪不可改。雙料 9 張為灰階、四料 5 張彩色。來源＝Eric 2026-09-16 實走原型 v3 選定的同一批（全部收）。長邊上限 1200 px。⚠️ 改這裡要同時重跑 tools/ping/gen_phototile_samples.py 重生 samples.js，否則漂移守衛會紅。",
+ "_說明": "照片磚內建範例圖清單（§11 R11-3／R11-7／R11-9）。mode＝這張給哪個料數用（雙料看灰階、四料看彩色）；cat＝分類。subject＝題材（款式庫 subjects 的 id；點範例直接套、不跳「這張照片的主角是？」——Eric 2026-09-18 裁，牌 c-0918-PTS-01；幼貓歸長毛＝Eric 裁）。內建範例不可刪不可改。雙料 7 張為灰階、四料 5 張彩色。來源＝Eric 2026-09-16 實走原型 v3 選定的同一批（當時全部收：雙料 9 張；之後實印 100 mm 看成品不留的拿掉＝狼 0929、孤樹 0930，開發中清單 #14）。長邊上限 1200 px。⚠️ 改這裡要同時重跑 tools/ping/gen_phototile_samples.py 重生 samples.js，否則漂移守衛會紅。",
  "items": [
   {
    "file": "p_man.jpg",
@@ -63,15 +63,6 @@
    "subject": "landscape",
    "w": 1200,
    "h": 900
-  },
-  {
-   "file": "s_tree.jpg",
-   "name": "孤樹",
-   "cat": "風景",
-   "mode": "dual",
-   "subject": "landscape",
-   "w": 1200,
-   "h": 675
   },
   {
    "file": "q_portrait_screen.jpg",
