@@ -792,6 +792,9 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // Orca: Raft, grid, snug and organic supports use these two parameters to control the size & density of the "brim"/flange
     for (auto el : { "raft_first_layer_expansion", "raft_first_layer_density"})
         toggle_field(el, have_support_material && !(support_is_normal_tree && !have_raft));
+    // PING 2026-09-30 (c-0930-CFB-01): 筏層擴展只在有筏層時作用。沒筏層時灰掉、不藏起來——它排在首層擴展正下方、
+    // 「筏層」群組上面，藏起來的話改筏層數的當下上面會多出一行、把正在改的欄位往下推（Eric 09-30「照建議」Q1 甲）。
+    toggle_field("raft_expansion", have_raft);
 
     bool has_ironing = (config->opt_enum<IroningType>("ironing_type") != IroningType::NoIroning);
     for (auto el : { "ironing_pattern", "ironing_flow", "ironing_spacing", "ironing_angle", "ironing_inset", "ironing_angle_fixed" })

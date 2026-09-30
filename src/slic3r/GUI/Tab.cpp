@@ -2889,6 +2889,10 @@ void TabPrint::build()
         optgroup->append_single_option_line("support_threshold_overlap", "support_settings_support#threshold-overlap");
         optgroup->append_single_option_line("raft_first_layer_density", "support_settings_support#initial-layer-density");
         optgroup->append_single_option_line("raft_first_layer_expansion", "support_settings_support#initial-layer-expansion");
+        // PING 2026-09-30 (c-0930-CFB-01): 筏層擴展放上介面。它本來就在製程裡（筏層製程都寫 1.5）、切片也在用，只是沒有欄位——
+        // Eric 09-30「主要是我沒有找到它可以調」。放首層擴展正下方（Eric 09-30「照建議」Q1 甲）：紅底＝首層擴展＋筏層擴展，
+        // 兩格並排才看得出這個關係。只加欄位，不改任何製程值；有沒有筏層的切換在 ConfigManipulation。
+        optgroup->append_single_option_line("raft_expansion", "support_settings_raft");
         optgroup->append_single_option_line("support_on_build_plate_only", "support_settings_support#on-build-plate-only");
         optgroup->append_single_option_line("support_critical_regions_only", "support_settings_support#support-critical-regions-only");
         optgroup->append_single_option_line("support_remove_small_overhang", "support_settings_support#ignore-small-overhangs");
