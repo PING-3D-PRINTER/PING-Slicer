@@ -35,7 +35,7 @@ ok(Array.isArray(man.items) && man.items.length > 0, `manifest 有 ${man.items.l
 
 const dual = man.items.filter(i => i.mode === 'dual');
 const quad = man.items.filter(i => i.mode === 'quad');
-ok(dual.length === 8, `雙料 8 張（實際 ${dual.length}）——Eric 2026-09-16「全部先上」9 張；2026-09-29 實印 100 mm 後狼「不留」（開發中清單 #14）`);
+ok(dual.length === 7, `雙料 7 張（實際 ${dual.length}）——Eric 2026-09-16「全部先上」9 張；實印 100 mm 後不留的拿掉：狼 2026-09-29、孤樹 2026-09-30（開發中清單 #14）`);
 ok(quad.length === 5, `四料 5 張（實際 ${quad.length}）`);
 ok(dual.every(i => ['人物', '動物', '風景'].includes(i.cat)),
    '雙料每張都落在人物／動物／風景（R11-3 的分類）');
