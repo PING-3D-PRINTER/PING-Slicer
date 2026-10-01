@@ -47,7 +47,8 @@ function lin2lab(r,g,b){
 const lum709 = (r,g,b) => 0.2126*r + 0.7152*g + 0.0722*b;
 
 /* ================= 版本（進 3MF metadata、ready 握手與 goldens 追溯） ================= */
-const ENGINE_VERSION = 'C1-20260914';   // 0914：色彩校正（calib）住進引擎；calib 缺席時輸出位元組不變
+const ENGINE_VERSION = 'C1-20261001';   /* 1001（#50）：窄段改併進顏色最近的鄰段（雙料序號差、四料調色盤色差）⇒ 標籤會變；
+   日後有人回報缺角，看 3MF metadata 的 engine 欄就分得出新舊判準。0914：色彩校正（calib）住進引擎。 */
 
 /* ================= 常數（index.html:234-241, 619-620） ================= */
 const AUTO_CELL_MM = 0.05;   // 內部自動高精度格點
@@ -224,7 +225,18 @@ function buildGridData(bmp, widthMm, heightMm, gridMax){
    在 BFS 之後才算）、全開掉時靜默退回。共用版另補「開完必須再修一次最小寬」的呼叫端契約。 */
 
 /* ================= 濾除（index.html:347-368，DOM 統計改回傳） ================= */
-function filterLabels(labels, img, P, paletteSize, strategy){
+/* #50 甲（Eric 2026-10-01 裁 Q1「色差」）：窄段「併進顏色最近的鄰段」的「最近」——
+   四料標籤是調色盤索引（類別、不是順序：序號相鄰的兩色可能是不同色相）⇒ 用調色盤兩色的 Lab 距離；
+   雙料標籤是明度色階序號 ⇒ 用序號差（不建表，mesh_union.js 的預設）。
+   取平方距離：只比大小，不開根號就不會有捨入造成的假平手。 */
+function labToneTable(palette){
+  return palette.map(A => Float64Array.from(palette, B =>
+    (A.lab[0]-B.lab[0])**2 + (A.lab[1]-B.lab[1])**2 + (A.lab[2]-B.lab[2])**2));
+}
+/* palette（選填）：四料（strategy 'mode'）有帶 ⇒ ③⑥ 用色差表；沒帶或雙料 ⇒ 序號差。
+   🔴 #50 丁：工作室模擬圖也呼叫這一支（PhotoTileEngine.filterLabels）＝預覽與 3MF 同一條濾除鏈，
+   頁面不得再自己串 smoothLabelNoise／enforceMinHorizontalWidth／filterSmallComponents。 */
+function filterLabels(labels, img, P, paletteSize, strategy, palette){
   if (!root.PhotoTileMesh) throw new EngineError(ERR.MESH_MODULE_MISSING, '連通網格模組未載入');
   const sx=P.width/img.w, sz=P.height/img.h;
   const smooth=root.PhotoTileMesh.smoothLabelNoise(labels,img.w,img.h,paletteSize,sx,sz,P.noiseMm,strategy);
@@ -232,7 +244,8 @@ function filterLabels(labels, img, P, paletteSize, strategy){
   /* ceil 不是 round（2026-08-22）：最小寬是硬約束，round 會放行 0.78mm 的段。 */
   const minCells=Math.max(1,Math.ceil(minWidthMm/sx));
   const minCellsV=Math.max(1,Math.ceil(minWidthMm/sz));
-  const wide=root.PhotoTileMesh.enforceMinHorizontalWidth(smooth.labels,img.w,img.h,minCells);
+  const tone=(strategy==='mode' && palette && palette.length) ? labToneTable(palette) : null;
+  const wide=root.PhotoTileMesh.enforceMinHorizontalWidth(smooth.labels,img.w,img.h,minCells,tone);
   const result=root.PhotoTileMesh.filterSmallComponents(wide.labels,img.w,img.h,sx,sz,P.noiseMm,
     {maxPasses:Math.max(8,Math.min(24,paletteSize+2))});
   /* 【2026-08-15・Eric 裁 P0】補上 2-D 開運算，解掉「附著在大塊上的細長突起」
@@ -245,14 +258,18 @@ function filterLabels(labels, img, P, paletteSize, strategy){
   const opened=root.PhotoTileMesh.openLabelsMinWidth(result.labels,img.w,img.h,minCells,minCellsV);
   /* 🔴 開完一定要再修一次最小寬：BFS 回填會重新製造短段（實測 0 → 57 段、最短 1 格）。
      degenerate＝門檻對這張圖不合理（一格核心都沒有）⇒ 整步作廢，退回開運算前那份。 */
-  const finalLabels = opened.degenerate ? result.labels
-    : root.PhotoTileMesh.enforceMinHorizontalWidth(opened.labels,img.w,img.h,minCells).labels;
+  const rewide = opened.degenerate ? null
+    : root.PhotoTileMesh.enforceMinHorizontalWidth(opened.labels,img.w,img.h,minCells,tone);
+  const finalLabels = rewide ? rewide.labels : result.labels;
   const violations = root.PhotoTileMesh.countMinWidthViolations(finalLabels,img.w,img.h,minCells);
   let changedPixels=0;
   for(let i=0;i<labels.length;i++) if(finalLabels[i]!==labels[i]) changedPixels++;
   const stats={removedComponents:result.removedComponents, changedPixels,
     smoothedPixels:smooth.changedPixels, changedAreaMm2:changedPixels*sx*sz,
     widthChangedPixels:wide.changedPixels, widthMergedRuns:wide.mergedRuns, minWidthMm,
+    /* #50：toneMetric＝「最近」用哪把尺；widthToneFlips＝③⑥ 合計、新判準跟「只比長度」選了不同邊的次數
+       （寫進 3MF metadata ⇒ 收到的檔分得出新舊判準） */
+    toneMetric: tone ? 'lab' : 'index', widthToneFlips: wide.toneFlips + (rewide ? rewide.toneFlips : 0),
     openedAwayPixels:opened.openedAway, openDegenerate:opened.degenerate,
     minWidthViolations:violations,
     passes:result.passes, thresholdMm:result.thresholdMm, strategy:smooth.strategy};
@@ -1504,7 +1521,7 @@ async function generate(request, options){
     timings.quantizeMs = performance.now() - t; report('quantize', 1); await yieldMacro(); ck('quantize');
 
     t = performance.now();
-    const filtered = filterLabels(q.rawLabels, img, P, q.palette.length, q.filterStrategy);
+    const filtered = filterLabels(q.rawLabels, img, P, q.palette.length, q.filterStrategy, q.palette);
     timings.filterMs = performance.now() - t;  report('filter', 1); await yieldMacro(); ck('filter');
 
     const deltaE = avgDeltaE(img, filtered.labels, q.palette);
@@ -1562,6 +1579,8 @@ return { generate, cancel, suggestSlots, gridDims, sha256Hex, dualLadder, ERR,
          buildCalibQuad, buildCalibQuadParts, calibQuadPairGuard, calibQuadPlan,
          /* 0923 車 3 段 F：四料候選色與映射條件（預覽與生成共用，R8-5）＋單色 L*（選料排槽位） */
          quadCandidates, quadToneStretch, hexLstar,
+         /* 1001 #50 丁：模擬圖與 3MF 同一支濾除（頁面 filterVerticalLabels 改呼叫這支） */
+         filterLabels,
          version: ENGINE_VERSION,
          metadataSchema: METADATA_SCHEMA,
          limitsDefault: { gridMax: GRID_MAX, maxDecodedPixels: 0 },
