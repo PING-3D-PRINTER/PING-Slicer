@@ -718,12 +718,21 @@
 
   // 水平最小可印寬（Eric 2026-07-19 定，縫隙根因）：零件的水平剖面窄於噴頭「進得去、
   // 繞得出來」的寬度（≈2×口徑）就印不出來＝白縫。垂直方向靠層高離散、不受此限，
-  // 所以這裡只逐列處理水平向：短於 minCells 的水平連續段併入左右較寬的鄰段。
+  // 所以這裡只逐列處理水平向：短於 minCells 的水平連續段併入左右鄰段。
   // 連結串列合併、合併後回頭重驗，O(n) 攤還；同標籤相鄰段自動收斂。
-  function enforceMinHorizontalWidth(labels, w, h, minCells) {
+  //
+  // 併哪一邊（#50 甲，Eric 2026-10-01 裁）：兩邊都有鄰段時併進「顏色最近」的那邊，一樣近才比長度
+  // （＝舊判準：併進較長的、一樣長併左）；只有一邊就併那邊。舊判準只比長度——8 階時主體被切成
+  // 好幾條各窄於門檻的細帶，每條都輸給更長的背景、背景越吃越長 ⇒ 整截主體不見
+  // （#45 實測：杜賓 60×90 8 階缺塊高 15.2 mm，改判準後 1.3 mm）。
+  // tone（選填）＝標籤距離表，tone[a][b]＝標籤 a 與 b 有多不像（只比大小）。
+  // 沒給＝序號差 |a−b|：雙料的標籤是明度色階序號，序號差就是明暗差。四料的標籤是調色盤索引
+  // （類別、不是順序：序號相鄰的兩色可能是不同色相）⇒ 由引擎給調色盤色差表（engine.js filterLabels）。
+  // toneFlips＝新判準跟「只比長度」選了不同邊的次數（進 3MF 統計＝分得出新舊判準）。
+  function enforceMinHorizontalWidth(labels, w, h, minCells, tone) {
     const out = new Uint8Array(labels);
-    let changed = 0, mergedRuns = 0;
-    if (!(minCells > 1)) return { labels: out, changedPixels: 0, mergedRuns: 0 };
+    let changed = 0, mergedRuns = 0, toneFlips = 0;
+    if (!(minCells > 1)) return { labels: out, changedPixels: 0, mergedRuns: 0, toneFlips: 0 };
     const start = new Int32Array(w), len = new Int32Array(w), lab = new Int32Array(w);
     const prev = new Int32Array(w), next = new Int32Array(w);
     for (let y = 0; y < h; y++) {
@@ -745,7 +754,17 @@
         const pl = (p === -1) ? -1 : len[p];
         const ql = (q === -1) ? -1 : len[q];
         mergedRuns++;
-        if (pl >= ql) {                       // 併入左段（含只剩左段）
+        let goLeft = pl >= ql;                 // 只有一邊、或兩邊一樣近：比長度（一樣長併左）
+        if (p !== -1 && q !== -1) {
+          const a = lab[i];
+          const dp = tone ? tone[a][lab[p]] : Math.abs(lab[p] - a);
+          const dq = tone ? tone[a][lab[q]] : Math.abs(lab[q] - a);
+          if (dp !== dq) {
+            if ((dp < dq) !== goLeft) toneFlips++;
+            goLeft = dp < dq;
+          }
+        }
+        if (goLeft) {                          // 併入左段（含只剩左段）
           len[p] += len[i];
           next[p] = q; if (q !== -1) prev[q] = p;
           if (q !== -1 && lab[q] === lab[p]) { // 左右同標籤 → 一起收斂
@@ -771,7 +790,7 @@
           if (out[row + x] !== v) { out[row + x] = v; changed++; }
       }
     }
-    return { labels: out, changedPixels: changed, mergedRuns };
+    return { labels: out, changedPixels: changed, mergedRuns, toneFlips };
   }
 
   /* ── 2-D 最小特徵開運算（Eric 2026-08-22 裁「換」；原型出自開發線 engine.js 2026-08-15）──
