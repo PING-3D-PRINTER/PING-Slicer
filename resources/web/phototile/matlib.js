@@ -189,15 +189,29 @@ function upsertPair(lib, pair){
 }
 
 /* 料的清單**從 pair 的端點推出來**，不另存一份（R6-14 子題 3 的理由：存 pair 免費得到料）。 */
-function listMaterials(lib){
-  const out = [], seen = new Set();
+/* 🆕 一支料的色取哪一組的（Eric 2026-10-03 實踩後裁「照建議」，牌 c-1003-PT-01）：同一支料在不同組裡量到的色不一樣
+   （身分不含色，R6-14 子題 1）。以前一律取「庫裡第一次出現這支料的那一組」——那一組可能是取錯名的舊表、也可能已經封存，
+   料單上的色塊就跟實際在用的對不起來（實錄：「深灰」第一次出現在沒套白平衡的舊表 ⇒ 匯入 9/14 那張、把舊那組封存之後，
+   色塊還是 #AFAFAA，產圖用的卻是 #707279）。改成照這個順序取：①opt.prefer 指名的那幾組（＝生效中的那組）②沒封存的組
+   ③其餘；同一級取最近量的（沒記日期＝最舊），再同取庫裡較後面的（較晚收進來的）。**清單的順序不變**（仍照第一次出現的順序，
+   畫面不跳動）。opt.prefer＝Set（pair id）或函式 pair → bool。 */
+function listMaterials(lib, opt){
+  const out = [], at = new Map(), best = [];
   if (!lib || !Array.isArray(lib.pairs)) return out;
-  for (const p of lib.pairs) for (const m of [p.a, p.b]){
-    const k = matKey(m);
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push({ key: k, type: m.type || null, fid: m.fid, label: m.label, hex: m.hex });
-  }
+  const ak = archivedKeys(lib), pf = opt && opt.prefer;
+  const pref = !pf ? () => false : (typeof pf === 'function' ? pf : p => pf.has(p.id));
+  lib.pairs.forEach((p, n) => {
+    const rank = pref(p) ? 0 : (ak.has(matKey(p.a)) || ak.has(matKey(p.b)) ? 2 : 1);
+    for (const m of [p.a, p.b]){
+      const k = matKey(m), cand = { rank, when: p.measuredAt || '', n };
+      const i = at.get(k);
+      if (i == null){ at.set(k, out.length); best.push(cand); out.push({ key: k, type: m.type || null, fid: m.fid, label: m.label, hex: m.hex }); continue; }
+      const cur = best[i];
+      if (cand.rank < cur.rank || (cand.rank === cur.rank && (cand.when > cur.when || (cand.when === cur.when && cand.n > cur.n)))){
+        out[i].hex = m.hex; best[i] = cand;
+      }
+    }
+  });
   return out;
 }
 /* 這支料配得到哪些料（＝哪些 pair 量過）。產圖流程要選一組料時就是查這個。 */
