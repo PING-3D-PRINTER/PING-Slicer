@@ -46,7 +46,9 @@
     return out;
   }
 
-  function smoothLabelNoise(labels, w, h, paletteSize, sx, sz, windowMm, strategy) {
+  // windowMmZ（選填，AIP 刀 1）：上下方向另給視窗（例：一層）；沒給＝上下跟左右同一個 windowMm（＝舊行為）。
+  // 開不開平滑仍只看 windowMm（雜訊濾除欄 0＝整步關閉）。
+  function smoothLabelNoise(labels, w, h, paletteSize, sx, sz, windowMm, strategy, windowMmZ) {
     const src = new Uint8Array(labels);
     const out = new Uint8Array(src);
     const levels = Math.max(1, Math.min(256, Number(paletteSize) || 1));
@@ -71,7 +73,8 @@
     // The entered size is the full physical smoothing window, not its radius.
     // A 10 mm setting therefore examines roughly 10 x 10 mm around each cell.
     const radiusX = Math.min(w - 1, Math.max(0, Math.floor(windowSize / (2 * cellX))));
-    const radiusY = Math.min(h - 1, Math.max(0, Math.floor(windowSize / (2 * cellZ))));
+    const windowZ = (windowMmZ === undefined || windowMmZ === null) ? windowSize : Math.max(0, Number(windowMmZ) || 0);
+    const radiusY = Math.min(h - 1, Math.max(0, Math.floor(windowZ / (2 * cellZ))));
     if (!radiusX && !radiusY) {
       return {
         labels: out,
@@ -729,21 +732,24 @@
   // 沒給＝序號差 |a−b|：雙料的標籤是明度色階序號，序號差就是明暗差。四料的標籤是調色盤索引
   // （類別、不是順序：序號相鄰的兩色可能是不同色相）⇒ 由引擎給調色盤色差表（engine.js filterLabels）。
   // toneFlips＝新判準跟「只比長度」選了不同邊的次數（進 3MF 統計＝分得出新舊判準）。
-  function enforceMinHorizontalWidth(labels, w, h, minCells, tone) {
+  // AIP 刀 1（2026-10-03，第二輪 Q10）：同一支跑兩個方向——一條「線」＝左右的一列或上下的一欄，
+  // 第 x 格在 base＋x×step（左右：base＝y×w、step＝1；上下：base＝x、step＝w）。左右的行為與抽出前逐格相同
+  // （phototile_filter_test.js 第 4 節拿 #50 前的逐字副本比 2,000 列）。
+  function enforceMinRuns(labels, lines, count, lineStride, step, minCells, tone) {
     const out = new Uint8Array(labels);
     let changed = 0, mergedRuns = 0, toneFlips = 0;
     if (!(minCells > 1)) return { labels: out, changedPixels: 0, mergedRuns: 0, toneFlips: 0 };
-    const start = new Int32Array(w), len = new Int32Array(w), lab = new Int32Array(w);
-    const prev = new Int32Array(w), next = new Int32Array(w);
-    for (let y = 0; y < h; y++) {
-      const row = y * w;
+    const start = new Int32Array(count), len = new Int32Array(count), lab = new Int32Array(count);
+    const prev = new Int32Array(count), next = new Int32Array(count);
+    for (let line = 0; line < lines; line++) {
+      const row = line * lineStride;
       let n = 0;
-      for (let x = 0; x < w;) {
-        const v = out[row + x];
+      for (let x = 0; x < count;) {
+        const v = out[row + x * step];
         let x2 = x + 1;
-        while (x2 < w && out[row + x2] === v) x2++;
+        while (x2 < count && out[row + x2 * step] === v) x2++;
         start[n] = x; len[n] = x2 - x; lab[n] = v;
-        prev[n] = n - 1; next[n] = (x2 < w) ? n + 1 : -1;
+        prev[n] = n - 1; next[n] = (x2 < count) ? n + 1 : -1;
         n++; x = x2;
       }
       if (n <= 1) continue;
@@ -786,11 +792,20 @@
       // 依存活串列重寫該列
       for (let r = head; r !== -1; r = next[r]) {
         const v = lab[r], x0 = start[r], x1 = start[r] + len[r];
-        for (let x = x0; x < x1; x++)
-          if (out[row + x] !== v) { out[row + x] = v; changed++; }
+        for (let x = x0; x < x1; x++) {
+          const at = row + x * step;
+          if (out[at] !== v) { out[at] = v; changed++; }
+        }
       }
     }
     return { labels: out, changedPixels: changed, mergedRuns, toneFlips };
+  }
+  function enforceMinHorizontalWidth(labels, w, h, minCells, tone) {
+    return enforceMinRuns(labels, h, w, w, 1, minCells, tone);
+  }
+  // 上下（Z＝層疊方向）：格點的「列」由上往下排 ⇒「併左」＝併進上面那段。判準同左右（顏色最近，平手比長度）。
+  function enforceMinVerticalHeight(labels, w, h, minCells, tone) {
+    return enforceMinRuns(labels, w, h, 1, w, minCells, tone);
   }
 
   /* ── 2-D 最小特徵開運算（Eric 2026-08-22 裁「換」；原型出自開發線 engine.js 2026-08-15）──
@@ -872,22 +887,63 @@
 
   /* 可印性斷言：數出「違反最小水平寬」的段數。貼邊段不計（它們被影像邊界截斷，不是真的細條）。
      用途＝濾除鏈跑完後自我檢查；非 0 就是有人把保證弄壞了，要吵不要靜默。 */
-  function countMinWidthViolations(labels, w, h, minCells) {
+  /* 把上下方向量化到「層」（AIP 刀 1 甲案的最後一步）：從底面（最後一列＝熱床，z＝0）往上每 bandRows 列一條帶，
+     帶內每一欄取出現最多的標籤（平手取靠下面的），整條帶修一次左右最小寬，再寫回帶內每一列。
+     ⇒ 每一欄的上下段都是整條帶的倍數（≥ 一層）、每一列的左右段都 ≥ minCells，兩個方向同時成立。
+     為什麼不用「左右、上下輪流修」：實測不收斂——一列高的細舌頭夾在兩色之間，修上下把它併掉、修左右又把它長回來，
+     中年男 8 階輪流 8 輪還剩 540 段。帶寬＝一層，等於照機台真正的層去量化（印出來本來就只有整層）。
+     最上面那條帶不滿 bandRows 時照樣處理；它貼頂，不算違規（同貼邊段）。 */
+  function snapRowsToBands(labels, w, h, bandRows, minCells, tone) {
+    const out = new Uint8Array(labels);
+    const b = Math.max(1, Math.floor(bandRows) || 1);
+    const row = new Uint8Array(w), counts = new Uint32Array(256);
+    let changed = 0, bands = 0;
+    for (let y1 = h; y1 > 0; y1 -= b) {               // 這條帶＝列 [y0, y1)
+      const y0 = Math.max(0, y1 - b);
+      bands++;
+      for (let x = 0; x < w; x++) {
+        let best = labels[(y1 - 1) * w + x], bestCount = 0;
+        for (let y = y1 - 1; y >= y0; y--) counts[labels[y * w + x]]++;
+        for (let y = y1 - 1; y >= y0; y--) {
+          const v = labels[y * w + x];
+          if (counts[v] > bestCount) { best = v; bestCount = counts[v]; }
+        }
+        for (let y = y0; y < y1; y++) counts[labels[y * w + x]] = 0;
+        row[x] = best;
+      }
+      const fixed = enforceMinRuns(row, 1, w, w, 1, minCells, tone).labels;
+      for (let y = y0; y < y1; y++) {
+        const o = y * w;
+        for (let x = 0; x < w; x++) if (out[o + x] !== fixed[x]) { out[o + x] = fixed[x]; changed++; }
+      }
+    }
+    return { labels: out, changedPixels: changed, bands, bandRows: b };
+  }
+
+  function countMinRunViolations(labels, lines, count, lineStride, step, minCells) {
     if (!(minCells > 1)) return 0;
     let bad = 0;
-    for (let y = 0; y < h; y++) {
-      const o = y * w;
+    for (let line = 0; line < lines; line++) {
+      const o = line * lineStride;
       let x = 0;
-      while (x < w) {
-        const v = labels[o + x];
+      while (x < count) {
+        const v = labels[o + x * step];
         let x2 = x + 1;
-        while (x2 < w && labels[o + x2] === v) x2++;
-        if (x2 - x < minCells && x !== 0 && x2 !== w) bad++;
+        while (x2 < count && labels[o + x2 * step] === v) x2++;
+        if (x2 - x < minCells && x !== 0 && x2 !== count) bad++;
         x = x2;
       }
     }
     return bad;
   }
+  function countMinWidthViolations(labels, w, h, minCells) {
+    return countMinRunViolations(labels, h, w, w, 1, minCells);
+  }
+  // 上下：貼頂、貼底的段不計（同左右的貼邊段）
+  function countMinHeightViolations(labels, w, h, minCells) {
+    return countMinRunViolations(labels, w, h, 1, w, minCells);
+  }
 
-  return { cleanIsolated, smoothLabelNoise, filterSmallComponents, collectParts, buildLabelMesh, auditMesh, enforceMinHorizontalWidth, openLabelsMinWidth, countMinWidthViolations };
+  return { cleanIsolated, smoothLabelNoise, filterSmallComponents, collectParts, buildLabelMesh, auditMesh,
+    enforceMinHorizontalWidth, enforceMinVerticalHeight, snapRowsToBands, openLabelsMinWidth, countMinWidthViolations, countMinHeightViolations };
 });

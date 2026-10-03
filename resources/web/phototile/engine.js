@@ -47,7 +47,8 @@ function lin2lab(r,g,b){
 const lum709 = (r,g,b) => 0.2126*r + 0.7152*g + 0.0722*b;
 
 /* ================= 版本（進 3MF metadata、ready 握手與 goldens 追溯） ================= */
-const ENGINE_VERSION = 'C1-20261001';   /* 1001（#50）：窄段改併進顏色最近的鄰段（雙料序號差、四料調色盤色差）⇒ 標籤會變；
+const ENGINE_VERSION = 'C1-20261003';   /* 1003（AIP 刀 1）：濾除改左右寬＋上下高兩條門檻、拿掉小色塊那步 ⇒ 每一張照片磚的標籤都會變。
+   1001（#50）：窄段改併進顏色最近的鄰段（雙料序號差、四料調色盤色差）⇒ 標籤會變；
    日後有人回報缺角，看 3MF metadata 的 engine 欄就分得出新舊判準。0914：色彩校正（calib）住進引擎。 */
 
 /* ================= 常數（index.html:234-241, 619-620） ================= */
@@ -102,6 +103,7 @@ function normalizeRequest(req){
        同值另住 index.html 的輸入框 max 與 clamp——改要一起改。 */
     klevels: Math.round(clamp('klevels', req.klevels, 2, 8, 8)),
     noiseMm: clamp('noiseMm', req.noiseMm, 0, 20, 1.0),                     // index.html:1017-1025
+    devVariant: req.devVariant === 'yi' ? 'yi' : 'jia',                     // 🔶 開發用（三欄對照），見 filterLabels 註解；Eric 挑完只留一案
     pillar:  req.pillar ? !!req.pillar.enabled : true,
     pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 20)), // 同值住 index.html 的 params.pillarXY（2026-08-22 Eric 令 25→15）
     /* WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔_20260908_01a07fef）。缺席＝關（3MF 與舊輸出位元組全等）；
@@ -233,46 +235,75 @@ function labToneTable(palette){
   return palette.map(A => Float64Array.from(palette, B =>
     (A.lab[0]-B.lab[0])**2 + (A.lab[1]-B.lab[1])**2 + (A.lab[2]-B.lab[2])**2));
 }
-/* palette（選填）：四料（strategy 'mode'）有帶 ⇒ ③⑥ 用色差表；沒帶或雙料 ⇒ 序號差。
+/* ================= 照片磚製程的層高（AIP 刀 1；規格 R9-11 第二輪 Q10 甲「上下最少一層」） =================
+   ＝resources/profiles/PING/process 裡「同進照片磚」製程檔的 layer_height（雙料＝FD、四料＝FF）。
+   引擎自帶一份、不由 C++ 帶——要帶就得改請求格式＝要編譯。tools/ping/phototile_filter_test.js 每次讀那 19 支製程檔重比，
+   製程改了層高、這張表沒跟上就轉紅。 */
+const PT_LAYER_MM = { dual: { 0.4: 0.2, 0.6: 0.3, 1.0: 0.5 }, quad: { 0.4: 0.25, 0.6: 0.35, 1.0: 0.45 } };
+function layerHeightMm(mode, nozzle){ return PT_LAYER_MM[mode === 'quad' ? 'quad' : 'dual'][nozzle]; }
+/* mm → 格數一律無條件進位（最小寬／高是硬約束，round 會放行 0.78 mm 的段；2026-08-22）。
+   減 1e-9：0.3/0.05 這種剛好整除的值浮點會差一點點，別讓它多進一格。 */
+const mmCells = (mm, cell) => Math.max(1, Math.ceil(mm / cell - 1e-9));
+
+/* palette（選填）：四料（strategy 'mode'）有帶 ⇒ 併段用色差表；沒帶或雙料 ⇒ 序號差。
    🔴 #50 丁：工作室模擬圖也呼叫這一支（PhotoTileEngine.filterLabels）＝預覽與 3MF 同一條濾除鏈，
-   頁面不得再自己串 smoothLabelNoise／enforceMinHorizontalWidth／filterSmallComponents。 */
+   頁面不得再自己串 smoothLabelNoise／enforceMinHorizontalWidth／enforceMinVerticalHeight／openLabelsMinWidth。
+
+   🔴 AIP 刀 1（2026-10-03；規格 R9-11 第二輪 Q8／Q10／Q11 甲、實作計畫 Q1）：濾除改成左右、上下各一條門檻——
+     左右（X）＝max(雜訊濾除欄, 2×口徑)：0.4 口徑 1.0 mm、0.6／1.0 口徑照舊 1.2／2.0（噴嘴一趟來回兩條線）。
+     上下（Z）＝一層（照片磚製程的層高）。
+     「外框長邊 ≤ 雜訊濾除 mm 的小色塊整塊併掉」（filterSmallComponents）拿掉，由左右寬＋上下高兩條取代（Q8 的理解，照建議成立）。
+   P.mode 決定層高（'quad'＝四料，其餘雙料）；頁面呼叫時一定要帶。
+   🔶 P.devVariant＝**開發用**，只給三欄對照工具切換甲／乙，產品不帶（實作計畫 §04；Eric 看圖挑了之後只留一案）：
+     'jia'（預設）＝全面分方向：平滑、開運算、違規計數的上下方向一律用一層；再修＝對齊層（從熱床往上每層一條帶）。
+       ⇒ 等於放寬 2026-08-15 P0 開運算在上下方向那一半（0.8 mm → 一層），細的橫向細節會多留下來。
+     'yi'＝只換掉小色塊那一步：平滑上下照舊用雜訊濾除欄、開運算上下照舊 2×口徑（≈0.8 mm）、再修只修左右。
+       開運算的左右跟著新的左右寬，兩案在左右完全一樣，對照只看上下。 */
 function filterLabels(labels, img, P, paletteSize, strategy, palette){
-  if (!root.PhotoTileMesh) throw new EngineError(ERR.MESH_MODULE_MISSING, '連通網格模組未載入');
-  const sx=P.width/img.w, sz=P.height/img.h;
-  const smooth=root.PhotoTileMesh.smoothLabelNoise(labels,img.w,img.h,paletteSize,sx,sz,P.noiseMm,strategy);
-  const minWidthMm=2*P.nozzle;
-  /* ceil 不是 round（2026-08-22）：最小寬是硬約束，round 會放行 0.78mm 的段。 */
-  const minCells=Math.max(1,Math.ceil(minWidthMm/sx));
-  const minCellsV=Math.max(1,Math.ceil(minWidthMm/sz));
+  const M = root.PhotoTileMesh;
+  if (!M) throw new EngineError(ERR.MESH_MODULE_MISSING, '連通網格模組未載入');
+  const w=img.w, h=img.h, sx=P.width/w, sz=P.height/h;
+  const variant = P.devVariant === 'yi' ? 'yi' : 'jia';
+  const layerMm = layerHeightMm(P.mode, P.nozzle);
+  if (!(layerMm > 0)) throw new EngineError(ERR.BAD_REQUEST, `沒有這個口徑的照片磚層高：${P.mode}／${P.nozzle}`);
+  const minWidthMm = Math.max(Number(P.noiseMm) || 0, 2*P.nozzle), minHeightMm = layerMm;
+  const minCells = mmCells(minWidthMm, sx), minCellsV = mmCells(minHeightMm, sz);
   const tone=(strategy==='mode' && palette && palette.length) ? labToneTable(palette) : null;
-  const wide=root.PhotoTileMesh.enforceMinHorizontalWidth(smooth.labels,img.w,img.h,minCells,tone);
-  const result=root.PhotoTileMesh.filterSmallComponents(wide.labels,img.w,img.h,sx,sz,P.noiseMm,
-    {maxPasses:Math.max(8,Math.min(24,paletteSize+2))});
-  /* 【2026-08-15・Eric 裁 P0】補上 2-D 開運算，解掉「附著在大塊上的細長突起」
-     （水平向已由 enforceMinHorizontalWidth 處理，這一步接手垂直與斜向）。
-     ⚠ **順序很重要：必須放在 filterSmallComponents 之後。**
-        放前面會這樣壞事——開運算切斷「眼睛↔眉毛」之間的細橋後，眼睛變成孤立連通塊，
-        而杜賓的眼睛約 2.1×1.95 mm、剛好卡在 noiseMm 2.0 mm 門檻邊緣（2.0＝當時的預設；2026-09-22 起預設 1.0，順序規則不變） ⇒ 被當雜訊清掉。
-        實錄：先放前面時杜賓兩隻眼睛整個消失（前後差異圖量到兩塊 41×39 格的移除）。
-        放後面則雜訊濾除看到的是原本的連通性，眼睛保得住，開運算再去修細橋與毛刺。 */
-  const opened=root.PhotoTileMesh.openLabelsMinWidth(result.labels,img.w,img.h,minCells,minCellsV);
-  /* 🔴 開完一定要再修一次最小寬：BFS 回填會重新製造短段（實測 0 → 57 段、最短 1 格）。
-     degenerate＝門檻對這張圖不合理（一格核心都沒有）⇒ 整步作廢，退回開運算前那份。 */
-  const rewide = opened.degenerate ? null
-    : root.PhotoTileMesh.enforceMinHorizontalWidth(opened.labels,img.w,img.h,minCells,tone);
-  const finalLabels = rewide ? rewide.labels : result.labels;
-  const violations = root.PhotoTileMesh.countMinWidthViolations(finalLabels,img.w,img.h,minCells);
+  // ① 平滑（多數決／中位數）：左右視窗＝雜訊濾除欄；上下甲＝一層、乙＝同左右
+  const smooth = M.smoothLabelNoise(labels,w,h,paletteSize,sx,sz,P.noiseMm,strategy, variant==='jia' ? minHeightMm : undefined);
+  // ② 左右最小寬 ③ 上下最小高（取代小色塊那步）——都是窄段併進顏色最近的鄰段（#50 判準）
+  const wide = M.enforceMinHorizontalWidth(smooth.labels,w,h,minCells,tone);
+  const tall = M.enforceMinVerticalHeight(wide.labels,w,h,minCellsV,tone);
+  /* ④【2026-08-15・Eric 裁 P0】2-D 開運算，解掉「附著在大塊上的細長突起」。
+     ⚠ 原本「必須放在 filterSmallComponents 之後」的順序規則（杜賓眼睛 2.1×1.95 mm 卡在雜訊門檻邊緣會被當孤島清掉）
+        隨小色塊那步拿掉而失效：②③ 只看寬／高、不看孤不孤立，眼睛遠大於兩條門檻，不會被清。 */
+  const openV = variant==='jia' ? minCellsV : mmCells(2*P.nozzle, sz);
+  const opened = M.openLabelsMinWidth(tall.labels,w,h,minCells,openV);
+  /* ⑤ 🔴 開完一定要再修：BFS 回填會重新製造短段（實測 0 → 57 段、最短 1 格）。
+     degenerate＝門檻對這張圖不合理（一格核心都沒有）⇒ 開運算整步作廢，從開運算前那份再修。
+     甲：對齊層（snapRowsToBands）——從熱床往上每一層一條帶，帶內取多數、整條帶修左右寬 ⇒ 左右、上下同時成立。
+       ⚠ 不用「左右、上下輪流修」：實測不收斂（中年男 8 階輪 8 輪還剩 540 段上下違規），理由見 mesh_union.js 該函式。
+     乙：照 T070 只修左右。 */
+  const base = opened.degenerate ? tall.labels : opened.labels;
+  const refix = variant==='jia' ? M.snapRowsToBands(base,w,h,minCellsV,minCells,tone)
+                                : M.enforceMinHorizontalWidth(base,w,h,minCells,tone);
+  const finalLabels = refix.labels;
+  // ⑥ 可印性自我檢查：甲兩個方向都要 0；乙只保證左右（上下照樣數，給對照頁看）
+  const violations = M.countMinWidthViolations(finalLabels,w,h,minCells);
+  const violationsV = M.countMinHeightViolations(finalLabels,w,h,minCellsV);
   let changedPixels=0;
   for(let i=0;i<labels.length;i++) if(finalLabels[i]!==labels[i]) changedPixels++;
-  const stats={removedComponents:result.removedComponents, changedPixels,
+  const stats={filter:'axis-'+variant, changedPixels,
     smoothedPixels:smooth.changedPixels, changedAreaMm2:changedPixels*sx*sz,
     widthChangedPixels:wide.changedPixels, widthMergedRuns:wide.mergedRuns, minWidthMm,
-    /* #50：toneMetric＝「最近」用哪把尺；widthToneFlips＝③⑥ 合計、新判準跟「只比長度」選了不同邊的次數
+    heightChangedPixels:tall.changedPixels, heightMergedRuns:tall.mergedRuns, minHeightMm, layerMm,
+    /* #50：toneMetric＝「最近」用哪把尺；*ToneFlips＝新判準跟「只比長度」選了不同邊的次數
        （寫進 3MF metadata ⇒ 收到的檔分得出新舊判準） */
-    toneMetric: tone ? 'lab' : 'index', widthToneFlips: wide.toneFlips + (rewide ? rewide.toneFlips : 0),
+    toneMetric: tone ? 'lab' : 'index', widthToneFlips: wide.toneFlips + (refix.toneFlips || 0), heightToneFlips: tall.toneFlips,
     openedAwayPixels:opened.openedAway, openDegenerate:opened.degenerate,
-    minWidthViolations:violations,
-    passes:result.passes, thresholdMm:result.thresholdMm, strategy:smooth.strategy};
+    refixChangedPixels: refix.changedPixels, layerBands: refix.bands || 0,
+    minWidthViolations:violations, minHeightViolations:violationsV,
+    thresholdMm:Number(P.noiseMm)||0, strategy:smooth.strategy};
   return { labels: finalLabels, stats };
 }
 
@@ -1338,9 +1369,9 @@ ${P.cycle && P.cycle.enabled ? cycleObjectMeta(P, parts.length) : ''}${cfgParts.
   const palTxt=
 `PING 照片磚 垂直多零件 配比表（${mode==='quad'?'四料 M6052':'雙料 M6051'}）
 尺寸 ${P.width}x${P.height}x${P.thick} mm｜零件數 ${parts.length}${pillarOid?'＋洗料柱1':''}｜連通區 ${collected.components}｜網格片 ${totalTiles}｜三角形 ${totalTriangles}
-口徑 ${P.nozzle} mm（水平最小色塊寬 ≥ ${(2*P.nozzle).toFixed(1)} mm，窄條已併入鄰色）
+口徑 ${P.nozzle} mm（色塊左右寬 ≥ ${noiseStats?noiseStats.minWidthMm.toFixed(1):(2*P.nozzle).toFixed(1)} mm、上下高 ≥ 一層 ${noiseStats?noiseStats.minHeightMm:'?'} mm，窄條已併入顏色最近的鄰色）
 接縫：端面 paint_seam 標記（交界／側邊窄面）——縫拉往零件交界；接縫位置請用「對齊」（V 溝已於 2026-07-29 移除）；P2A 正背面禁縫=${P.p2aBlock?'開':'關'}
-雜訊濾除 ${noiseMm>0?`尺寸 ≤ ${noiseMm.toFixed(1)} mm，已平滑／合併 ${noiseStats?noiseStats.changedPixels:0} 格，移除 ${noiseStats?noiseStats.removedComponents:0} 個小色塊（不留空洞）`:'關閉'}
+雜訊濾除 ${noiseMm>0?`${noiseMm.toFixed(1)} mm，已平滑／合併 ${noiseStats?noiseStats.changedPixels:0} 格（不留空洞）`:'關閉（左右寬、上下高照樣守）'}
 ${palLines.join('\n')}`;
   const entries=[
     {name:'[Content_Types].xml', data:types},
@@ -1581,6 +1612,8 @@ return { generate, cancel, suggestSlots, gridDims, sha256Hex, dualLadder, ERR,
          quadCandidates, quadToneStretch, hexLstar,
          /* 1001 #50 丁：模擬圖與 3MF 同一支濾除（頁面 filterVerticalLabels 改呼叫這支） */
          filterLabels,
+         /* 1003 AIP 刀 1：照片磚製程層高（上下濾除＝一層；第二班的提示詞「上下最少一層」也讀這一份） */
+         layerHeightMm, layerTable: () => JSON.parse(JSON.stringify(PT_LAYER_MM)),
          version: ENGINE_VERSION,
          metadataSchema: METADATA_SCHEMA,
          limitsDefault: { gridMax: GRID_MAX, maxDecodedPixels: 0 },

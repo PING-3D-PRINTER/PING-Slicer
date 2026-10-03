@@ -342,7 +342,7 @@
         <span style="margin-left:12px">雜訊濾除 ≤</span> <input type="number" id="noiseIn" value="1.0" min="0" max="20" step="0.1" style="width:64px"> mm
       </div>
       <div class="sub" id="sizeInfo"></div>
-      <div class="sub" id="noiseStat">平滑小點、細橋、毛刺與小孔，再合併小色塊；0＝關閉</div>
+      <div class="sub" id="noiseStat">平滑小點、細橋與毛刺，並決定左右最窄寬度（至少 2×口徑）；0＝只關平滑</div>
       <div class="sub" id="sizeBarHint" style="margin-top:2px"></div>
     </div>
   </section>
@@ -439,12 +439,12 @@
 </div>
 </section>
 
-<script src="mesh_union.js?v=20261001"></script>   <!-- 🔴 改了 mesh_union.js 就要動這個版本字串，否則 WebView 會續用快取的舊模組（2026-08-22 實撞：新函式 not a function、工作室直接壞） -->
+<script src="mesh_union.js?v=20261003"></script>   <!-- 🔴 改了 mesh_union.js 就要動這個版本字串，否則 WebView 會續用快取的舊模組（2026-08-22 實撞：新函式 not a function、工作室直接壞） -->
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
 <script src="matlib.js?v=20260924b"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
-<script src="engine.js?v=20261001"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="engine.js?v=20261003"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <script src="matflow.js?v=20260924c"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
@@ -912,21 +912,23 @@ function w100(w){                       // 混比→加總=100 的整數百分�
   while(diff!==0){ const i=r.indexOf(Math.max(...r)); r[i]+=Math.sign(diff); diff-=Math.sign(diff); }
   return r;
 }
+/* AIP 刀 1（2026-10-03）：濾除改左右寬＋上下高兩條（引擎 filterLabels 註解）⇒ 雜訊濾除欄＝0 只關平滑，
+   兩條可印性門檻照樣守（印不出來的細條本來就會被機台吃掉）。門檻數字取引擎回的 stats；還沒有 stats 時才照同一條式子先算。 */
+function filterLimitText(stats){
+  const eng=window.PhotoTileEngine, mode=slotCount===4?'quad':'dual';
+  const wMm=stats ? stats.minWidthMm : Math.max(params.noiseMm,2*params.nozzle);
+  const hMm=stats ? stats.minHeightMm : (eng && eng.layerHeightMm ? eng.layerHeightMm(mode,params.nozzle) : null);
+  return `左右窄於 ${wMm.toFixed(1)} mm、上下矮於一層${hMm?`（${hMm} mm）`:''}的細條會併進顏色最近的鄰色`;
+}
 function updateNoiseStat(result){
   const el=document.getElementById('noiseStat'); if(!el) return;
-  if(params.noiseMm<=0){ el.textContent='已關閉；所有量化後色塊都會保留'; return; }
-  if(!img || !result){
-    el.textContent=`會平滑尺寸 ≤ ${params.noiseMm.toFixed(1)} mm 的小點、細橋、毛刺與小孔，再合併小色塊；0＝關閉`;
-    return;
-  }
-  if(!result.changedPixels){
-    el.textContent=`沒有找到尺寸 ≤ ${params.noiseMm.toFixed(1)} mm 的灰階雜訊；0＝關閉`;
-    return;
-  }
-  el.textContent=`已平滑／合併 ${result.changedPixels.toLocaleString()} 格（${result.changedAreaMm2.toFixed(2)} mm²），另移除 ${result.removedComponents.toLocaleString()} 個小色塊；不留空洞`;
+  if(params.noiseMm<=0){ el.textContent='平滑已關（0）；印不出來的細條照樣會併掉，見口徑那一行'; return; }
+  if(!img || !result){ el.textContent='平滑小點、細橋與毛刺，並決定左右最窄寬度（至少 2×口徑）；0＝只關平滑'; return; }
+  if(!result.changedPixels){ el.textContent='這張圖沒有要平滑或合併的細節；0＝只關平滑'; return; }
+  el.textContent=`已平滑／合併 ${result.changedPixels.toLocaleString()} 格（${result.changedAreaMm2.toFixed(2)} mm²）；不留空洞`;
 }
-/* 🔴 #50 丁（Eric 2026-10-01 裁）：濾除一律呼叫引擎 filterLabels＝產 3MF 的同一支（雜訊平滑→口徑最小寬→
-   小色塊→開運算→再修一次最小寬；最小寬取 ceil）。本頁原本自己串前四步（少開運算與再修、最小寬用 round）
+/* 🔴 #50 丁（Eric 2026-10-01 裁）：濾除一律呼叫引擎 filterLabels＝產 3MF 的同一支（平滑→左右最小寬→
+   上下最小高→開運算→再修；AIP 刀 1 起見引擎註解）。本頁原本自己串前四步（少開運算與再修、最小寬用 round）
    ＝預覽一把尺、輸出一把尺（#45：杜賓 8 階有 2.46% 的格不同）。
    不留第二份濾除鏈當備援：引擎沒載到就不濾除＋console 警告——那時本來就產不了 3MF。
    palette 只有四料傳：窄段「併進最近」用調色盤色差；雙料不傳＝色階序號差（與引擎同一條規則）。 */
@@ -937,8 +939,8 @@ function filterVerticalLabels(labels,paletteSize,strategy,palette){
     console.warn('PING 照片磚：engine.js／mesh_union.js 未載入，模擬圖不濾除');
     updateNoiseStat(null); return new Uint8Array(labels);
   }
-  const r=eng.filterLabels(labels,img,
-    {width:params.width, height:params.height, noiseMm:params.noiseMm, nozzle:params.nozzle},
+  const r=eng.filterLabels(labels,img,      // mode＝料數，引擎靠它查上下那一層的層高（同 buildRequest）
+    {width:params.width, height:params.height, noiseMm:params.noiseMm, nozzle:params.nozzle, mode:slotCount===4?'quad':'dual'},
     paletteSize,strategy,palette);
   window.__noiseStats=r.stats;
   updateNoiseStat(r.stats);
@@ -947,10 +949,9 @@ function filterVerticalLabels(labels,paletteSize,strategy,palette){
 }
 function updateNozzleStat(stats){
   const el=document.getElementById('nozzleInfo'); if(!el) return;
-  const base=`mm——窄於 ${(2*params.nozzle).toFixed(1)} mm（2×口徑）的水平細條會併入鄰色（噴頭進去要繞得出來；垂直細節不受影響）`;
-  el.textContent=(stats && stats.widthChangedPixels)
-    ? base+`；本圖已併 ${stats.widthChangedPixels.toLocaleString()} 格`
-    : base;
+  const base=`mm——${filterLimitText(stats)}（左右至少 2×口徑，噴頭才繞得出來）`;
+  const n=stats ? (stats.widthChangedPixels||0)+(stats.heightChangedPixels||0) : 0;
+  el.textContent=n ? base+`；本圖已併 ${n.toLocaleString()} 格` : base;
 }
 function simulateVerticalQuad(){
   /* 四料垂直（v1.8，Eric 定的調色盤結構）：候選色＝「兩兩成對的色階線」——
