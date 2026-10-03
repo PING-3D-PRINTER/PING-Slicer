@@ -118,6 +118,11 @@ body.flowCal main, body.flowCal #genBox, body.flowCal #btnDemo, body.flowCal #ex
 .mfMini i{display:block; width:26px;}
 .mfExpSum{margin:8px 0; padding:7px 10px; background:#F5F6F7; border-radius:5px;}
 /* LAY-15：肯定在左、取消（跳過）恆在最右——.cfmBtns 靠右排，DOM 順序就是左到右。 */
+/* 🆕 舊資料那一問（牌 c-1003-PT-01 ⑨）：最上面那句「照你裝的料取名，不要照色塊」＝警示黃（訊息，不是按鈕）；同一張舊表的兩支框成一格。 */
+.mfCaution{margin:6px 0 10px; padding:7px 10px; border-left:3px solid #C99A2E; background:#FFF6DF; color:#5C4208; font-size:13px; line-height:1.7; border-radius:3px;}
+.mfLegGrp{margin:10px 0 0; padding:8px 10px 2px; border:1px solid #E3E3E3; border-radius:6px;}
+.mfLegT{display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13px; margin-bottom:2px;}
+.mfTagT + .mfXs{margin-left:6px;}   /* 🆕 ⑦ 已指定的料：料種小標後面的「改名…」 */
 
 /* ---- 校正流程（五步；原型 v3 的步驟樣式）---- */
 #calFlow{padding:14px 22px 40px;}

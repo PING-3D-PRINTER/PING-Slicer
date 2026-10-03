@@ -201,7 +201,7 @@
            font-size:13.5px; opacity:0; pointer-events:none; transition:opacity .18s; z-index:60;}
   .pttoast.on{opacity:1;}
 </style>
-<link rel="stylesheet" href="matflow.css?v=20260924b">   <!-- 段 F（車 3）兩條流程的樣式；🔴 改了 matflow.css 就要動版本字串 -->
+<link rel="stylesheet" href="matflow.css?v=20261003">   <!-- 段 F（車 3）兩條流程的樣式；🔴 改了 matflow.css 就要動版本字串 -->
 </head>
 <body>
 
@@ -443,9 +443,9 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="matlib.js?v=20260924b"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
+<script src="matlib.js?v=20261003"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
 <script src="engine.js?v=20261001"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
-<script src="matflow.js?v=20260924c"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
+<script src="matflow.js?v=20261003"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
