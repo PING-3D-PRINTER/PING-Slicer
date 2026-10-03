@@ -48,6 +48,7 @@ const lum709 = (r,g,b) => 0.2126*r + 0.7152*g + 0.0722*b;
 
 /* ================= 版本（進 3MF metadata、ready 握手與 goldens 追溯） ================= */
 const ENGINE_VERSION = 'C1-20261003';   /* 1003（AIP 刀 1）：濾除改左右寬＋上下高兩條門檻、拿掉小色塊那步 ⇒ 每一張照片磚的標籤都會變。
+   1004（AIP 刀 1 只留甲）：只拿掉開發用切換 devVariant 與乙那條路，預設路徑（甲）逐格不變 ⇒ 版本不動。
    1001（#50）：窄段改併進顏色最近的鄰段（雙料序號差、四料調色盤色差）⇒ 標籤會變；
    日後有人回報缺角，看 3MF metadata 的 engine 欄就分得出新舊判準。0914：色彩校正（calib）住進引擎。 */
 
@@ -103,7 +104,6 @@ function normalizeRequest(req){
        同值另住 index.html 的輸入框 max 與 clamp——改要一起改。 */
     klevels: Math.round(clamp('klevels', req.klevels, 2, 8, 8)),
     noiseMm: clamp('noiseMm', req.noiseMm, 0, 20, 1.0),                     // index.html:1017-1025
-    devVariant: req.devVariant === 'yi' ? 'yi' : 'jia',                     // 🔶 開發用（三欄對照），見 filterLabels 註解；Eric 挑完只留一案
     pillar:  req.pillar ? !!req.pillar.enabled : true,
     pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 20)), // 同值住 index.html 的 params.pillarXY（2026-08-22 Eric 令 25→15）
     /* WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔_20260908_01a07fef）。缺席＝關（3MF 與舊輸出位元組全等）；
@@ -254,46 +254,43 @@ const mmCells = (mm, cell) => Math.max(1, Math.ceil(mm / cell - 1e-9));
      上下（Z）＝一層（照片磚製程的層高）。
      「外框長邊 ≤ 雜訊濾除 mm 的小色塊整塊併掉」（filterSmallComponents）拿掉，由左右寬＋上下高兩條取代（Q8 的理解，照建議成立）。
    P.mode 決定層高（'quad'＝四料，其餘雙料）；頁面呼叫時一定要帶。
-   🔶 P.devVariant＝**開發用**，只給三欄對照工具切換甲／乙，產品不帶（實作計畫 §04；Eric 看圖挑了之後只留一案）：
-     'jia'（預設）＝全面分方向：平滑、開運算、違規計數的上下方向一律用一層；再修＝對齊層（從熱床往上每層一條帶）。
-       ⇒ 等於放寬 2026-08-15 P0 開運算在上下方向那一半（0.8 mm → 一層），細的橫向細節會多留下來。
-     'yi'＝只換掉小色塊那一步：平滑上下照舊用雜訊濾除欄、開運算上下照舊 2×口徑（≈0.8 mm）、再修只修左右。
-       開運算的左右跟著新的左右寬，兩案在左右完全一樣，對照只看上下。 */
+   🔴 刀 1 Q1 已裁＝甲（Eric 2026-10-04「照建議」；規格 R9-11「刀 1 Q1 已裁＝甲」、對照頁 00治理文件/對照_照片磚濾除甲乙_20261003.html）：
+     全面分方向——平滑、開運算、違規計數的上下方向一律用一層；開完再修＝對齊層（從熱床往上每層一條帶）。
+     ⇒ 等於放寬 2026-08-15 P0 開運算在上下方向那一半（0.8 mm → 一層）：比 0.8 mm 薄的橫向細節（鬍鬚、眉眼）會多留下來，
+       臉的亮部多幾條一層高的橫紋——這是挑甲時一起同意的代價。
+     沒採用的乙（只換小色塊那步、上下照舊 0.8 mm）與它的開發用切換 devVariant 已拿掉（牌 c-1004-AIP-02）。 */
 function filterLabels(labels, img, P, paletteSize, strategy, palette){
   const M = root.PhotoTileMesh;
   if (!M) throw new EngineError(ERR.MESH_MODULE_MISSING, '連通網格模組未載入');
   const w=img.w, h=img.h, sx=P.width/w, sz=P.height/h;
-  const variant = P.devVariant === 'yi' ? 'yi' : 'jia';
   const layerMm = layerHeightMm(P.mode, P.nozzle);
   if (!(layerMm > 0)) throw new EngineError(ERR.BAD_REQUEST, `沒有這個口徑的照片磚層高：${P.mode}／${P.nozzle}`);
   const minWidthMm = Math.max(Number(P.noiseMm) || 0, 2*P.nozzle), minHeightMm = layerMm;
   const minCells = mmCells(minWidthMm, sx), minCellsV = mmCells(minHeightMm, sz);
   const tone=(strategy==='mode' && palette && palette.length) ? labToneTable(palette) : null;
-  // ① 平滑（多數決／中位數）：左右視窗＝雜訊濾除欄；上下甲＝一層、乙＝同左右
-  const smooth = M.smoothLabelNoise(labels,w,h,paletteSize,sx,sz,P.noiseMm,strategy, variant==='jia' ? minHeightMm : undefined);
+  // ① 平滑（多數決／中位數）：左右視窗＝雜訊濾除欄、上下視窗＝一層
+  const smooth = M.smoothLabelNoise(labels,w,h,paletteSize,sx,sz,P.noiseMm,strategy,minHeightMm);
   // ② 左右最小寬 ③ 上下最小高（取代小色塊那步）——都是窄段併進顏色最近的鄰段（#50 判準）
   const wide = M.enforceMinHorizontalWidth(smooth.labels,w,h,minCells,tone);
   const tall = M.enforceMinVerticalHeight(wide.labels,w,h,minCellsV,tone);
-  /* ④【2026-08-15・Eric 裁 P0】2-D 開運算，解掉「附著在大塊上的細長突起」。
+  /* ④【2026-08-15・Eric 裁 P0】2-D 開運算，解掉「附著在大塊上的細長突起」；左右＝左右最小寬、上下＝一層（T070 上下是 2×口徑）。
      ⚠ 原本「必須放在 filterSmallComponents 之後」的順序規則（杜賓眼睛 2.1×1.95 mm 卡在雜訊門檻邊緣會被當孤島清掉）
         隨小色塊那步拿掉而失效：②③ 只看寬／高、不看孤不孤立，眼睛遠大於兩條門檻，不會被清。 */
-  const openV = variant==='jia' ? minCellsV : mmCells(2*P.nozzle, sz);
-  const opened = M.openLabelsMinWidth(tall.labels,w,h,minCells,openV);
+  const opened = M.openLabelsMinWidth(tall.labels,w,h,minCells,minCellsV);
   /* ⑤ 🔴 開完一定要再修：BFS 回填會重新製造短段（實測 0 → 57 段、最短 1 格）。
      degenerate＝門檻對這張圖不合理（一格核心都沒有）⇒ 開運算整步作廢，從開運算前那份再修。
-     甲：對齊層（snapRowsToBands）——從熱床往上每一層一條帶，帶內取多數、整條帶修左右寬 ⇒ 左右、上下同時成立。
-       ⚠ 不用「左右、上下輪流修」：實測不收斂（中年男 8 階輪 8 輪還剩 540 段上下違規），理由見 mesh_union.js 該函式。
-     乙：照 T070 只修左右。 */
+     再修＝對齊層（snapRowsToBands）——從熱床往上每一層一條帶，帶內取多數、整條帶修左右寬 ⇒ 左右、上下同時成立。
+       ⚠ 不用「左右、上下輪流修」（計畫頁原寫法）：實測不收斂（中年男 8 階輪 8 輪還剩 540 段上下違規），理由見 mesh_union.js 該函式；
+         改對齊層是挑甲時一起同意的。 */
   const base = opened.degenerate ? tall.labels : opened.labels;
-  const refix = variant==='jia' ? M.snapRowsToBands(base,w,h,minCellsV,minCells,tone)
-                                : M.enforceMinHorizontalWidth(base,w,h,minCells,tone);
+  const refix = M.snapRowsToBands(base,w,h,minCellsV,minCells,tone);
   const finalLabels = refix.labels;
-  // ⑥ 可印性自我檢查：甲兩個方向都要 0；乙只保證左右（上下照樣數，給對照頁看）
+  // ⑥ 可印性自我檢查：左右、上下兩個方向都要 0
   const violations = M.countMinWidthViolations(finalLabels,w,h,minCells);
   const violationsV = M.countMinHeightViolations(finalLabels,w,h,minCellsV);
   let changedPixels=0;
   for(let i=0;i<labels.length;i++) if(finalLabels[i]!==labels[i]) changedPixels++;
-  const stats={filter:'axis-'+variant, changedPixels,
+  const stats={filter:'axis-band', changedPixels,     // 分方向（左右寬＋上下一層）＋對齊層
     smoothedPixels:smooth.changedPixels, changedAreaMm2:changedPixels*sx*sz,
     widthChangedPixels:wide.changedPixels, widthMergedRuns:wide.mergedRuns, minWidthMm,
     heightChangedPixels:tall.changedPixels, heightMergedRuns:tall.mergedRuns, minHeightMm, layerMm,

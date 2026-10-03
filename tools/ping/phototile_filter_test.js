@@ -7,7 +7,7 @@
      · index.html filterVerticalLabels——丁：模擬圖改呼叫引擎 filterLabels，不得自己串濾除鏈
    AIP 刀 1（2026-10-03，牌 c-1003-AIP-04）：濾除改左右寬＋上下高兩條（規格 R9-11 第二輪 Q10／Q11、實作計畫 Q1）——
      · mesh_union.js enforceMinVerticalHeight／countMinHeightViolations／snapRowsToBands、smoothLabelNoise 的上下視窗
-     · engine.js filterLabels 的甲（全面分方向＋對齊層）／乙（只換小色塊那步）兩案、層高表對 19 支照片磚製程檔
+     · engine.js filterLabels（刀 1 Q1 已裁＝甲：全面分方向＋對齊層；乙與開發用切換 devVariant 已拿掉，牌 c-1004-AIP-02）、層高表對 19 支照片磚製程檔
 
    參考答案（oracle）：改判準前的產品函式逐字副本，只多「兩邊都有鄰段時往哪邊併」那一段——
      'longer'＝舊判準（併進較長的、一樣長併左）；'index'＝#45 原型（色階序號差最近，平手比長度）；
@@ -326,8 +326,8 @@ console.log('— 4c. 對齊層 snapRowsToBands（甲：左右、上下同時成�
     '帶從熱床往上切、平手取靠下：' + J([...r.labels]));
 }
 
-/* ---------- 5. 引擎 filterLabels 的接線（AIP 刀 1：甲／乙）---------- */
-console.log('— 5. 引擎 filterLabels：甲、乙兩案逐格＝參考鏈（②③⑤ 都要吃到同一把尺）');
+/* ---------- 5. 引擎 filterLabels 的接線（AIP 刀 1：甲＝全面分方向＋對齊層）---------- */
+console.log('— 5. 引擎 filterLabels：逐格＝參考鏈（②③⑤ 都要吃到同一把尺）');
 {
   ok(typeof E.filterLabels === 'function' && E.filterLabels === E._internals.filterLabels, '引擎公開 filterLabels（與 _internals 同一支）');
   const rnd = mulberry32(1001);
@@ -344,43 +344,39 @@ console.log('— 5. 引擎 filterLabels：甲、乙兩案逐格＝參考鏈（�
   }
   const Pd = { width: 8, height: 6, noiseMm: 0.5, nozzle: 0.4, mode: 'dual' };   // 0.05 mm/格；左右 max(0.5,0.8)＝16 格、上下 0.2＝4 格
   const Pq = Object.assign({}, Pd, { mode: 'quad' });                              // 四料一層 0.25＝5 格
-  function chain(P, variant, strategy, mode) {
+  function chain(P, strategy, mode) {
     const sx = P.width / w, sz = P.height / h;
     const layer = P.mode === 'quad' ? 0.25 : 0.2;
     const mc = cellsOf(Math.max(P.noiseMm, 2 * P.nozzle), sx), mv = cellsOf(layer, sz);
     const D = flatLab(pal);
     const H = L => oracle(L, w, h, mc, mode, D, K);
     const V = L => transpose(oracle(transpose(L, w, h), h, w, mv, mode, D, K), h, w);
-    const sm = M.smoothLabelNoise(raw, w, h, K, sx, sz, P.noiseMm, strategy, variant === 'jia' ? layer : undefined);
+    const sm = M.smoothLabelNoise(raw, w, h, K, sx, sz, P.noiseMm, strategy, layer);
     const t = V(H(sm.labels));
-    const op = M.openLabelsMinWidth(t, w, h, mc, variant === 'jia' ? mv : cellsOf(2 * P.nozzle, sz));
+    const op = M.openLabelsMinWidth(t, w, h, mc, mv);
     const base = op.degenerate ? t : op.labels;
-    return { fin: variant === 'jia' ? snapRef(base, w, h, mv, mc, mode, D, K) : H(base), degenerate: op.degenerate, mc, mv };
+    return { fin: snapRef(base, w, h, mv, mc, mode, D, K), degenerate: op.degenerate, mc, mv };
   }
-  for (const variant of ['jia', 'yi']) {
-    const tag = variant === 'jia' ? '甲' : '乙';
-    const dv = P => Object.assign({}, P, { devVariant: variant });
-    const qLab = E.filterLabels(raw, img, dv(Pq), K, 'mode', pal);
-    const qIdx = E.filterLabels(raw, img, dv(Pq), K, 'mode');
-    const dIdx = E.filterLabels(raw, img, dv(Pd), K, 'median', pal);
-    const cLab = chain(Pq, variant, 'mode', 'lab'), cIdx = chain(Pq, variant, 'mode', 'index'), cMed = chain(Pd, variant, 'median', 'index');
-    ok(!cLab.degenerate, `${tag}：合成圖的開運算沒有退化（⑤ 真的有跑）`);
-    ok(same(qLab.labels, cLab.fin), `${tag}：四料帶調色盤＝色差判準的參考鏈逐格相同（差 ${diffCount(qLab.labels, cLab.fin)} 格）`);
-    ok(qLab.stats.toneMetric === 'lab' && qLab.stats.widthToneFlips > 0 && qLab.stats.heightToneFlips > 0,
-      `${tag}：四料帶調色盤 toneMetric＝${qLab.stats.toneMetric}、widthToneFlips＝${qLab.stats.widthToneFlips}、heightToneFlips＝${qLab.stats.heightToneFlips}`);
-    ok(same(qIdx.labels, cIdx.fin) && qIdx.stats.toneMetric === 'index', `${tag}：四料沒帶調色盤＝序號差（差 ${diffCount(qIdx.labels, cIdx.fin)} 格）`);
-    ok(same(dIdx.labels, cMed.fin) && dIdx.stats.toneMetric === 'index', `${tag}：雙料（median）就算帶了 palette 也照用序號差（差 ${diffCount(dIdx.labels, cMed.fin)} 格）`);
-    ok(!same(qLab.labels, qIdx.labels), `${tag}：陰性對照：色差與序號在合成圖上確實不同`);
-    const all = [qLab, qIdx, dIdx];
-    ok(all.every(r => r.stats.minWidthViolations === 0), `${tag}：左右違規都 0`);
-    if (variant === 'jia') {
-      ok(all.every(r => r.stats.minHeightViolations === 0), `甲：上下違規都 0（${all.map(r => r.stats.minHeightViolations)}）`);
-      ok(offBandEdges(dIdx.labels, w, h, cMed.mv) === 0 && offBandEdges(qLab.labels, w, h, cLab.mv) === 0, '甲：上下換色都落在層的帶界上');
-    }
-    ok(qLab.stats.filter === 'axis-' + variant, `${tag}：stats.filter＝${qLab.stats.filter}`);
-  }
-  const jd = E.filterLabels(raw, img, Pd, K, 'median'), yd = E.filterLabels(raw, img, Object.assign({}, Pd, { devVariant: 'yi' }), K, 'median');
-  ok(jd.stats.filter === 'axis-jia' && !same(jd.labels, yd.labels), '沒帶 devVariant＝甲；甲、乙在合成圖上確實不同');
+  const qLab = E.filterLabels(raw, img, Pq, K, 'mode', pal);
+  const qIdx = E.filterLabels(raw, img, Pq, K, 'mode');
+  const dIdx = E.filterLabels(raw, img, Pd, K, 'median', pal);
+  const cLab = chain(Pq, 'mode', 'lab'), cIdx = chain(Pq, 'mode', 'index'), cMed = chain(Pd, 'median', 'index');
+  ok(!cLab.degenerate, '合成圖的開運算沒有退化（⑤ 真的有跑）');
+  ok(same(qLab.labels, cLab.fin), `四料帶調色盤＝色差判準的參考鏈逐格相同（差 ${diffCount(qLab.labels, cLab.fin)} 格）`);
+  ok(qLab.stats.toneMetric === 'lab' && qLab.stats.widthToneFlips > 0 && qLab.stats.heightToneFlips > 0,
+    `四料帶調色盤 toneMetric＝${qLab.stats.toneMetric}、widthToneFlips＝${qLab.stats.widthToneFlips}、heightToneFlips＝${qLab.stats.heightToneFlips}`);
+  ok(same(qIdx.labels, cIdx.fin) && qIdx.stats.toneMetric === 'index', `四料沒帶調色盤＝序號差（差 ${diffCount(qIdx.labels, cIdx.fin)} 格）`);
+  ok(same(dIdx.labels, cMed.fin) && dIdx.stats.toneMetric === 'index', `雙料（median）就算帶了 palette 也照用序號差（差 ${diffCount(dIdx.labels, cMed.fin)} 格）`);
+  ok(!same(qLab.labels, qIdx.labels), '陰性對照：色差與序號在合成圖上確實不同');
+  const all = [qLab, qIdx, dIdx];
+  ok(all.every(r => r.stats.minWidthViolations === 0), '左右違規都 0');
+  ok(all.every(r => r.stats.minHeightViolations === 0), `上下違規都 0（${all.map(r => r.stats.minHeightViolations)}）`);
+  ok(offBandEdges(dIdx.labels, w, h, cMed.mv) === 0 && offBandEdges(qLab.labels, w, h, cLab.mv) === 0, '上下換色都落在層的帶界上');
+  ok(qLab.stats.filter === 'axis-band', `stats.filter＝${qLab.stats.filter}`);
+  /* 開發用切換已拿掉（刀 1 Q1 已裁＝甲）：帶舊的 devVariant:'yi' 進來也只能走同一條——產品不得留第二條濾除路。
+     這張合成圖在 9781ccccfa 實測甲、乙確實不同 ⇒ 這一條不是惰性的。 */
+  const legacy = E.filterLabels(raw, img, Object.assign({}, Pd, { devVariant: 'yi' }), K, 'median');
+  ok(same(legacy.labels, dIdx.labels) && legacy.stats.filter === 'axis-band', '舊的開發用切換 devVariant 已拿掉：帶了也是同一條（甲）');
   // 門檻：左右＝max(雜訊濾除欄, 2×口徑)、上下＝這台的一層
   const th = (o, s) => E.filterLabels(raw, img, Object.assign({}, Pd, o), K, s || 'median').stats;
   const t1 = th({ noiseMm: 1.0 }), t2 = th({ noiseMm: 1.0, nozzle: 0.6 }), t3 = th({ noiseMm: 1.0, nozzle: 1.0 }), t4 = th({ noiseMm: 0 }), t5 = th({ mode: 'quad', nozzle: 0.6 }, 'mode');
@@ -398,8 +394,8 @@ console.log('— 5. 引擎 filterLabels：甲、乙兩案逐格＝參考鏈（�
   ok(keys.every(k => k in t1), '統計欄位齊（頁面狀態文字與 3MF 內嵌統計照讀）：缺 ' + J(keys.filter(k => !(k in t1))));
 }
 
-/* ---------- 5b. 甲乙的分別：一層高的橫向細節 ---------- */
-console.log('— 5b. 甲留得住 0.3 mm 高的橫帶、乙照舊擋掉（計畫 §04 的取捨）');
+/* ---------- 5b. 甲的取捨：一層高的橫向細節（T070 擋掉、甲留下）---------- */
+console.log('— 5b. 甲留得住 0.3 mm 高的橫帶、T070 的上下尺擋掉（計畫 §04 的取捨，挑甲時同意）');
 {
   const w = 200, h = 200, img = { w, h };
   const raw = new Uint8Array(w * h);
@@ -408,10 +404,12 @@ console.log('— 5b. 甲留得住 0.3 mm 高的橫帶、乙照舊擋掉（計畫
   const P = { width: 10, height: 10, noiseMm: 1.0, nozzle: 0.4, mode: 'dual' };
   const cnt = (L, v) => L.reduce((a, x) => a + (x === v), 0);
   const jia = E.filterLabels(raw, img, P, 3, 'median').labels;
-  const yi = E.filterLabels(raw, img, Object.assign({}, P, { devVariant: 'yi' }), 3, 'median').labels;
+  /* 陰性對照＝T070 的上下尺：開運算上下 2×口徑（0.8 mm）。用產品自己的開運算跑同一張圖，證明這筆資料分得出新舊判準 */
+  const sx = P.width / w, sz = P.height / h;
+  const t070 = M.openLabelsMinWidth(raw, w, h, cellsOf(Math.max(P.noiseMm, 2 * P.nozzle), sx), cellsOf(2 * P.nozzle, sz)).labels;
   ok(cnt(jia, 1) >= 4 * 100, `甲：0.3 mm 那條留下來（${cnt(jia, 1)} 格；對齊層後是整層 0.2 mm 高）`);
-  ok(cnt(yi, 1) === 0, `乙：0.3 mm 那條被擋掉（${cnt(yi, 1)} 格）`);
-  ok(cnt(jia, 2) === 0 && cnt(yi, 2) === 0, '比一層還薄的 0.1 mm 那條，兩案都併掉');
+  ok(cnt(t070, 1) === 0, `陰性對照：T070 的上下尺（開運算 0.8 mm）擋掉同一條（${cnt(t070, 1)} 格）`);
+  ok(cnt(jia, 2) === 0, '比一層還薄的 0.1 mm 那條照樣併掉');
 }
 
 /* ---------- 6. 丁：模擬圖不得自己串濾除鏈 ---------- */
@@ -434,7 +432,6 @@ function guardPage(src) {
   if (!body) bad.push('找不到 filterVerticalLabels');
   else if (!/\.filterLabels\s*\(/.test(body)) bad.push('filterVerticalLabels 沒有呼叫引擎 filterLabels');
   else if (!/\bmode\s*:/.test(body)) bad.push('filterVerticalLabels 沒帶 mode（引擎靠它查上下那一層的層高；AIP 刀 1）');
-  else if (/devVariant/.test(src)) bad.push('頁面帶了 devVariant（開發用，只給三欄對照工具）');
   const calls = [...src.matchAll(/(function\s+)?filterVerticalLabels\s*\(([^)]*)\)/g)].filter(m => !m[1]).map(m => m[2].split(',').map(s => s.trim()));
   const quad = calls.filter(a => a[2] === "'mode'" || a[2] === '"mode"');
   if (!quad.length) bad.push('找不到四料（mode）的呼叫');
