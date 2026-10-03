@@ -172,189 +172,6 @@
     };
   }
 
-  function filterSmallComponents(labels, w, h, sx, sz, maxSizeMm, options) {
-    const original = new Uint8Array(labels);
-    let out = new Uint8Array(original);
-    const threshold = Number(maxSizeMm);
-    const cellX = Number(sx);
-    const cellZ = Number(sz);
-    const maxPasses = Math.max(1, Math.min(8, Number(options && options.maxPasses) || 4));
-    const disabled = !Number.isFinite(threshold) || threshold <= 0 ||
-      !Number.isFinite(cellX) || cellX <= 0 || !Number.isFinite(cellZ) || cellZ <= 0;
-
-    if (!w || !h || original.length !== w * h || disabled) {
-      return {
-        labels: out,
-        removedComponents: 0,
-        changedPixels: 0,
-        changedAreaMm2: 0,
-        passes: 0,
-        thresholdMm: Math.max(0, Number.isFinite(threshold) ? threshold : 0)
-      };
-    }
-
-    let removedComponents = 0;
-    let changedPasses = 0;
-    const n = w * h;
-
-    for (let pass = 0; pass < maxPasses; pass++) {
-      const parent = new Int32Array(n);
-      const rank = new Uint8Array(n);
-      for (let i = 0; i < n; i++)
-        parent[i] = i;
-
-      function find(value) {
-        let root = value;
-        while (parent[root] !== root)
-          root = parent[root];
-        while (parent[value] !== value) {
-          const next = parent[value];
-          parent[value] = root;
-          value = next;
-        }
-        return root;
-      }
-      function unite(a, b) {
-        let ra = find(a);
-        let rb = find(b);
-        if (ra === rb)
-          return;
-        if (rank[ra] < rank[rb])
-          [ra, rb] = [rb, ra];
-        parent[rb] = ra;
-        if (rank[ra] === rank[rb])
-          rank[ra]++;
-      }
-
-      // Use four-neighbour components so a diagonal touch remains two islands,
-      // exactly like the later mesh/export connectivity analysis.
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const at = y * w + x;
-          if (x > 0 && out[at - 1] === out[at])
-            unite(at, at - 1);
-          if (y > 0 && out[at - w] === out[at])
-            unite(at, at - w);
-        }
-      }
-      for (let i = 0; i < n; i++)
-        parent[i] = find(i);
-
-      const counts = new Uint32Array(n);
-      // GRID_MAX is 3200 — still well within 16-bit coordinates, which save substantial memory here.
-      const minX = new Uint16Array(n);
-      const maxX = new Uint16Array(n);
-      const minY = new Uint16Array(n);
-      const maxY = new Uint16Array(n);
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const root = parent[y * w + x];
-          if (counts[root] === 0) {
-            minX[root] = maxX[root] = x;
-            minY[root] = maxY[root] = y;
-          } else {
-            if (x < minX[root]) minX[root] = x;
-            if (x > maxX[root]) maxX[root] = x;
-            if (y < minY[root]) minY[root] = y;
-            if (y > maxY[root]) maxY[root] = y;
-          }
-          counts[root]++;
-        }
-      }
-
-      const small = new Uint8Array(n);
-      const epsilon = 1e-9;
-      for (let i = 0; i < n; i++) {
-        if (!counts[i])
-          continue;
-        const widthMm = (maxX[i] - minX[i] + 1) * cellX;
-        const heightMm = (maxY[i] - minY[i] + 1) * cellZ;
-        if (Math.max(widthMm, heightMm) <= threshold + epsilon)
-          small[i] = 1;
-      }
-
-      // For each small island, count how much boundary it shares with each
-      // adjacent major tone. A single numeric-key map avoids allocating one
-      // nested Map per speck on noisy, high-resolution photographs.
-      // Only major (over-threshold) neighbours are eligible, which prevents
-      // small islands from swapping labels in cycles.
-      const boundaryCounts = new Map();
-      function addBoundary(smallRoot, majorRoot) {
-        const key = smallRoot * 256 + out[majorRoot];
-        boundaryCounts.set(key, (boundaryCounts.get(key) || 0) + 1);
-      }
-      function inspectBoundary(a, b) {
-        const ra = parent[a];
-        const rb = parent[b];
-        if (ra === rb)
-          return;
-        if (small[ra] && !small[rb])
-          addBoundary(ra, rb);
-        if (small[rb] && !small[ra])
-          addBoundary(rb, ra);
-      }
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const at = y * w + x;
-          if (x + 1 < w)
-            inspectBoundary(at, at + 1);
-          if (y + 1 < h)
-            inspectBoundary(at, at + w);
-        }
-      }
-
-      const noLabel = 256;
-      const bestLabels = new Uint16Array(n);
-      bestLabels.fill(noLabel);
-      const bestBoundaries = new Uint32Array(n);
-      for (const [key, boundary] of boundaryCounts) {
-        const smallRoot = Math.floor(key / 256);
-        const label = key - smallRoot * 256;
-        const previous = bestLabels[smallRoot];
-        const betterBoundary = boundary > bestBoundaries[smallRoot];
-        const currentDelta = previous === noLabel ? Infinity : Math.abs(out[smallRoot] - previous);
-        const nextDelta = Math.abs(out[smallRoot] - label);
-        const betterTone = boundary === bestBoundaries[smallRoot] && nextDelta < currentDelta;
-        const stableTie = boundary === bestBoundaries[smallRoot] && nextDelta === currentDelta && label < previous;
-        if (previous === noLabel || betterBoundary || betterTone || stableTie) {
-          bestLabels[smallRoot] = label;
-          bestBoundaries[smallRoot] = boundary;
-        }
-      }
-
-      let replacementCount = 0;
-      for (let i = 0; i < n; i++) {
-        if (counts[i] && bestLabels[i] !== noLabel)
-          replacementCount++;
-      }
-      if (!replacementCount)
-        break;
-      const next = new Uint8Array(out);
-      for (let i = 0; i < n; i++) {
-        const replacement = bestLabels[parent[i]];
-        if (replacement !== noLabel)
-          next[i] = replacement;
-      }
-      out = next;
-      removedComponents += replacementCount;
-      changedPasses++;
-    }
-
-    let changedPixels = 0;
-    for (let i = 0; i < n; i++) {
-      if (out[i] !== original[i])
-        changedPixels++;
-    }
-    return {
-      labels: out,
-      removedComponents,
-      changedPixels,
-      changedAreaMm2: changedPixels * cellX * cellZ,
-      passes: changedPasses,
-      thresholdMm: threshold
-    };
-  }
-
   function collectParts(labels, w, h, paletteSize) {
     const n = w * h;
     const parent = new Int32Array(n);
@@ -809,7 +626,7 @@
   }
 
   /* ── 2-D 最小特徵開運算（Eric 2026-08-22 裁「換」；原型出自開發線 engine.js 2026-08-15）──
-     `enforceMinHorizontalWidth` 只守水平、`filterSmallComponents` 只殺孤島，兩者都處理不了
+     `enforceMinHorizontalWidth` 只守水平、`filterSmallComponents`（只殺孤島；AIP 刀 1 拿掉、2026-10-04 刪除）也一樣，兩者都處理不了
      「附著在大塊上的細長突起」（垂直與斜向）。這支用矩形結構元素做開運算：
      先找出「以自己為中心、wx×wy 視窗內全同標籤」的核心格，再從核心 BFS 回填其餘格。
 
@@ -944,6 +761,6 @@
     return countMinRunViolations(labels, w, h, 1, w, minCells);
   }
 
-  return { cleanIsolated, smoothLabelNoise, filterSmallComponents, collectParts, buildLabelMesh, auditMesh,
+  return { cleanIsolated, smoothLabelNoise, collectParts, buildLabelMesh, auditMesh,
     enforceMinHorizontalWidth, enforceMinVerticalHeight, snapRowsToBands, openLabelsMinWidth, countMinWidthViolations, countMinHeightViolations };
 });
