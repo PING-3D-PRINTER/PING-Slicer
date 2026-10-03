@@ -79,7 +79,7 @@
       "files": ["vite-MIT.txt"]
     }
   },
-  "firstPartyAssets": ["index.html", "assets/step-repair.css"],
+  "firstPartyAssets": ["index.html", "assets/step-repair.css", "assets/step-repair-worker.js"],
   "assets": {
     "assets/replicad_single.wasm": {
       "sha256": "2e07c45b83267b38d3102ec411fad11e7ce2ed71854084e461c5ab5fee94aaff",
