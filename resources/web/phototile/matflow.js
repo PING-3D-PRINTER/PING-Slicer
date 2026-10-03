@@ -32,6 +32,16 @@
         **一顆「匯入…」自動分辨**校正表／材料庫檔（Q4 甲，開檔視窗只列 .json＝9-6⑥）；料單底下「**匯出材料庫…**」＝整庫一個檔、
         含封存的（Q4／Q10）；**匯入撞到同一組＝逐組問**（Q11 丙，預設「保留本機的」＝原型細節 3；校正表也問＝原型細節 1）；
         展開後「這組 9/14 量的（上一版 9/10）［改用 9/10 那一版］」＝**還原上一版**（Q9；還原＝兩份對調，換回來也行）。
+   🆕 改名出口＋料單色塊＋舊資料那一問（牌 c-1003-PT-01；Eric 2026-10-03 實踩：舊表照色塊取成「深灰／黑」之後沒地方改、
+      兩支「深灰」併成一支後料單色塊還是舊表的 #AFAFAA；計畫＋原型＝根 repo「20260604 ORCA客製/計畫_照片磚材料改名與色塊_20261003.html」，
+      Eric「照建議」＝Q1 甲／Q2 改後／Q3 不做拆開／Q4 做／Q5 一起改）：
+     ⑦ **已指定的料，名字旁「改名…」**（Q1 甲；跟「指定…」同一個位置、同一個元件）。改名＝身分換了、鍵跟著換（specifyMaterials＋remapKeys，
+        同「指定…」）；改成庫裡已有的名字＝併成同一支（窗裡先講「之後分不開」、不擋）；唯一擋的仍是同一組兩支同名（打字當下就講）。
+        沒併的改名訊息旁有「復原」（同封存，FLOW-37 可反悔＝就地）。**已經併錯的不做拆開**（Q3）。
+     ⑧ **一支料的色塊取生效中那一組量到的**（matlib.listMaterials 的 prefer），排擠出機順序與四料料色也取「這一組自己量到的」（Q5）。
+     ⑨ **舊資料那一問**（Q2）：最上面一句「照你當時裝的料取名，不要照色塊」、同一張舊表的兩支放一格附整條色階、標題寫「比較淺／比較深的那支」
+        （相對深淺不受白平衡影響，絕對顏色才會）；只有舊表量過的料，色塊說明都帶「可能偏暗」。
+     ⑩ 取名時打了庫裡已有的名字、兩邊量到的亮度差很多＝多提醒一句（Q4；只提示不擋）。
    ===================================================================== */
 (function (root, factory) {
   const api = factory(root);
@@ -68,12 +78,12 @@ function pairVerdict(lib, a, b){
    選滿之後再點另一支＝**從那支重新開始選**（原型 v3 是「擠掉最早點的那支」；但庫存的是 pair，
    擠掉的剛好是跟新那支量過的那一支時，新那支會被標成「選不到」而其實選得到——那是假的閘門）。
    列的順序**固定照庫**（不把選不到的搬到後面）：點一下就重排＝使用者每點一次都要重新找一遍。 */
-function choices(lib, mode, picked){
+function choices(lib, mode, picked, opt){
   const need = NEED[mode] || 2;
   /* 🆕 T062：封存的料不列；封存料的配對一起藏（Q3）＝判「選得到嗎」一律看拿掉封存之後的那一份（view）。 */
   const ak = M().archivedKeys(lib), view = M().withoutArchived(lib);
   const live = new Set(M().listMaterials(view).map(m => m.key));
-  const mats = M().listMaterials(lib).filter(m => !ak.has(m.key));
+  const mats = M().listMaterials(lib, opt).filter(m => !ak.has(m.key));
   const byKey = new Map(mats.map(m => [m.key, m]));
   const pk = (picked || []).filter(k => byKey.has(k) && live.has(k)).slice(0, need);
   const keep = (pk.length >= need ? [] : pk).map(k => byKey.get(k));
@@ -130,7 +140,9 @@ function setCheck(lib, mode, keys){
     const all = new Map(M().listMaterials(lib).map(m => [m.key, m]));
     return { info: null, why: arch.map(k => '「' + ((all.get(k) || {}).label || '') + '」').join('') + '封存了' };
   }
-  const byKey = new Map(M().listMaterials(lib).map(m => [m.key, m]));
+  /* 🆕 Q5：這一組的料色取**這一組自己**量到的（同一支料在別組裡量到的色不一樣）：排槽位（最淺的放擠出機 1）、四料的料色都用它。 */
+  const ks = new Set(keys || []);
+  const byKey = new Map(M().listMaterials(lib, { prefer: p => ks.has(M().matKey(p.a)) && ks.has(M().matKey(p.b)) }).map(m => [m.key, m]));
   const ms = (keys || []).map(k => byKey.get(k));
   if (ms.length !== need || ms.some(x => !x)) return { info: null, why: '還沒選齊' };
   const mats = assignSlots(ms);
@@ -345,6 +357,7 @@ function remapKeys(renamed){
     if (applied[md]) applied[md].keys = applied[md].keys.map(k => renamed.get(k) || k);
     remembered[md] = remembered[md].map(k => renamed.get(k) || k);
   });
+  if (draft) draft = { mode: draft.mode, picked: draft.picked.map(k => renamed.get(k) || k) };   // 🆕 展開著改名：正在點的那組也跟著換
   saveRemembered();
 }
 
@@ -359,12 +372,13 @@ function flashHtml(){
     + (b ? '<button type="button" class="btn ghost" data-mf="' + b.mf + '"' + (b.k ? ' data-k="' + esc(b.k) + '"' : '')
          + (b.undo ? ' data-undo="1"' : '') + '>' + esc(b.label) + '</button>' : '') + '</div>';
 }
-/* 料單上的名字：已指定＝顏色名＋料種小標；舊資料＝原本的標籤＋「未指定料種」＋「指定…」（Q12 跳過之後隨時補）。 */
+/* 料單上的名字：已指定＝顏色名＋料種小標＋「改名…」（🆕 ⑦）；舊資料＝原本的標籤＋「未指定料種」＋「指定…」（Q12 跳過之後隨時補）。 */
 function nameCell(m){
   return M().needsSpec(m)
     ? '<span class="mfNm">' + esc(m.label) + '</span><span class="mfTagW">未指定料種</span>'
       + '<button type="button" class="btn ghost mfXs" data-mf="spec" data-k="' + esc(m.key) + '">指定…</button>'
-    : '<span class="mfNm">' + esc(m.label) + '</span><span class="mfTagT">' + esc(m.type) + '</span>';
+    : '<span class="mfNm">' + esc(m.label) + '</span><span class="mfTagT">' + esc(m.type) + '</span>'
+      + '<button type="button" class="btn ghost mfXs" data-mf="rename" data-k="' + esc(m.key) + '">改名…</button>';
 }
 function renderPanel(){
   const box = $('matPanel'); if (!box) return;
@@ -404,7 +418,7 @@ function renderPanel(){
     return;
   }
   const d = draft && draft.mode === md ? draft.picked : (inf ? inf.keys.slice() : []);
-  const ch = choices(lb, md, d);
+  const ch = choices(lb, md, d, prefOf(inf));
   /* Eric 2026-09-23 看原型的三則疊在一起才是這個長相：①「材料的匯入匯出，應該在材料那一個區塊的右上方進行控制」
      ②「我今天想要更換材料，就只有第一個『換一組』，這是第一步。所以第二步是去選擇材料，或是沒有材料的時候要去校正。
         因此選擇材料跟校正其實是平行的，它沒有先後順序」③「校正跟匯入是不是同一組？也就是對於下面的清單會增加或者修正」
@@ -477,6 +491,8 @@ function onPanelClick(e){
   if (act === 'tocal'){ flash = null; setFlow('cal'); return; }
   if (act === 'import'){ pickImportFile(); return; }
   if (act === 'spec'){ openSpecOne(t.getAttribute('data-k')); return; }
+  if (act === 'rename'){ openRename(t.getAttribute('data-k')); return; }
+  if (act === 'renameUndo'){ onRenameUndo(); return; }
   if (act === 'arch'){ onArchive(t.getAttribute('data-k')); return; }
   if (act === 'unarch'){ onUnarchive(t.getAttribute('data-k'), t.hasAttribute('data-undo')); return; }
   if (act === 'toggleArch'){ showArch = !showArch; renderPanel(); return; }
@@ -562,31 +578,43 @@ function mpHtml(o){
   const known = !o.hex && o.name ? knownMat(lib(), type, o.name) : null;
   const hex = o.hex || (known ? known.hex : null);
   return '<div class="mp' + (o.miss ? ' miss' : '') + '" data-i="' + o.i + '"' + (o.k ? ' data-k="' + esc(o.k) + '"' : '')
-    + (o.hex ? ' data-hex="' + esc(o.hex) + '"' : '') + '>'
+    + (o.hex ? ' data-hex="' + esc(o.hex) + '"' : '')
+    + (o.self ? ' data-st="' + esc(o.self.type) + '" data-sn="' + esc(o.self.label) + '"' : '') + '>'
     + '<div class="mpT">' + esc(o.title) + (o.titleSub ? '<span class="sub">' + esc(o.titleSub) + '</span>' : '')
     + (o.arch ? '<label class="mpArch"><input type="checkbox" data-f="arch"> 封存（這支已經不用了）</label>' : '') + '</div>'
     + '<div class="mpRow"><span class="mpSw' + (hex ? '' : ' none') + '"' + (hex ? ' style="background:' + esc(hex) + '"' : '') + '></span>'
     + '<label>料種 <select data-f="type">' + T.map(t => '<option' + (t === type ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></label>'
     + '<label>顏色名 <input type="text" data-f="name" list="mfNames' + T.indexOf(type) + '" value="' + esc(o.name || '') + '" placeholder="例：白、深灰" autocomplete="off"></label></div>'
-    + '<div class="mpSub">' + swCaption(o.hex, known) + (o.sub ? '<br>' + esc(o.sub) : '') + '</div>'
-    + '<div class="mpHint">' + hintHtml(type, o.name, '') + '</div></div>';
+    + '<div class="mpSub">' + swCaption(o.hex, known, o.legacyHex) + (o.sub ? '<br>' + esc(o.sub) : '') + '</div>'
+    + '<div class="mpHint">' + hintHtml(type, o.name, '', o.self, o.hex) + '</div></div>';
 }
 /* 色塊只放量到的色（〈九〉原型細節 8：「不拿擠出機設定色充數」——T060 的白×黑就是這樣來的）。 */
-function swCaption(hex, known){
+/* 🆕 ⑨：只有舊表量過的料（舊表＝沒做白平衡的那一代）講明色塊可能偏暗；short＝窗的最上面已經講過一次，這裡只留一句。 */
+function swCaption(hex, known, legacy){
+  if (hex && legacy) return '色塊＝<b>舊表</b>量到的 <code>' + esc(hex) + '</code>'
+    + (legacy === 'short' ? '（可能偏暗）' : '——舊版量測沒做白平衡，可能比實際的料暗、偏灰；請照實際的料取名');
   if (hex) return '色塊＝量到的 <code>' + esc(hex) + '</code>（自動帶入，只當紀錄）';
   if (known) return '色塊＝「' + esc(known.label) + '」上次量到的 <code>' + esc(known.hex) + '</code>（這次量完換成新的）';
   return '色塊量完自動帶入';
 }
-function hintHtml(type, name, dupWith){
+function hintHtml(type, name, dupWith, self, hex){
   const h = nameHint(lib(), type, name);
   if (!h.kind) return '';
   if (dupWith) return '<div class="mpInfo">跟' + esc(dupWith) + '同名＝會當成同一支料。</div>';
-  if (h.kind === 'same') return '<div class="mpInfo">＝庫裡已有的「' + esc(h.name) + '」（同一支料）'
-    + (h.archived ? '；它目前封存著，完成後會自動叫回來' : '') + '。</div>';
-  if (h.kind === 'near') return '<div class="mpInfo">新的一支料「' + esc(h.name) + '」。庫裡有相近的：'
-    + h.near.map(n => '<button type="button" class="nmChip" data-use="' + esc(n) + '">' + esc(n) + '</button>').join('')
-    + '——是同一支就點它，不點就當新的。</div>';
-  return '<div class="mpInfo">新的一支料「' + esc(h.name) + '」。</div>';
+  if (self && self.clash) return '<div class="mpInfo">⚠ 同一組的另一支現在就叫「' + esc(h.name) + '」——同一組的兩支不能同名（先改那一支）。</div>';
+  if (self && self.type === type && self.label === h.name) return '';        // 改名窗：名字沒動，不提示
+  if (h.kind === 'same'){
+    const far = farSame(lib(), type, h.name, hex);
+    return '<div class="mpInfo">＝庫裡已有的「' + esc(h.name) + '」' + (self ? '——確定後這兩支會<b>併成同一支料</b>（之後分不開）' : '（同一支料）')
+      + (h.archived ? '；它目前封存著，完成後會自動叫回來' : '') + '。'
+      + (far ? '<br>⚠ 庫裡那支上次量到 ' + swInline(far) + '，這一支量到 ' + swInline(hex) + '，亮度差很多——是同一支料就不用管（舊表可能偏暗）；不是的話請換個名字。' : '')
+      + '</div>';
+  }
+  const near = self ? h.near.filter(n => n !== self.label) : h.near;
+  if (h.kind === 'near' && near.length) return '<div class="mpInfo">' + (self ? '改名成' : '新的一支料') + '「' + esc(h.name) + '」。庫裡有相近的：'
+    + near.map(n => '<button type="button" class="nmChip" data-use="' + esc(n) + '">' + esc(n) + '</button>').join('')
+    + (self ? '——是同一支就點它（會併成同一支料）。' : '——是同一支就點它，不點就當新的。') + '</div>';
+  return '<div class="mpInfo">' + (self ? '改名成' : '新的一支料') + '「' + esc(h.name) + '」。</div>';
 }
 /* 下拉提示：每個料種一份 datalist（庫裡這個料種用過的名字）。擋「白」「白色」分裂的做法是提示、不是擋（Q8＋9-6①）。 */
 function renderNames(){
@@ -605,11 +633,15 @@ function mpRead(box){
    🆕 T062：勾了「封存」的那支淡掉、不提示名字、不算撞名（原型 refreshMp 同）。 */
 function mpRefresh(box){
   const rows = mpRead(box);
+  const rmap = new Map(rows.filter(r => { const s = selfOf(r.el); return s && r.name && !(s.type === r.type && s.label === r.name); })
+    .map(r => [r.k, { type: r.type, label: r.name }]));
+  const clash = rmap.size ? M().specifyConflicts(lib(), rmap) : [];
   rows.forEach((r, j) => {
     r.el.classList.toggle('arch', r.arch);
     if (r.arch){ r.el.querySelector('.mpHint').innerHTML = ''; r.el.classList.remove('miss'); return; }
     const other = r.name ? rows.find((o, k) => k !== j && !o.arch && o.name === r.name && o.type === r.type) : null;
-    r.el.querySelector('.mpHint').innerHTML = hintHtml(r.type, r.name, other ? '「' + other.el.querySelector('.mpT').firstChild.textContent + '」' : '');
+    r.el.querySelector('.mpHint').innerHTML = hintHtml(r.type, r.name, other ? '「' + other.el.querySelector('.mpT').firstChild.textContent + '」' : '',
+      selfOf(r.el, clash.some(c => c.label === r.name && c.type === r.type)), r.el.getAttribute('data-hex'));
     r.el.querySelector('[data-f=name]').setAttribute('list', 'mfNames' + types().indexOf(r.type));
     if (r.name) r.el.classList.remove('miss');
     if (!r.el.hasAttribute('data-hex')){
@@ -884,10 +916,7 @@ function maybeAskLegacy(){
   if (page && ((page.loading && page.loading()) || (page.typesReady && !page.typesReady()))) return;   // 庫與料種清單都到了才問（到的時候 refresh 會叫）
   if (doc.querySelector('.cfmBack')){ askLater(); return; }   // 別的對話框開著：不疊上去，等它關
   openDlg({ legacy: true, title: '舊版留下的校正資料——它們是什麼料？（只問這一次）',
-    body: '<p>新版用「<b>料種＋顏色名</b>」認一支料（量到的色號只當紀錄）。下面這 ' + leg.length + ' 支是舊版存的，只記了色號或線材名。'
-      + '<b>不確定的空著就好</b>——之後在清單上按「指定…」再補；<b>已經不用的直接勾「封存」</b>，之後在「已封存」裡還叫得回來。</p>'
-      + leg.map((m, i) => mpHtml({ i, k: m.key, title: m.label, titleSub: declName(m), hex: m.hex, type: types()[0], name: '',
-          sub: partnerText(lb, m), arch: true })).join(''),
+    body: legacyBody(lb, leg),
     buttons: [{ c: 'yes', label: '確定', primary: true }, { c: 'no', label: '先跳過' }], esc: 'no',
     on(c, box){
       if (c !== 'yes'){
@@ -915,7 +944,7 @@ function openSpecOne(key){
   const lb = lib(), m = M().listMaterials(lb).find(x => x.key === key);
   if (!m) return;
   openDlg({ title: '這支是什麼料？',
-    body: mpHtml({ i: 0, k: m.key, title: m.label, titleSub: declName(m), hex: m.hex, type: types()[0], name: '', sub: partnerText(lb, m) }),
+    body: mpHtml({ i: 0, k: m.key, title: m.label, titleSub: declName(m), hex: m.hex, type: types()[0], name: '', sub: partnerText(lb, m), legacyHex: hexIsLegacy(lb, m) }),
     buttons: [{ c: 'yes', label: '確定', primary: true }, { c: 'no', label: '取消' }], esc: 'no',
     on(c, box){
       if (c !== 'yes') return true;
@@ -927,6 +956,93 @@ function openSpecOne(key){
       flash = { kind: 'ok', text: '已指定：' + r.type + ' ' + r.name + '。' };
       renderPanel(); notify(); return true;
     } });
+}
+
+/* ---- 🆕 ⑦～⑩ 改名／色塊／舊資料那一問（牌 c-1003-PT-01）---- */
+const FAR_L = 15;    // 同名的兩支量到的亮度差到這個數就多提醒一句（Q4，只提示）。白平衡沒做的舊表，白料會差到 20 以上
+function prefOf(inf){ return inf ? { prefer: new Set(inf.pairs.map(v => v.pair.id)) } : undefined; }
+function selfOf(el, clash){ return el.hasAttribute('data-sn') ? { type: el.getAttribute('data-st'), label: el.getAttribute('data-sn'), clash: !!clash } : null; }
+function swInline(hex){ return '<span class="mfSw" style="background:' + esc(hex) + '"></span><code>' + esc(hex) + '</code>'; }
+/* 打的名字＝庫裡已有的那支、而兩邊量到的亮度差很多 ⇒ 回庫裡那支的色（給提示用）；否則 null。 */
+function farSame(lb, type, name, hex){
+  const k = hex ? knownMat(lb, type, name) : null;
+  return k && k.hex && Math.abs(E().hexLstar(k.hex) - E().hexLstar(hex)) >= FAR_L ? k.hex : null;
+}
+/* 這支料現在顯示的色，是不是只有舊表量過（舊表＝沒做白平衡的那一代，source 'legacy-hex'）。 */
+function hexIsLegacy(lb, m){
+  const k = m.key || M().matKey(m);
+  const ps = ((lb && lb.pairs) || []).filter(p => (M().matKey(p.a) === k && p.a.hex === m.hex) || (M().matKey(p.b) === k && p.b.hex === m.hex));
+  return ps.length > 0 && ps.every(p => p.source === 'legacy-hex');
+}
+function partnersLine(lb, m){
+  const ps = M().partnersOf(lb, m);
+  return ps.length ? '量過的組合：' + ps.map(x => '和「' + x.other.label + '」（' + whenText(x.pair.measuredAt) + '）').join('、') : '';
+}
+/* ⑨ 舊資料那一問的內文（Q2 照改後）：①最上面一句「照你裝的料取名，不要照色塊」②同一張舊表的兩支放一格、附當時量到的整條色階
+   ③每支的標題不寫色號，寫「比較淺的那支／比較深的那支」（相對深淺不受白平衡影響，絕對顏色才會）。 */
+function legacyBody(lb, leg){
+  const byKey = new Map(leg.map(m => [m.key, m])), used = new Set();
+  let i = 0;
+  const one = (m, title, sub) => { used.add(m.key);
+    return mpHtml({ i: i++, k: m.key, title, titleSub: declName(m), hex: m.hex, type: types()[0], name: '', sub: sub || '', arch: true,
+                    legacyHex: hexIsLegacy(lb, m) && 'short' }); };
+  let h = '<p>下面這 ' + leg.length + ' 支是舊版存的校正資料，只記了當時量到的色號。請告訴我它們是什麼料（<b>料種＋顏色名</b>）。</p>'
+    + '<div class="mfCaution">⚠ <b>請照你當時裝的料取名，不要照色塊。</b>舊版量測沒有做白平衡，色塊會比實際的料暗、偏灰——白色的料可能顯示成灰色，深灰可能顯示成接近黑色。</div>';
+  for (const p of lb.pairs){
+    const a = byKey.get(M().matKey(p.a)), b = byKey.get(M().matKey(p.b));
+    if (!a || !b || used.has(a.key) || used.has(b.key)) continue;
+    const la = E().hexLstar(p.a.hex), lb2 = E().hexLstar(p.b.hex);
+    const ta = la === lb2 ? '第 1 支' : (la > lb2 ? '比較淺的那支' : '比較深的那支'), tb = la === lb2 ? '第 2 支' : (la > lb2 ? '比較深的那支' : '比較淺的那支');
+    h += '<div class="mfLegGrp"><div class="mfLegT">這 2 支是<b>同一張舊表</b>量的（' + esc(String(p.kind || '').split('（')[0] || '舊表')
+       + '，' + (mdate(p.measuredAt) ? mdate(p.measuredAt) + ' 量的' : '沒記日期') + '）'
+       + '<span class="mfMini">' + p.pts.map(t => '<i style="background:' + esc(t.hex) + '"></i>').join('') + '</span>'
+       + '<span class="sub">當時量到的 ' + p.pts.length + ' 階</span></div>'
+       + one(a, ta) + one(b, tb) + '</div>';
+  }
+  leg.forEach(m => { if (!used.has(m.key)) h += one(m, m.label, partnerText(lb, m)); });
+  return h + '<p class="sub"><b>不確定的空著就好</b>——之後在清單上按「指定…」再補；<b>已經不用的直接勾「封存」</b>，之後在「已封存」裡還叫得回來。</p>';
+}
+/* ⑦ 清單上「改名…」（Q1 甲）：已指定的料改料種／顏色名。同一個「指定材料」元件，帶現在的名字。
+   改名＝身分換了 ⇒ 鍵跟著換（specifyMaterials＋remapKeys，同「指定…」）；改成庫裡已有的名字＝併成同一支（窗裡講明白、不擋；Q3 不做拆開）；
+   唯一擋的仍是同一組兩支同名。沒併的改名可反悔 ⇒ 訊息旁一顆「復原」（同封存；FLOW-37 可反悔＝就地）。 */
+let lastRename = null;
+function openRename(key){
+  const lb = lib(), m = M().listMaterials(lb, prefOf(current())).find(x => x.key === key);
+  if (!m || M().needsSpec(m)) return;
+  openDlg({ title: '改名：「' + m.label + '」',
+    body: mpHtml({ i: 0, k: m.key, title: m.type + ' ' + m.label, hex: m.hex, type: m.type, name: m.label, sub: partnersLine(lb, m),
+                   self: { type: m.type, label: m.label }, legacyHex: hexIsLegacy(lb, m) })
+      + '<div class="sub">只換這支料的名字，量測資料不動；用到它的每一組都會跟著換。</div>',
+    buttons: [{ c: 'yes', label: '確定', primary: true }, { c: 'no', label: '取消' }], esc: 'no',
+    on(c, box){
+      if (c !== 'yes') return true;
+      const r = mpRead(box)[0], old = selfOf(r.el);
+      if (!r.name){ r.el.classList.add('miss'); dlgErr(box, '請先填顏色名（已標出來）。'); r.el.querySelector('[data-f=name]').focus(); return false; }
+      if (old.type === r.type && old.label === r.name) return true;          // 沒改＝直接關，不寫庫
+      const map = new Map([[r.k, { type: r.type, label: r.name }]]);
+      const conf = M().specifyConflicts(lb, map);
+      if (conf.length){ dlgErr(box, '同一組的另一支現在就叫「' + conf[0].label + '」——同一組的兩支不能同名。先把那一支改掉，再回來改這支。'); return false; }
+      const nk = M().matKey(M().makeMaterial({ type: r.type, label: r.name }));
+      const merged = M().listMaterials(lb).some(x => x.key === nk);
+      const renamed = M().specifyMaterials(lb, map);
+      remapKeys(renamed); save();
+      lastRename = merged ? null : { key: renamed.get(r.k), to: old };
+      flash = { kind: 'ok', text: '已改名：「' + old.label + '」→「' + r.name + '」' + (merged ? '（併進庫裡原本叫「' + r.name + '」的那支）' : '') + '。',
+                btn: lastRename ? { mf: 'renameUndo', label: '復原' } : null };
+      renderPanel(); notify(); return true;
+    } });
+  const inp = dlg && dlg.back.querySelector('[data-f=name]'); if (inp && inp.select) inp.select();
+}
+function onRenameUndo(){
+  const lb = lib(), back = lastRename; lastRename = null;
+  if (!back) return;
+  const map = new Map([[back.key, { type: back.to.type, label: back.to.label }]]);
+  if (!M().listMaterials(lb).some(x => x.key === back.key) || M().specifyConflicts(lb, map).length){
+    flash = { kind: 'warn', text: '沒有復原：材料庫在那之後變過了。要改回去請再按一次「改名…」。' }; renderPanel(); return;
+  }
+  remapKeys(M().specifyMaterials(lb, map)); save();
+  flash = { kind: 'ok', text: '已復原成「' + back.to.label + '」。' };
+  renderPanel(); notify();
 }
 
 /* ---- 兩條流程的切換（原型 v3 右上那組切換）---- */
@@ -1120,6 +1236,7 @@ return {
   pairVerdict, usable, choices, toggle, assignSlots, setInfo, setCheck, validSets, defaultKeys, calibRequestFor, aiPaletteLine,
   typeList, namesOf, nameHint, dupIn, knownMat, mdate, dateFromName, today,
   archiveBlock, exportName, libImportText, verOf, onExported,
+  FAR_L, farSame, hexIsLegacy,
   mount, refresh, ready, info, openPicker, calibRequest, setFlow, calColors, calNames, calLabelHtml, calMaterials, onCalibrated, goCal, importTable, importFile,
   flow: () => flow, calStep: () => calStep,
 };

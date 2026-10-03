@@ -1091,8 +1091,12 @@ function fakeImg(){
     assert.strictEqual(req.toneMap, 'stretch');
     const lad = E.dualLadderCalibrated(inf.colors.map(c => ({ color: c })), 8, req);
     assert.strictEqual(lad.calib.applied, true, lad.calib.why);
-    // 陽性對照：拿清單上那支白的色（量自別對）⇒ 料色對不上、整段不套用
-    const other = M.listMaterials(lb).find(m => m.label === '白').hex;
+    // 陽性對照：拿白在**別對**（白×深灰）量到的色 ⇒ 料色對不上、整段不套用
+    /* 牌 c-1003-PT-01 有意識地改寫：這裡原本取「清單上那支白的色」當別對的色——那是舊的取法（庫裡第一次出現的那一組）。
+       Eric 2026-10-03「照建議」Q5 起，清單的色改取生效中／最近量的那一組（這張庫裡＝白×淺藍、就是 #EFEEEA），前提就不成立了；
+       要證的事不變（別對的色餵給引擎＝不套用），所以直接指名白×深灰那一對。 */
+    const gp = M.findPair(lb, M.makeMaterial({ fid: 'GPLA', label: '白' }), M.makeMaterial({ fid: 'GPLA', label: '深灰' }));
+    const other = (M.matKey(gp.a) === keyOf(lb, '白') ? gp.a : gp.b).hex;
     assert.notStrictEqual(other, '#EFEEEA', '陽性對照前提不成立');
     assert.strictEqual(E.dualLadderCalibrated([{ color: other }, { color: '#93D9FA' }], 8, req).calib.applied, false, '陽性對照沒轉紅');
   });
@@ -1289,8 +1293,9 @@ function fakeImg(){
     assert(/no\.focus\(\)/.test(body), '預設焦點不在取消');
     /* T061：認領窗退場，matflow 的三個窗（匯入校正表／舊資料那一問／指定…）一律「肯定在前、取消（跳過）在最後」 */
     const btns = MF_SRC.match(/buttons: \[[^\]]*\]/g) || [];
-    /* T062：多兩個窗（匯入撞到同一組逐組問、匯出材料庫）＝五個，一樣「肯定在前、取消在最後」。 */
-    assert.strictEqual(btns.length, 5, 'matflow 的對話框數量變了（' + btns.length + '），這條要跟著看');
+    /* T062：多兩個窗（匯入撞到同一組逐組問、匯出材料庫）＝五個，一樣「肯定在前、取消在最後」。
+       🆕 牌 c-1003-PT-01：多一個「改名…」窗（Q1 甲）＝六個。 */
+    assert.strictEqual(btns.length, 6, 'matflow 的對話框數量變了（' + btns.length + '），這條要跟著看');
     btns.forEach(b => assert(/^buttons: \[\{ c: 'yes'[^\]]*\}, \{ c: 'no'[^\]]*\}\]$/.test(b), '鈕序不是肯定在左、取消在右：' + b));
     assert(/if \(b && o\.on\(/.test(MF_SRC), '點背景就關窗（FBK-10：點背景不關）');
   });
@@ -1585,7 +1590,9 @@ function fakeImg(){
     assert(/M\(\)\.fileKind\(raw\)/.test(ifb) && /importLibFile\(raw, fname\)/.test(ifb) && /importTable\(raw, fname, 'gen'\)/.test(ifb), '「匯入…」沒有自動分辨');
     assert(!/pickTableFile/.test(MF_SRC), '舊的「只吃校正表」入口還在');
     const ml = MF_SRC.slice(MF_SRC.indexOf('function maybeAskLegacy(){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function maybeAskLegacy(){') + 10));
-    assert(/arch: true/.test(ml) && /M\(\)\.setArchived\(lb, m, true\)/.test(ml), '舊資料那一問沒有「封存」（9-7 #1：T062 要加回來）');
+    /* 牌 c-1003-PT-01 有意識地改寫：那一問的內文搬進 legacyBody（Q2 改後），「封存」勾選跟著搬過去；打勾之後封存仍在 maybeAskLegacy。 */
+    const lgb = MF_SRC.slice(MF_SRC.indexOf('function legacyBody(lb, leg){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function legacyBody(lb, leg){') + 10));
+    assert(/body: legacyBody\(lb, leg\)/.test(ml) && /arch: true/.test(lgb) && /M\(\)\.setArchived\(lb, m, true\)/.test(ml), '舊資料那一問沒有「封存」（9-7 #1：T062 要加回來）');
     assert(/filled = rows\.filter\(r => !r\.arch && r\.name\)/.test(ml), '勾了封存的那支還被拿去指定料種');
     assert(/data-f="arch"/.test(MF_SRC) && /\.mp\.arch/.test(fs.readFileSync(path.join(WEB, 'matflow.css'), 'utf8')), '封存勾選沒有淡掉那一支');
     // 撞到同一組：預設「保留本機的」（原型細節 3）
@@ -1615,6 +1622,100 @@ function fakeImg(){
     assert(/pad > 2/.test(hb) && /bytes\.size\(\) != want/.test(hb), '壞 base64／長度不符沒擋');
     // 陽性對照：拿掉 .tmp 那一步，守衛必須抓到
     assert(!/tmp_path\(out_path\.string\(\) \+ "\.tmp"\)/.test(hb.replace('tmp_path(out_path.string() + ".tmp")', 'tmp_path(out_path)')), '守衛抓不到拿掉 .tmp 的寫法');
+  });
+
+  /* ================= 牌 c-1003-PT-01：改名出口＋料單色塊＋舊資料那一問 =================
+     實錄（Eric 2026-10-03，正式版 V3.6.3）：沒套白平衡的舊表（#AFAFAA × #242D39，跟 9/14 白×深灰同一條 8 階校正條）
+     照色塊取成「深灰／黑」——其實是白×深灰；取完沒地方改。之後匯入 9/14 白×深灰、第二支也叫「深灰」⇒ 兩支併成一支，
+     料單色塊一直是舊表的 #AFAFAA（產圖用的 #707279 是對的），把「黑」封存之後還是。
+     Eric「照建議」＝Q1 甲（每列「改名…」）／Q2 舊資料那一問照改後／Q3 不做拆開／Q4 同名亮度差很多多提醒／Q5 排槽位與四料料色也取這一組自己的。 */
+  console.log('\n牌 c-1003-PT-01｜改名出口＋料單色塊（取生效中那一組）＋舊資料那一問');
+  const KP = l => M.matKey(PLA(l));   // PLA() 用 T062 那一段定義的同一支
+  const LEG_PTS = [[1,'#AFAFAA'],[0.94,'#929291'],[0.87,'#717377'],[0.78,'#63676C'],[0.67,'#51585E'],[0.53,'#3C444D'],[0.35,'#2F3943'],[0,'#242D39']];
+  const libEric = () => {   // Eric 10-03 的庫：舊表遷進來 → 那一問照色塊取成「深灰／黑」
+    const lb = M.emptyLib();
+    M.migrateLegacy(lb, E.calibParseTable(mkTable('#AFAFAA', '#242D39', LEG_PTS)), {});
+    const k = l => M.listMaterials(lb).find(m => m.label === l).key;
+    M.specifyMaterials(lb, new Map([[k('#AFAFAA'), PLA('深灰')], [k('#242D39'), PLA('黑')]]));
+    return lb;
+  };
+  const put914 = lb => M.upsertPair(lb, M.pairFromDual(E.calibParseTable(tableGray), { materials: [PLA('白'), PLA('深灰')], measuredAt: '2026-09-14' }));
+  await check('🔴 Q5／⑧ 料單色塊取生效中那一組（實錄重現）：舊取法＝#AFAFAA（陽性對照）；新取法＝#707279，封存舊那一組之後也是；清單順序不變', () => {
+    const lb = libEric();
+    put914(lb);
+    const firstSeen = (() => { for (const p of lb.pairs) for (const m of [p.a, p.b]) if (m.label === '深灰') return m.hex; })();
+    assert.strictEqual(firstSeen, '#AFAFAA', '陽性對照前提不成立（舊取法＝庫裡第一次出現的那一組）');
+    const hexOf = (l, opt) => M.listMaterials(lb, opt).find(m => m.label === l).hex;
+    assert.strictEqual(hexOf('深灰'), '#707279', '沒封存時沒取最近量的那一組');
+    M.setArchived(lb, PLA('黑'), true);
+    assert.strictEqual(hexOf('深灰'), '#707279', '封存了舊那一組，色塊還取到它');
+    const inf = F.setInfo(lb, 'dual', [KP('白'), KP('深灰')]);
+    assert.deepStrictEqual(inf.colors, ['#F2F0EB', '#707279']);
+    const ch = F.choices(lb, 'dual', inf.keys, { prefer: new Set(inf.pairs.map(v => v.pair.id)) });
+    assert.strictEqual(ch.rows.find(r => r.mat.label === '深灰').mat.hex, '#707279', '料單那一列的色塊不是生效中那一組量到的');
+    const old = lb.pairs.find(p => p.source === 'legacy-hex');
+    assert.strictEqual(hexOf('深灰', { prefer: new Set([old.id]) }), '#AFAFAA', '指名的那一組沒排第一（第一級是「生效中」，不是「最近量的」）');
+    assert.deepStrictEqual(M.listMaterials(lb).map(m => m.label), ['深灰', '黑', '白'], '清單順序變了（畫面會跳動）');
+    const r0 = MF_SRC.indexOf('function renderPanel(){');
+    assert(/const ch = choices\(lb, md, d, prefOf\(inf\)\);/.test(MF_SRC.slice(r0, MF_SRC.indexOf('\nfunction ', r0 + 10))), '料單沒把生效中那一組交給 choices');
+  });
+  await check('🔴 Q5 排擠出機 1（最淺）用「這一組自己量到的」色——同一支料在別組量得比較暗時不排錯', () => {
+    const lb = M.emptyLib();
+    M.upsertPair(lb, M.pairFromDual(E.calibParseTable(mkTable('#F2F0EB', '#909090', [[1,'#F2F0EB'],[0.5,'#C1C1C1'],[0,'#909090']])), { materials: [PLA('白'), PLA('灰')], measuredAt: '2026-09-14' }));
+    M.upsertPair(lb, M.pairFromDual(E.calibParseTable(mkTable('#505050', '#202020', [[1,'#505050'],[0.5,'#383838'],[0,'#202020']])), { materials: [PLA('白'), PLA('黑')], measuredAt: '2026-09-20' }));
+    assert.strictEqual(M.listMaterials(lb).find(m => m.label === '白').hex, '#505050', '陽性對照前提不成立（不指名時白取最近量的那一組，比灰還暗）');
+    const ks = [KP('灰'), KP('白')];
+    const inf = F.setInfo(lb, 'dual', ks);
+    assert(inf, 'setInfo 不成立：' + F.setCheck(lb, 'dual', ks).why);
+    assert.deepStrictEqual(inf.mats.map(m => m.label), ['白', '灰'], '擠出機 1 不是這一組裡最淺的那支（拿到別組的色）');
+    assert.deepStrictEqual(inf.colors, ['#F2F0EB', '#909090']);
+  });
+  await check('🔴 Q1 改名（純邏輯）：鍵跟著換、量測不動；順序反了＝同組同名擋；改好之後匯入 9/14＝同一組；封存跟著新名字走；改成已有的名字＝併成一支', () => {
+    const lb = libEric(), sig0 = M.ptsSig(lb.pairs[0]);
+    assert.strictEqual(M.specifyConflicts(lb, new Map([[KP('黑'), PLA('深灰')]])).length, 1, '先改「黑」→「深灰」（同組另一支現在就叫深灰）沒擋');
+    M.specifyMaterials(lb, new Map([[KP('深灰'), PLA('白')]]));
+    M.specifyMaterials(lb, new Map([[KP('黑'), PLA('深灰')]]));
+    assert.deepStrictEqual(M.listMaterials(lb).map(m => [m.label, m.hex]), [['白', '#AFAFAA'], ['深灰', '#242D39']]);
+    assert.strictEqual(M.ptsSig(lb.pairs[0]), sig0, '改名動到了量測');
+    const plan = M.classifyPairs(lb, [M.pairFromDual(E.calibParseTable(tableGray), { materials: [PLA('白'), PLA('深灰')], measuredAt: '2026-09-14' })]);
+    assert.strictEqual(plan.conflict.length, 1, '改好名之後匯入 9/14 白×深灰，沒有認成同一組（會再多出一組）');
+    M.setArchived(lb, PLA('深灰'), true);
+    M.specifyMaterials(lb, new Map([[KP('深灰'), PLA('深灰舊')]]));
+    assert(M.isArchived(lb, PLA('深灰舊')) && !M.isArchived(lb, PLA('深灰')), '封存沒跟著新名字走');
+    const lb2 = libEric();
+    M.upsertPair(lb2, M.pairFromDual(E.calibParseTable(mkTable('#F2F0EB', '#909090', [[1,'#F2F0EB'],[0.5,'#C1C1C1'],[0,'#909090']])), { materials: [PLA('白'), PLA('灰')], measuredAt: '2026-09-20' }));
+    M.specifyMaterials(lb2, new Map([[KP('黑'), PLA('灰')]]));
+    assert.deepStrictEqual(M.listMaterials(lb2).map(m => m.label), ['深灰', '灰', '白'], '改成庫裡已有的名字沒有併成一支');
+  });
+  await check('Q4／⑨：同名但亮度差很多才提醒（門檻 15）；只有舊表量過的色才標「可能偏暗」', () => {
+    const lb = libEric();
+    assert.strictEqual(F.FAR_L, 15);
+    assert.strictEqual(F.farSame(lb, 'PLA', '深灰', '#707279'), '#AFAFAA', '舊表的深灰（#AFAFAA）對 9/14 的深灰（#707279）沒提醒');
+    assert.strictEqual(F.farSame(lb, 'PLA', '深灰', '#A8A8A3'), null, '亮度差不多也提醒（會變成雜訊）');
+    assert.strictEqual(F.farSame(lb, 'PLA', '白', '#F2F0EB'), null, '庫裡沒有的名字也提醒');
+    assert.strictEqual(F.farSame(lb, 'PLA', '深灰', null), null, '沒有量到的色（校正第 1 步）也提醒');
+    const dg = () => M.listMaterials(lb).find(m => m.label === '深灰');
+    assert.strictEqual(F.hexIsLegacy(lb, dg()), true, '舊表量的色沒標出來');
+    put914(lb);
+    assert.strictEqual(F.hexIsLegacy(lb, dg()), false, '9/14 量的色（有白平衡）被標成舊表');
+  });
+  await check('🔴 頁面接線：已指定的料有「改名…」、改名走 specifyConflicts→specifyMaterials＋remapKeys、併成一支講明白、沒併才給「復原」；舊資料那一問照改後', () => {
+    const nc = MF_SRC.slice(MF_SRC.indexOf('function nameCell(m){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function nameCell(m){') + 10));
+    assert(/data-mf="spec"[\s\S]*:[\s\S]*data-mf="rename"/.test(nc), '已指定的料沒有「改名…」（或擺到未指定那一邊）');
+    assert(/act === 'rename'\)\{ openRename\(/.test(MF_SRC) && /act === 'renameUndo'\)\{ onRenameUndo\(\)/.test(MF_SRC), '「改名…」／「復原」沒接上');
+    const or = MF_SRC.slice(MF_SRC.indexOf('function openRename(key){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function openRename(key){') + 10));
+    const iC = or.indexOf('M().specifyConflicts(lb, map)'), iS = or.indexOf('remapKeys(renamed); save();');
+    assert(iC > 0 && iS > iC && /const renamed = M\(\)\.specifyMaterials\(lb, map\);/.test(or), '改名沒先擋同組同名、或沒換鍵／沒存');
+    assert(/lastRename = merged \? null :/.test(or) && /btn: lastRename \?/.test(or), '併成一支也給「復原」（併了分不開，復原會騙人）');
+    assert(/self: \{ type: m\.type, label: m\.label \}/.test(or), '改名窗沒帶原名（提示會把自己當成「庫裡已有的」）');
+    const rk = MF_SRC.slice(MF_SRC.indexOf('function remapKeys(renamed){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function remapKeys(renamed){') + 10));
+    assert(/if \(draft\) draft = /.test(rk), '展開著改名，正在點的那組沒跟著換鍵');
+    const hh = MF_SRC.slice(MF_SRC.indexOf('function hintHtml('), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function hintHtml(') + 10));
+    assert(/併成同一支料/.test(hh) && /farSame\(lib\(\), type, h\.name, hex\)/.test(hh), '改成已有的名字沒講會併、或亮度差沒提醒');
+    const lgb = MF_SRC.slice(MF_SRC.indexOf('function legacyBody(lb, leg){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function legacyBody(lb, leg){') + 10));
+    assert(/請照你當時裝的料取名，不要照色塊/.test(lgb) && /比較淺的那支/.test(lgb) && /mfMini/.test(lgb) && /class="mfCaution"/.test(lgb), '舊資料那一問不是改後的寫法（Q2）');
+    assert(/\.mfCaution\{/.test(fs.readFileSync(path.join(WEB, 'matflow.css'), 'utf8')), 'matflow.css 沒有 .mfCaution');
+    assert(!/title: m\.label, titleSub: declName\(m\), hex: m\.hex, type: types\(\)\[0\], name: '',\s*sub: partnerText\(lb, m\), arch: true/.test(MF_SRC), '舊的寫法（標題＝色號）還在');
   });
 
   /* ================= 〈九〉9-8 #7 補修（牌 c-0924-ACC-34；T063 跟車觀察項）：匯入材料庫檔一筆都不用寫＝不寫庫 =================
