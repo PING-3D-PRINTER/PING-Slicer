@@ -52,6 +52,14 @@ protected:
 #ifdef WIN32
     virtual bool test_with_resolved_ip(wxString& curl_msg) const;
 #endif
+
+private:
+    // PING(2026-10-04 Klipper #493 第一步)：最近一次連線測試為什麼失敗。HTTP 狀態碼只有 on_error 拿得到，
+    // 測試／上傳失敗的白話訊息（金鑰被拒／連不到／其他）照它分流；test() 是 const ⇒ mutable。
+    enum class PingFail { None, KeyRejected, Unreachable, Other };
+    mutable PingFail m_ping_fail { PingFail::None };
+    void     ping_note_fail(unsigned http_status) const;
+    wxString ping_key_rejected_msg() const;
 };
 
 

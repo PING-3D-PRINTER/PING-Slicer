@@ -45,6 +45,33 @@ namespace GUI {
 
 #define BORDER_W FromDIP(10)
 
+// PING(2026-10-04 Klipper #493 第一步)：連線金鑰（Moonraker API key＝32 個十六進位字）本身不含任何空白；
+// 客戶從印表機網頁複製時可能連前後空白、中間空格或換行一起帶進來 ⇒ 存檔與測試前一律去掉。
+// 除了一般空白／Tab／換行，也去掉全形空白、不換行空白與零寬字元（網頁複製常夾帶，肉眼看不到）。
+static wxString ping_strip_key_spaces(const wxString& s)
+{
+    wxString out;
+    out.reserve(s.length());
+    for (wxString::const_iterator it = s.begin(); it != s.end(); ++it) {
+        const wxUniChar c = *it;
+        const auto      v = c.GetValue();
+        const bool is_space = v == 0x20 || (v >= 0x09 && v <= 0x0D) || v == 0x85 || v == 0xA0 || v == 0x1680 ||
+                              (v >= 0x2000 && v <= 0x200D) || v == 0x2028 || v == 0x2029 || v == 0x202F || v == 0x205F ||
+                              v == 0x2060 || v == 0x3000 || v == 0xFEFF;
+        if (!is_space)
+            out += c;
+    }
+    return out;
+}
+
+static void ping_clean_apikey(DynamicPrintConfig* config)
+{
+    if (config == nullptr || config->option<ConfigOptionString>("printhost_apikey") == nullptr)
+        return;
+    std::string& key = config->opt_string("printhost_apikey");
+    key = into_u8(ping_strip_key_spaces(from_u8(key)));
+}
+
 //------------------------------------------
 //          PhysicalPrinterDialog
 //------------------------------------------
@@ -241,6 +268,7 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
         auto sizer = create_sizer_with_btn(parent, &m_printhost_test_btn, "printer_host_test", _L("Test"));
 
         m_printhost_test_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) {
+            ping_clean_apikey(m_config);
             std::unique_ptr<PrintHost> host(PrintHost::get_print_host(m_config));
             if (!host) {
                 const wxString text = _L("Could not get a valid Printer Host reference");
@@ -448,6 +476,26 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
                 if (field)
                     field->propagate_value();
             }), temp->GetId());
+    }
+
+    // PING(2026-10-04 Klipper #493 第一步)：連線金鑰欄——貼上就把空白去掉（顯示與之後存進設定的都是乾淨的），
+    // 空著時框內灰字提示「印表機有要求時才需要填」（還沒開連線訪問碼的印表機不用填，留空照常傳檔）。
+    // 欄位視窗是 TextInput，要從 TextCtrl::text_ctrl() 拿裡面那個 wxTextCtrl。
+    if (auto* apikey_field = dynamic_cast<TextCtrl*>(m_optgroup->get_field("printhost_apikey")); apikey_field) {
+        if (wxTextCtrl* temp = apikey_field->text_ctrl(); temp) {
+            temp->SetHint(_L("Only needed if the printer asks for it"));
+            temp->Bind(wxEVT_TEXT, [temp](wxCommandEvent& e) {
+                e.Skip();
+                const wxString raw     = temp->GetValue();
+                const wxString cleaned = ping_strip_key_spaces(raw);
+                if (cleaned != raw) {
+                    // 游標留在原本那個字後面（扣掉它前面被去掉的空白），不跳到最後
+                    const long pos = long(ping_strip_key_spaces(raw.Left(size_t(temp->GetInsertionPoint()))).length());
+                    temp->ChangeValue(cleaned); // ChangeValue 不再發 wxEVT_TEXT，不會遞迴
+                    temp->SetInsertionPoint(pos);
+                }
+            });
+        }
     }
 
     // Always fill in the "printhost_port" combo box from the config and select it.
@@ -733,11 +781,13 @@ void PhysicalPrinterDialog::update(bool printer_change)
     update_printhost_buttons();
 
     // PING(2026-07-26 Eric)：目前用不到的欄位一律隱藏——主機類型/列印設備代理/設備使用者界面/
-    // API 金鑰/CA 憑證/吊銷檢查。只藏不改值（host_type=htOctoPrint、agent=Moonraker 照舊寫入）；
+    // CA 憑證/吊銷檢查。只藏不改值（host_type=htOctoPrint、agent=Moonraker 照舊寫入）；
     // 放在所有 show/hide 決策之後＝蓋過上方各 host type 分支的 show_field。
+    // PING(2026-10-04 Klipper #493 第一步，Eric 裁 Q1 甲)：「printhost_apikey」從清單拿掉＝放出「連線金鑰」欄
+    // （印表機要開連線訪問碼，切片軟體傳檔要帶金鑰）；顯示與否回到上方 host type 分支（Octo/Klipper＝顯示）。
     for (const char* ping_hide : { "host_type", "printer_agent", "print_host_webui",
                                    "bbl_use_print_host_webui", "printhost_authorization_type",
-                                   "printhost_apikey", "printhost_cafile", "printhost_ssl_ignore_revoke" })
+                                   "printhost_cafile", "printhost_ssl_ignore_revoke" })
         m_optgroup->hide_field(ping_hide);
     if (m_printhost_cafile_browse_btn)
         m_printhost_cafile_browse_btn->Hide();
@@ -842,6 +892,7 @@ void PhysicalPrinterDialog::check_host_key_valid()
 
 void PhysicalPrinterDialog::OnOK(wxEvent& event)
 {
+    ping_clean_apikey(m_config); // PING(2026-10-04 Klipper #493)：存檔前去掉金鑰裡的空白
     wxGetApp().get_tab(Preset::TYPE_PRINTER)->save_preset("", false, false, true, m_preset_name);
     event.Skip();
 
