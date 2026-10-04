@@ -350,7 +350,9 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
 
     // Set a wider width for a better alignment
     Option option = m_optgroup->get_option("print_host");
-    option.opt.width = Field::def_width_wider();
+    // PING(2026-10-04 Klipper #493 第一步)：下面的連線金鑰欄加寬到 30 em 後，主機欄跟著從 12 em 改 18 em，
+    // 讓「主機欄＋〔測試〕」與金鑰欄右緣對齊；順帶不再把「IP:埠號」切掉尾巴（舊寬度 127.0.0.1:18495 就被切）。
+    option.opt.width = 18;
     Line host_line = m_optgroup->create_single_option_line(option);
     host_line.append_widget(print_host_test);
     host_line.append_widget(print_host_logout);
@@ -376,7 +378,9 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
     m_optgroup->append_single_option_line("printhost_authorization_type");
 
     option = m_optgroup->get_option("printhost_apikey");
-    option.opt.width = Field::def_width_wider();
+    // PING(2026-10-04 Klipper #493 第一步)：標準寬（12 em）只放得下 32 碼金鑰的三分之一、框內提示也被切掉
+    // ⇒ 加寬到 30 em，貼上後整把金鑰看得到、中英文提示字都不截字（實測截圖見 handoff）。
+    option.opt.width = 30;
     m_optgroup->append_single_option_line(option);
 
     option = m_optgroup->get_option("printhost_port");
