@@ -49,6 +49,7 @@ const lum709 = (r,g,b) => 0.2126*r + 0.7152*g + 0.0722*b;
 /* ================= 版本（進 3MF metadata、ready 握手與 goldens 追溯） ================= */
 const ENGINE_VERSION = 'C1-20261003';   /* 1003（AIP 刀 1）：濾除改左右寬＋上下高兩條門檻、拿掉小色塊那步 ⇒ 每一張照片磚的標籤都會變。
    1004（AIP 刀 1 只留甲）：只拿掉開發用切換 devVariant 與乙那條路，預設路徑（甲）逐格不變 ⇒ 版本不動。
+   1004b（AIP 刀 2）：厚度上限 30→40；厚度 ≤30 的請求逐位不變（以前 30 以上被夾成 30、現在照給的值）⇒ 版本不動。
    1001（#50）：窄段改併進顏色最近的鄰段（雙料序號差、四料調色盤色差）⇒ 標籤會變；
    日後有人回報缺角，看 3MF metadata 的 engine 欄就分得出新舊判準。0914：色彩校正（calib）住進引擎。 */
 
@@ -97,7 +98,9 @@ function normalizeRequest(req){
     mode, nozzle,
     width:  clamp('width',  size.widthMm,  SIZE_MIN_MM, SIZE_MAX_MM, 100),
     height: clamp('height', size.heightMm, SIZE_MIN_MM, SIZE_MAX_MM, 75),
-    thick:  clamp('thick',  size.thickMm,  2, 30, 10),                       // index.html:1014-1016
+    /* 上限 30→40＝AIP 刀 2（規格 R9-11 Q5：防倒下限高÷15 套全部機型，600 mm 高要 40）。
+       同值另住 index.html 的 #tIn max 與 size_ratio.js 的 THICK_MAX_MM——改要一起改（tests/phototile_size_ratio.test.cjs 釘三處一致）。 */
+    thick:  clamp('thick',  size.thickMm,  2, 40, 10),
     /* 上限 48→8＝Eric 2026-08-02 裁 B。依據：①他實測雙料 8 階已偏多、6 階足夠
        ②K 掃描實證最終調色盤有 64 色上限，K≥11 之後色數完全不變、只是白燒 quantize
        （K48 比 K12 慢 3.3 倍、零色數收益；ksweep_result_20260802.json）。
