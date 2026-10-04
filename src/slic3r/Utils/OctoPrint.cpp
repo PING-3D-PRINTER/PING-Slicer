@@ -180,6 +180,7 @@ bool OctoPrint::test_with_resolved_ip(wxString &msg) const
     // it is ok to refer to `msg` from within the closure
     const char* name = get_name();
     bool res = true;
+    m_ping_fail = PingFail::None;
     // Msg contains ip string.
     auto url = substitute_host(make_url("api/version"), GUI::into_u8(msg));
     msg.Clear();
@@ -201,6 +202,7 @@ bool OctoPrint::test_with_resolved_ip(wxString &msg) const
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version at %2% : %3%, HTTP %4%, body: `%5%`") % name % url % error % status % body;
             res = false;
             msg = format_error(body, error, status);
+            ping_note_fail(status);
         })
         .on_complete([&, this](std::string body, unsigned) {
             BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Got version: %2%") % name % body;
@@ -229,6 +231,8 @@ bool OctoPrint::test_with_resolved_ip(wxString &msg) const
         .ssl_revoke_best_effort(m_ssl_revoke_best_effort)
         .perform_sync();
 
+    if (!res && m_ping_fail == PingFail::None)
+        m_ping_fail = PingFail::Other; // 連上了但回應不對（不是 OctoPrint／Moonraker 的版本回應）
     return res;
 }
 #endif //WIN32
@@ -240,6 +244,7 @@ bool OctoPrint::test(wxString& msg) const
     const char *name = get_name();
 
     bool res = true;
+    m_ping_fail = PingFail::None;
     auto url = make_url("api/version");
 
     BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Get version at: %2%") % name % url;
@@ -250,6 +255,7 @@ bool OctoPrint::test(wxString& msg) const
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error getting version: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
             res = false;
             msg = format_error(body, error, status);
+            ping_note_fail(status);
         })
         .on_complete([&, this](std::string body, unsigned) {
             BOOST_LOG_TRIVIAL(debug) << boost::format("%1%: Got version: %2%") % name % body;
@@ -285,20 +291,46 @@ bool OctoPrint::test(wxString& msg) const
 #endif // WIN32
         .perform_sync();
 
+    if (!res && m_ping_fail == PingFail::None)
+        m_ping_fail = PingFail::Other; // 連上了但回應不對（不是 OctoPrint／Moonraker 的版本回應）
     return res;
+}
+
+// PING(2026-10-04 Klipper #493 第一步)：測試成功／失敗講人話——客戶不知道 OctoPrint 是什麼。
+// PING-Slicer 只出 PING 機型、主機類型固定 Octo/Klipper ⇒ 這裡不再分機型；「OctoPrint 版本至少 1.1.0」那句拿掉。
+// 原始錯誤（HTTP 狀態碼、回應內容）照舊寫在 log（上面 on_error 那行），畫面只講原因與下一步。
+void OctoPrint::ping_note_fail(unsigned http_status) const
+{
+    m_ping_fail = (http_status == 401 || http_status == 403) ? PingFail::KeyRejected :
+                  http_status == 0                           ? PingFail::Unreachable : // curl 層就失敗：連不上、逾時、找不到主機
+                                                               PingFail::Other;
+}
+
+wxString OctoPrint::ping_key_rejected_msg() const
+{
+    // 金鑰空著被擋＝這台印表機要金鑰；有填被擋＝填錯或印表機那邊換過一組
+    return m_apikey.empty() ?
+        _L("This printer needs a connection key. On the printer's web page, open ⚙ Settings and press Copy, "
+           "then paste it into the Connection key field of the Physical Printer window.") :
+        _L("The connection key is wrong or no longer valid. On the printer's web page, open ⚙ Settings and press Copy "
+           "to get it again, then paste it into the Connection key field of the Physical Printer window.");
 }
 
 wxString OctoPrint::get_test_ok_msg () const
 {
-    return _(L("Connection to OctoPrint is working correctly."));
+    return _L("Connected to the printer.");
 }
 
 wxString OctoPrint::get_test_failed_msg (wxString &msg) const
 {
-    return GUI::format_wxstr("%s: %s\n\n%s"
-        , _L("Could not connect to OctoPrint")
-        , msg
-        , _L("Note: OctoPrint version 1.1.0 or higher is required."));
+    switch (m_ping_fail) {
+    case PingFail::KeyRejected:
+        return ping_key_rejected_msg();
+    case PingFail::Unreachable:
+        return _L("Can't reach the printer. Check that the IP is correct and that this computer and the printer are on the same network.");
+    default:
+        return GUI::format_wxstr("%s: %s", _L("Could not connect to the printer"), msg);
+    }
 }
 
 bool OctoPrint::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn error_fn, InfoFn info_fn) const
@@ -373,7 +405,8 @@ bool OctoPrint::upload_inner_with_resolved_ip(PrintHostUpload upload_data, Progr
     // Test_msg already contains resolved ip and will be cleared on start of test().
     wxString test_msg_or_host_ip = GUI::from_u8(resolved_addr.to_string());
     if (!test_with_resolved_ip(test_msg_or_host_ip)) {
-        error_fn(std::move(test_msg_or_host_ip));
+        // PING(2026-10-04 Klipper #493)：金鑰被拒（401／403）時上傳失敗也講人話；其他錯誤照舊
+        error_fn(m_ping_fail == PingFail::KeyRejected ? ping_key_rejected_msg() : std::move(test_msg_or_host_ip));
         return false;
     }
 
@@ -411,7 +444,7 @@ bool OctoPrint::upload_inner_with_resolved_ip(PrintHostUpload upload_data, Progr
         })
         .on_error([&](std::string body, std::string error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error uploading file to %2%: %3%, HTTP %4%, body: `%5%`") % name % url % error % status % body;
-            error_fn(format_error(body, error, status));
+            error_fn((status == 401 || status == 403) ? ping_key_rejected_msg() : format_error(body, error, status));
             result = false;
         })
         .on_progress([&](Http::Progress progress, bool& cancel) {
@@ -440,7 +473,8 @@ bool OctoPrint::upload_inner_with_host(PrintHostUpload upload_data, ProgressFn p
     // Otherwise on Windows it contains the resolved IP address of the host.
     wxString test_msg_or_host_ip;
     if (!test(test_msg_or_host_ip)) {
-        error_fn(std::move(test_msg_or_host_ip));
+        // PING(2026-10-04 Klipper #493)：金鑰被拒（401／403）時上傳失敗也講人話；其他錯誤照舊
+        error_fn(m_ping_fail == PingFail::KeyRejected ? ping_key_rejected_msg() : std::move(test_msg_or_host_ip));
         return false;
     }
 
@@ -498,7 +532,7 @@ bool OctoPrint::upload_inner_with_host(PrintHostUpload upload_data, ProgressFn p
         })
         .on_error([&](std::string body, std::string error, unsigned status) {
             BOOST_LOG_TRIVIAL(error) << boost::format("%1%: Error uploading file: %2%, HTTP %3%, body: `%4%`") % name % error % status % body;
-            error_fn(format_error(body, error, status));
+            error_fn((status == 401 || status == 403) ? ping_key_rejected_msg() : format_error(body, error, status));
             res = false;
         })
         .on_progress([&](Http::Progress progress, bool& cancel) {

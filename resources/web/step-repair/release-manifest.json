@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "coreVersion": "1.1.0-alpha.7",
+  "coreVersion": "1.1.0-alpha.10",
   "protocolVersion": 1,
   "owner": "聯造實業有限公司 / PING Slicer",
   "artifact": "step-repair-browser-release",
   "files": [
     {
       "path": "NOTICE.md",
-      "bytes": 5332,
-      "sha256": "2a6636b461e278afb84129c1bf4bc2792b836a19fa3c8d530b671ec223ab3fcb"
+      "bytes": 5883,
+      "sha256": "962dafa72457408bd9c6033161377465054cfbe66e51a6733660bc30a2b615fa"
     },
     {
       "path": "assets/replicad_single.wasm",
@@ -16,14 +16,19 @@
       "sha256": "2e07c45b83267b38d3102ec411fad11e7ce2ed71854084e461c5ab5fee94aaff"
     },
     {
+      "path": "assets/step-repair-worker.js",
+      "bytes": 311375,
+      "sha256": "3857671374a8a9a3a8ca1a8a14d4f18d61d42ef57980fa5f47dd5ad77ef31f0d"
+    },
+    {
       "path": "assets/step-repair.js",
-      "bytes": 877391,
-      "sha256": "88bb4f379a8c90d5945564af62c3831096878f625b3c4eb7c0a8ccd8aa06a250"
+      "bytes": 570067,
+      "sha256": "acea346d30fafff72a65516d22f9005134a438edcfd8c8c56d23109648d7771b"
     },
     {
       "path": "index.html",
-      "bytes": 6952,
-      "sha256": "8f126ece32519d8aedfdf853c1faacd0b8b1f27b7a6826133dc4d4ed84cdbca6"
+      "bytes": 7343,
+      "sha256": "3335b4462c6dc487ed4e32fd35f6d0db535e0ff19a1e9fd77e41b4d8b4be69ce"
     },
     {
       "path": "licenses/OCCT-LGPL-2.1.txt",
@@ -57,8 +62,8 @@
     },
     {
       "path": "licenses/inventory.json",
-      "bytes": 5964,
-      "sha256": "12cd953e8e9bdfa23c235ca83bbd709d50566638779b49e50f7963664a84c7b4"
+      "bytes": 5996,
+      "sha256": "6b9e527f9f9490e4cc0b33c175044f26589d9e38e03df2ab3cbe92321067227a"
     },
     {
       "path": "licenses/musl-MIT.txt",

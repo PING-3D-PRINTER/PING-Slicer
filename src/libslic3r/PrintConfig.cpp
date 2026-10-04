@@ -782,9 +782,11 @@ void PrintConfigDef::init_common_params()
     def->set_default_value(new ConfigOptionString());
 
     def = this->add("printhost_apikey", coString);
-    def->label = L("API Key / Password");
-    def->tooltip = L("PING Slicer can upload G-code files to a printer host. This field should contain "
-        "the API Key or the password required for authentication.");
+    // PING(2026-10-04 Klipper #493 第一步)：欄名改「連線金鑰」、說明講去哪裡拿——PING 機型的主機類型固定
+    // Octo/Klipper，這一欄只會是印表機的連線金鑰（Moonraker API key），不會是密碼。繁中走 mo_patch.py。
+    def->label = L("Connection key");
+    def->tooltip = L("Only needed if the printer asks for it. On the printer's web page, open ⚙ Settings "
+        "and press Copy, then paste it here.");
     def->mode = comAdvanced;
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(new ConfigOptionString());
