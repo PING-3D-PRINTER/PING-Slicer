@@ -44,12 +44,17 @@
         <p id="fileMeta" class="file-meta" role="status">檔案只在這台電腦處理，原始檔不會被覆寫。</p>
       </section>
 
-      <section id="workingPanel" class="card working-card" aria-live="polite" aria-busy="true" hidden>
-        <span class="spinner" aria-hidden="true"></span>
-        <div>
-          <strong id="workingTitle">正在準備檢查…</strong>
+      <!-- 處理中（PING 2026-10-04・牌 c-1003-STEP-01）：Eric 裁「甲」＝步驟清單＋每步秒數＋取消。
+           讀 STEP 與檢查在背景執行緒跑，這一頁不會卡住；目前那一步左側橘色細條＝「你在這裡」。 -->
+      <section id="workingPanel" class="card working-card" aria-busy="true" hidden>
+        <div class="work-head">
+          <strong>正在檢查這個檔案</strong>
           <p id="workingFile"></p>
+        </div>
+        <ol id="workingSteps" class="steps" aria-live="polite"></ol>
+        <div class="work-foot">
           <small>處理期間不會改寫原始檔。</small>
+          <button id="cancelButton" class="secondary" type="button">取消</button>
         </div>
       </section>
 
