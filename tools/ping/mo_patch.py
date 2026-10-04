@@ -15,6 +15,29 @@ MAGIC_LE = 0x950412DE
 
 # 新增字串：msgid（必須與 C++ L() 字串 byte-for-byte 一致）→ 繁中翻譯
 NEW_ENTRIES = {
+    # PING（2026-10-04・牌 c-1004-KEY-01，Klipper #493 第一步）：「實體列印設備」放出連線金鑰欄＋
+    #   測試／上傳失敗講人話（Eric 裁 Q1 甲）。欄名舊 msgid「API Key / Password」與 OctoPrint 那三句
+    #   留在 .mo 當死條目，不移除。⚙ 是 C++ 原始碼裡的 UTF-8 字元（MSVC /utf-8），msgid 照抄。
+    "Connection key": "連線金鑰",
+    "Only needed if the printer asks for it": "印表機有要求時才需要填",
+    (
+        "Only needed if the printer asks for it. On the printer's web page, open ⚙ Settings "
+        "and press Copy, then paste it here."
+    ): "印表機有要求時才需要填。到印表機網頁 ⚙ 設定按〔複製〕，貼到這裡。",
+    "Connected to the printer.": "已連上印表機。",
+    "Could not connect to the printer": "無法連接到印表機",
+    (
+        "Can't reach the printer. Check that the IP is correct and that this computer and the printer "
+        "are on the same network."
+    ): "連不到印表機：請確認 IP 正確、電腦和印表機在同一個網路。",
+    (
+        "This printer needs a connection key. On the printer's web page, open ⚙ Settings and press Copy, "
+        "then paste it into the Connection key field of the Physical Printer window."
+    ): "這台印表機需要連線金鑰。請到印表機網頁 ⚙ 設定按〔複製〕，貼到「實體列印設備」視窗的「連線金鑰」欄。",
+    (
+        "The connection key is wrong or no longer valid. On the printer's web page, open ⚙ Settings and press Copy "
+        "to get it again, then paste it into the Connection key field of the Physical Printer window."
+    ): "連線金鑰不對或已失效。請到印表機網頁 ⚙ 設定按〔複製〕重新取得，貼到「實體列印設備」視窗的「連線金鑰」欄。",
     # PING（2026-09-17・牌 c-0917-PDR-01）：匯出參數差異清單。
     #   報告的「參數名」沿用 PrintConfig 既有 label 翻譯（21 語系免費取得），
     #   這裡只補報告本身的框架字串。其他語系目前回落英文（mo_patch 只處理 zh_TW）。

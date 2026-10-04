@@ -21639,3 +21639,33 @@ msgstr "移動"
 
 msgid "The page has stopped working."
 msgstr "頁面已失效"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "Can't reach the printer. Check that the IP is correct and that this computer and the printer are on the same network."
+msgstr "連不到印表機：請確認 IP 正確、電腦和印表機在同一個網路。"
+
+msgid "Connected to the printer."
+msgstr "已連上印表機。"
+
+msgid "Connection key"
+msgstr "連線金鑰"
+
+msgid "Could not connect to the printer"
+msgstr "無法連接到印表機"
+
+msgid "Only needed if the printer asks for it"
+msgstr "印表機有要求時才需要填"
+
+msgid "Only needed if the printer asks for it. On the printer's web page, open ⚙ Settings and press Copy, then paste it here."
+msgstr "印表機有要求時才需要填。到印表機網頁 ⚙ 設定按〔複製〕，貼到這裡。"
+
+msgid "The connection key is wrong or no longer valid. On the printer's web page, open ⚙ Settings and press Copy to get it again, then paste it into the Connection key field of the Physical Printer window."
+msgstr "連線金鑰不對或已失效。請到印表機網頁 ⚙ 設定按〔複製〕重新取得，貼到「實體列印設備」視窗的「連線金鑰」欄。"
+
+msgid "This printer needs a connection key. On the printer's web page, open ⚙ Settings and press Copy, then paste it into the Connection key field of the Physical Printer window."
+msgstr "這台印表機需要連線金鑰。請到印表機網頁 ⚙ 設定按〔複製〕，貼到「實體列印設備」視窗的「連線金鑰」欄。"
