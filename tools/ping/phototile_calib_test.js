@@ -1307,7 +1307,11 @@ function fakeImg(){
     const wv = CPP('WebViewDialog.cpp');
     const f0 = wv.indexOf('void WebViewPanel::SendPhotoTileMachineCapability()');
     const fn = wv.slice(f0, wv.indexOf('\nvoid ', f0 + 10));
-    assert(/\+ ",\\"materialTypes\\":" \+ types_json \+ "\}"/.test(fn), 'capability 沒帶 materialTypes');
+    assert(/\+ ",\\"materialTypes\\":" \+ types_json\s*\+/.test(fn), 'capability 沒帶 materialTypes');
+    /* AIP 第二班刀 3（牌 c-1006-AIP-01）：materialTypes 後面多送 models（各機尺寸上限）、uiLang（提示詞語言）。
+       uiLang 要真值：current_language_code_safe() 會把 zh_TW 變成 zh_CN。 */
+    assert(/\+ ",\\"models\\":" \+ models_json/.test(fn), 'capability 沒帶 models');
+    assert(/\+ ",\\"uiLang\\":" \+ json_str\(into_u8\(wxGetApp\(\)\.current_language_code\(\)\)\) \+ "\}"/.test(fn), 'capability 沒帶 uiLang（或用了 _safe 版）');
     assert(/if \(!f\.is_system \|\| f\.is_default\)/.test(fn), '沒限系統線材');
     assert(/\(list == nullptr \|\| list->values\.empty\(\)\) && f\.compatible_printers_condition\(\)\.empty\(\)/.test(fn),
       '沒排除「沒寫相容條件」的線材（Orca 內建庫那一批會把 ABS／PETG／TPU…整批列進去）');
