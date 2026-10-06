@@ -1312,8 +1312,14 @@ void MainFrame::update_ping_mix_side_button()
 
     /* 照片磚鈕的觸發時機與混色鈕**完全相同**（換機型／上方列顯示切換），
        所以掛在這裡一併刷新，而不是要每個呼叫點各記得叫兩支——漏叫一處的失效是靜默的
-       （鈕留在上一台機器的狀態，看起來像它自己壞掉）。呼叫點：show_option()、
-       混色鈕自己的 handler、on_select_default_preset()、GUI_Preview.cpp:327。 */
+       （鈕留在上一台機器的狀態，看起來像它自己壞掉）。呼叫點：
+       ・換機型＝Plater::on_config_change() 的 printer_model 分支（側欄下拉、印表機設定頁、開別台機存的 3MF 都走這裡；
+         2026-10-06 才補上，之前漏掉＝開發中清單 #60「準備頁換到同進機，照片磚鈕不出現」）
+       ・上方列顯示切換＝show_option()（首頁 ↔ 準備／預覽）
+       ・混色鈕自己的 handler；create_side_tools() 尾端（初始狀態）
+       ・update_side_preset_ui()（登入登出、匯入設定、新建印表機／線材對話框、on_select_default_preset()）
+       ・Preview::update_ping_mix_editor()（切到預覽、預覽重載 print）
+       另：分頁切換 handler（init_tabpanel）只叫 update_ping_phototile_side_button()（預覽頁停用）。 */
     update_ping_phototile_side_button();
 }
 
