@@ -7413,10 +7413,6 @@ extern "C" {
         //AddVectoredExceptionHandler(1, CBaseException::UnhandledExceptionFilter);
         SET_DEFULTER_HANDLER();
 #endif
-        std::set_new_handler([]() {
-            int *a = nullptr;
-            *a     = 0;
-            });
         // Call the UTF8 main.
         return CLI().run(argc, argv_ptrs.data());
     }
