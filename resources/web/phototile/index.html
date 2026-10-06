@@ -50,7 +50,8 @@
   .inline-prog .bar>i{display:block; height:100%; background:var(--orange); width:0; transition:width .18s linear;}
   .seg{display:inline-flex; border:1px solid #bbb; border-radius:6px; overflow:hidden;}
   .seg button{border:0; background:#fff; padding:6px 16px; cursor:pointer; font-size:14px; font-weight:700; color:#666;}
-  .seg button.on{background:var(--black); color:#fff;}
+  /* 選中＝橘底線／橘條、不用炭黑底（那是主要按鈕）；警示＝黃；AI 小標中性（AIP 刀 2＝ACC-39 四處＋Q6） */
+  .seg button.on{background:var(--gray); color:var(--black); box-shadow:inset 0 -3px 0 var(--orange);}
   #genBox{display:flex; align-items:center;}
   #genBox .inline-prog{flex:0 0 300px; min-width:0; padding:3px 6px 3px 12px;}
   /* 頂列版：階段字＋秒數同一行、進度條在下＝跟按鈕同高，產生時頂列不長高（C-2 A 案「零版面位移」） */
@@ -126,12 +127,12 @@
   .scard.off{opacity:.72; border-style:dashed; cursor:help}
   .scard .nm{font-weight:700; font-size:13.5px}
   .scard .tag{font-size:10.5px; padding:1px 5px; border-radius:3px; margin-left:6px}
-  .scard .tag.ai{background:var(--orange); color:#fff}
+  .scard .tag.ai{border:1px solid #8A8A8A; color:#333; background:#fff; padding:0 4px}
   .scard .tag.loc{background:var(--gray); color:#555}
   .scard .meta{font-size:11.5px; color:#777; margin-top:2px; line-height:1.45}
   .scard .pill{font-size:11.5px; margin-top:4px}
   .scard .pill.ok{color:#2d7a33}
-  .scard .pill.no{color:var(--orange); font-weight:600}
+  .scard .pill.no{color:#946310; font-weight:600}
 #modeSeg button.locked::after{content:' 🔒';font-size:.9em}
   /* ── 款式套用確認框（Eric 2026-09-02 令：「請跳出小視窗，讓我按下確定再進行」）──
      🔴 **不可以用 window.confirm**：嵌入式 WebView2 的 script dialog 由宿主決定要不要顯示、
@@ -145,6 +146,7 @@
   .cfmBody{font-size:12.5px; line-height:1.85; color:#444; margin:0 0 14px; white-space:pre-line;}
   .cfmCost{color:var(--orange); font-weight:700;}
   .cfmBtns{display:flex; justify-content:flex-end; gap:8px;}
+  .cfmBox .btn.cur{border-color:var(--black); box-shadow:inset 3px 0 0 var(--orange); font-weight:700;}
   .sizebar{padding:8px 10px 10px; border-top:1px solid #eee;}
   /* ── AI 生圖中的遮罩（Eric 2026-09-02：「我後來才發現它正在生圖中」）──────────
      🔴 為什麼一定要遮在**圖上**：生圖要 20~40 秒，而這期間左邊那張仍然是**上一次的結果**。
@@ -338,11 +340,12 @@
       </div>
       <div class="row" style="gap:8px; align-items:center; margin-top:2px">
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="aspectLock" checked> 鎖定原圖比例</label>
-        <span style="margin-left:8px">厚</span> <input type="number" id="tIn" value="10" min="2" max="30" step="0.5" style="width:64px"> mm
+        <span style="margin-left:8px">厚</span> <input type="number" id="tIn" value="10" min="2" max="40" step="0.5" style="width:64px"> mm
         <span style="margin-left:12px">雜訊濾除 ≤</span> <input type="number" id="noiseIn" value="1.0" min="0" max="20" step="0.1" style="width:64px"> mm
       </div>
+      <div class="sub" id="thickInfo"></div>
       <div class="sub" id="sizeInfo"></div>
-      <div class="sub" id="noiseStat">平滑小點、細橋、毛刺與小孔，再合併小色塊；0＝關閉</div>
+      <div class="sub" id="noiseStat">平滑小點、細橋與毛刺，並決定左右最窄寬度（至少 2×口徑）；0＝只關平滑</div>
       <div class="sub" id="sizeBarHint" style="margin-top:2px"></div>
     </div>
   </section>
@@ -439,12 +442,12 @@
 </div>
 </section>
 
-<script src="mesh_union.js?v=20261001"></script>   <!-- 🔴 改了 mesh_union.js 就要動這個版本字串，否則 WebView 會續用快取的舊模組（2026-08-22 實撞：新函式 not a function、工作室直接壞） -->
-<script src="size_ratio.js?v=20260720b"></script>
+<script src="mesh_union.js?v=20261004"></script>   <!-- 🔴 改了 mesh_union.js 就要動這個版本字串，否則 WebView 會續用快取的舊模組（2026-08-22 實撞：新函式 not a function、工作室直接壞） -->
+<script src="size_ratio.js?v=20261004"></script>   <!-- 🔴 改了就要動版本字串 -->
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
 <script src="matlib.js?v=20261003"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
-<script src="engine.js?v=20261001"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="engine.js?v=20261004b"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <script src="matflow.js?v=20261003"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
@@ -519,7 +522,7 @@ let params = { klevels:8,                        // 2026-09-07 平躺（疊色�
 /* 厚度預設跟著料數：四料 20、雙料 10（Eric 2026-09-29 22:3x 裁，開發中清單 #40；原話「這個是 0.6 噴嘴，應該是要厚一點」）。
    跟圈數 cycleLaps 同一個做法：使用者沒自己改過厚度＝料數一變就換成該料數的預設；改過就是他的值，換料數不蓋（EFF-09）。
    放在狀態區宣告：renderSlots() 在頁面初始化就會跑，晚宣告的 const／let 會踩到 TDZ。
-   ⚠ 厚度下限（規格 R9-11 Q4＝高÷15、最少 10；開發中清單 #22）落地時，下限疊在這個預設上面，不取代它。 */
+   ⚠ 防倒下限（R9-11 Q4）疊在這個預設上面：ptThickSync()。 */
 const PT_THICK_DEFAULT={2:10, 4:20};
 let ptThickUserSet=false;
 /* P2A 預設開的依據（2026-08-22 Eric 裁 A，把 0729 唯一未結的「預設開關」補上）：
@@ -616,7 +619,7 @@ function renderSlots(){
   ptMatApply(window.PhotoTileMatFlow ? PhotoTileMatFlow.info() : null);
   if(typeof renderCycleUI==='function') renderCycleUI();   // 料數變＝圈數欄跟著變（放在 ptMatApply 後：它可能壓色階數）
   if(window.PhotoTileMatFlow) PhotoTileMatFlow.refresh();   // 料數變了 ⇒ 第 1 步跟著換（雙料挑 2／四料挑 4）
-  ptApplyThickDefault();                                     // 料數變了 ⇒ 厚度預設跟著換（#40；使用者改過就不動）
+  ptThickSync();                                             // 料數變了 ⇒ 厚度自動值跟著換（使用者改過就不動）
   /* §11 R11-9：料數換了內建範例也要換（雙料灰階／四料彩色）。掛這裡＝四個 slotCount 切換點都會經過。 */
   if(typeof ptGalRender==='function') ptGalRender();
 }
@@ -912,21 +915,23 @@ function w100(w){                       // 混比→加總=100 的整數百分�
   while(diff!==0){ const i=r.indexOf(Math.max(...r)); r[i]+=Math.sign(diff); diff-=Math.sign(diff); }
   return r;
 }
+/* AIP 刀 1（2026-10-03）：濾除改左右寬＋上下高兩條（引擎 filterLabels 註解）⇒ 雜訊濾除欄＝0 只關平滑，
+   兩條可印性門檻照樣守（印不出來的細條本來就會被機台吃掉）。門檻數字取引擎回的 stats；還沒有 stats 時才照同一條式子先算。 */
+function filterLimitText(stats){
+  const eng=window.PhotoTileEngine, mode=slotCount===4?'quad':'dual';
+  const wMm=stats ? stats.minWidthMm : Math.max(params.noiseMm,2*params.nozzle);
+  const hMm=stats ? stats.minHeightMm : (eng && eng.layerHeightMm ? eng.layerHeightMm(mode,params.nozzle) : null);
+  return `左右窄於 ${wMm.toFixed(1)} mm、上下矮於一層${hMm?`（${hMm} mm）`:''}的細條會併進顏色最近的鄰色`;
+}
 function updateNoiseStat(result){
   const el=document.getElementById('noiseStat'); if(!el) return;
-  if(params.noiseMm<=0){ el.textContent='已關閉；所有量化後色塊都會保留'; return; }
-  if(!img || !result){
-    el.textContent=`會平滑尺寸 ≤ ${params.noiseMm.toFixed(1)} mm 的小點、細橋、毛刺與小孔，再合併小色塊；0＝關閉`;
-    return;
-  }
-  if(!result.changedPixels){
-    el.textContent=`沒有找到尺寸 ≤ ${params.noiseMm.toFixed(1)} mm 的灰階雜訊；0＝關閉`;
-    return;
-  }
-  el.textContent=`已平滑／合併 ${result.changedPixels.toLocaleString()} 格（${result.changedAreaMm2.toFixed(2)} mm²），另移除 ${result.removedComponents.toLocaleString()} 個小色塊；不留空洞`;
+  if(params.noiseMm<=0){ el.textContent='平滑已關（0）；印不出來的細條照樣會併掉，見口徑那一行'; return; }
+  if(!img || !result){ el.textContent='平滑小點、細橋與毛刺，並決定左右最窄寬度（至少 2×口徑）；0＝只關平滑'; return; }
+  if(!result.changedPixels){ el.textContent='這張圖沒有要平滑或合併的細節；0＝只關平滑'; return; }
+  el.textContent=`已平滑／合併 ${result.changedPixels.toLocaleString()} 格（${result.changedAreaMm2.toFixed(2)} mm²）；不留空洞`;
 }
-/* 🔴 #50 丁（Eric 2026-10-01 裁）：濾除一律呼叫引擎 filterLabels＝產 3MF 的同一支（雜訊平滑→口徑最小寬→
-   小色塊→開運算→再修一次最小寬；最小寬取 ceil）。本頁原本自己串前四步（少開運算與再修、最小寬用 round）
+/* 🔴 #50 丁（Eric 2026-10-01 裁）：濾除一律呼叫引擎 filterLabels＝產 3MF 的同一支（平滑→左右最小寬→
+   上下最小高→開運算→再修；AIP 刀 1 起見引擎註解）。本頁原本自己串前四步（少開運算與再修、最小寬用 round）
    ＝預覽一把尺、輸出一把尺（#45：杜賓 8 階有 2.46% 的格不同）。
    不留第二份濾除鏈當備援：引擎沒載到就不濾除＋console 警告——那時本來就產不了 3MF。
    palette 只有四料傳：窄段「併進最近」用調色盤色差；雙料不傳＝色階序號差（與引擎同一條規則）。 */
@@ -937,8 +942,8 @@ function filterVerticalLabels(labels,paletteSize,strategy,palette){
     console.warn('PING 照片磚：engine.js／mesh_union.js 未載入，模擬圖不濾除');
     updateNoiseStat(null); return new Uint8Array(labels);
   }
-  const r=eng.filterLabels(labels,img,
-    {width:params.width, height:params.height, noiseMm:params.noiseMm, nozzle:params.nozzle},
+  const r=eng.filterLabels(labels,img,      // mode＝料數，引擎靠它查上下那一層的層高（同 buildRequest）
+    {width:params.width, height:params.height, noiseMm:params.noiseMm, nozzle:params.nozzle, mode:slotCount===4?'quad':'dual'},
     paletteSize,strategy,palette);
   window.__noiseStats=r.stats;
   updateNoiseStat(r.stats);
@@ -947,10 +952,9 @@ function filterVerticalLabels(labels,paletteSize,strategy,palette){
 }
 function updateNozzleStat(stats){
   const el=document.getElementById('nozzleInfo'); if(!el) return;
-  const base=`mm——窄於 ${(2*params.nozzle).toFixed(1)} mm（2×口徑）的水平細條會併入鄰色（噴頭進去要繞得出來；垂直細節不受影響）`;
-  el.textContent=(stats && stats.widthChangedPixels)
-    ? base+`；本圖已併 ${stats.widthChangedPixels.toLocaleString()} 格`
-    : base;
+  const base=`mm——${filterLimitText(stats)}（左右至少 2×口徑，噴頭才繞得出來）`;
+  const n=stats ? (stats.widthChangedPixels||0)+(stats.heightChangedPixels||0) : 0;
+  el.textContent=n ? base+`；本圖已併 ${n.toLocaleString()} 格` : base;
 }
 function simulateVerticalQuad(){
   /* 四料垂直（v1.8，Eric 定的調色盤結構）：候選色＝「兩兩成對的色階線」——
@@ -1167,6 +1171,7 @@ function applySizeChange(changed, rawValue, rebuild=true){
     params.height=roundMm(clampSizeMm(rawValue,params.height,SIZE_MIN_MM,SIZE_MAX_MM),1);
   }
   syncSizeInputs();
+  ptThickSync();                                              // 高變了 ⇒ 防倒下限跟著變
   /* 【0805 規格 §2.2】改尺寸只重建格點＋重算，**不重新建議配色**——實體尺寸跟顏色無關，
      原本這裡呼叫 suggest() 會把使用者調好的料色整組洗掉。
      還原路徑不需另建：btnSuggest（「依這張圖建議配色」，0919 起在列印模擬標題列）本來就是。 */
@@ -1706,16 +1711,20 @@ document.getElementById('aspectLock').onchange=e=>{
 };
 document.getElementById('tIn').onchange=e=>{
   const v=parseFloat(e.target.value)||0;
-  ptThickUserSet=v>0;                                        // 打了數字＝他的值，之後換料數不蓋；清空／0＝回到跟著料數的預設（#40）
-  params.thick=Math.max(2,Math.min(30, v>0 ? v : (PT_THICK_DEFAULT[slotCount]||10))); e.target.value=params.thick;
+  ptThickUserSet=v>0;                                        // 打了數字＝他的值，之後不蓋；清空／0＝回到自動值（#40）
+  if(ptThickUserSet){ const S=window.PingPhotoTileSize; params.thick=Math.max(S.THICK_MIN_MM,Math.min(S.THICK_MAX_MM,v)); }
+  ptThickSync();
 };
-/* #40：料數一變（renderSlots）就呼叫；使用者自己改過厚度就不動 */
-function ptApplyThickDefault(){
-  if(ptThickUserSet) return;
-  const t=PT_THICK_DEFAULT[slotCount]||10;
-  if(params.thick===t) return;
-  params.thick=t;
-  const el=document.getElementById('tIn'); if(el) el.value=t;
+/* 厚度自動值＋提醒（#40＋AIP 刀 2）：沒自己改＝max(料數預設, 防倒下限)；算式與文案在 size_ratio.js */
+function ptThickSync(){
+  const S=window.PingPhotoTileSize, dflt=PT_THICK_DEFAULT[slotCount]||10;
+  if(!ptThickUserSet) params.thick=S.thickAutoMm(dflt, params.height);
+  const el=document.getElementById('tIn'); if(el) el.value=params.thick;
+  const info=document.getElementById('thickInfo'); if(!info) return;
+  const n=S.thickNote({userSet:ptThickUserSet, thickMm:params.thick, defaultMm:dflt, heightMm:params.height});
+  info.textContent=n.text; info.classList.toggle('warn',n.warn);
+  if(n.action){ const b=document.createElement('button'); b.type='button'; b.className='mfLnk'; b.textContent=n.action;
+    b.onclick=()=>{ ptThickUserSet=false; ptThickSync(); }; info.append(' ',b); }
 }
 const noiseIn=document.getElementById('noiseIn');
 noiseIn.oninput=e=>{
@@ -1818,7 +1827,7 @@ function genStatline(cls,text,action){
   const st=document.getElementById('exportStat');
   if(!text){ st.style.display='none'; st.textContent=''; return; }
   st.style.display='';
-  st.style.color = cls==='ok' ? '#2E7D32' : cls==='warn' ? 'var(--orange)' : '#777';
+  st.style.color = cls==='ok' ? '#2E7D32' : cls==='warn' ? '#946310' : '#777';   // 警示黃（ACC-39 ①）
   st.textContent=text;
   /* FBK-11：訊息叫人去某個地方，就要給他一顆過去的按鈕（Eric 2026-09-02 實走：
      「我在什麼時候要選擇機型呢？這個畫面並沒有讓我選擇的位置」）。
@@ -2295,7 +2304,8 @@ function ptAskSubject(){
        這個框只做一個決定＝主角是誰；款式數量進工作室就看得到，放這裡是多餘資訊（七律#2）。 */
     STYLE_LIB.subjects.forEach(sub=>{
       const btn=document.createElement('button');
-      btn.className='btn'+(sub.id===ptSubject?' primary':'');
+      btn.className='btn'+(sub.id===ptSubject?' cur':'');   // 目前主角＝選中，不是主要行動
+      if(sub.id===ptSubject) btn.setAttribute('aria-current','true');
       btn.style.cssText='text-align:left; padding:7px 10px;';
       btn.textContent=sub.name+(sub.keyFeature?('　關鍵特徵＝'+sub.keyFeature):'');
       btn.onclick=()=>close(sub.id);
@@ -2440,7 +2450,7 @@ function ptSizeBarSync(){
     const over = h>600 ? 'FF800 也放不下' : h>580 ? '只有 FF800 放得下' : h>300 ? '需要 FF600／FF800' : '';
     hint.textContent = '磚越大越清楚（雜訊濾除的 mm 值不隨尺寸變）；可印高：FD300 300／FF600 580／FF800 600 mm'
                      + (over ? '　⚠ 目前高度 '+h.toFixed(0)+' mm——'+over : '');
-    hint.style.color = over ? 'var(--orange)' : '';
+    hint.style.color = over ? '#946310' : '';
   }
 }
 
