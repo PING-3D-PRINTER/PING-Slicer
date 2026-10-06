@@ -16657,6 +16657,13 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
             // update to force bed selection(for texturing)
             bed_shape_changed = true;
             update_scheduled = true;
+
+            // PING(2026-10-06 Eric 裁甲・開發中清單 #60)：機型換了 ⇒ 重算上方列「混色」鈕（尾端連帶「照片磚」鈕）。
+            // 側欄下拉換機型不經過 MainFrame::update_side_preset_ui()，少了這裡＝在準備頁換到同進機時
+            // 照片磚鈕不出現、換成非同進則殘留（V3.6.3 實測）。放在這裡＝跟熱床貼圖同一個觸發點：
+            // 換機型的路（側欄下拉、印表機設定頁、開別台機存的 3MF、實體印表機）都會經過。
+            if (wxGetApp().mainframe != nullptr)
+                wxGetApp().mainframe->update_ping_mix_side_button();
         }
         // Orca: update when *_filament changed
         else if (opt_key == "support_interface_filament" || opt_key == "support_filament" || opt_key == "wall_filament" ||
