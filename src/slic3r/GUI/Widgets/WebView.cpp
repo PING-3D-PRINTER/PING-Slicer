@@ -255,23 +255,34 @@ private:
         /* AIP 第二班（開發中清單 #22）：照片磚工作室的〔貼上圖片〕用 navigator.clipboard.read() 讀剪貼簿裡的圖；
            WebView2 預設會跳詢問或拒絕 ⇒ 只放行「照片磚那一頁」的讀剪貼簿，其他頁、其他權限一律照預設（不碰）。
            這裡掛在每個內嵌網頁上（首頁、登入、外部印表機頁…都走這裡）⇒ 一定要用網址過濾。
-           Ctrl+V（網頁的 paste 事件）不需要這個權限——這條不通時頁面會請使用者直接按 Ctrl+V。 */
+           Ctrl+V（網頁的 paste 事件）不需要這個權限——這條不通時頁面會請使用者直接按 Ctrl+V。
+           判斷看「這個 WebView 現在開的頁」（get_Source），不看 args 的 Uri：Uri 是發出請求的來源（origin），
+           file:// 頁的 origin 只剩 "file:///"，永遠比不上照片磚頁的完整路徑（2026-10-06 真 App 驗收：一次都沒放行）。
+           Uri 只用來擋外部網頁（http／https）——照片磚頁裡只有本機檔。 */
         hr = webView2->add_PermissionRequested(
             Microsoft::WRL::Callback<ICoreWebView2PermissionRequestedEventHandler>(
-                [](ICoreWebView2 *, ICoreWebView2PermissionRequestedEventArgs *args) -> HRESULT {
+                [](ICoreWebView2 *sender, ICoreWebView2PermissionRequestedEventArgs *args) -> HRESULT {
                     try { // 例外不可穿越 COM 回呼（SOP_WebView2 §一）
                         COREWEBVIEW2_PERMISSION_KIND kind = COREWEBVIEW2_PERMISSION_KIND_UNKNOWN_PERMISSION;
-                        if (args == nullptr || FAILED(args->get_PermissionKind(&kind)) || kind != COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ)
+                        if (sender == nullptr || args == nullptr || FAILED(args->get_PermissionKind(&kind)) ||
+                            kind != COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ)
                             return S_OK;
-                        LPWSTR uri = nullptr;
-                        if (FAILED(args->get_Uri(&uri)) || uri == nullptr)
+                        LPWSTR source = nullptr, uri = nullptr;
+                        if (FAILED(sender->get_Source(&source)) || source == nullptr)
                             return S_OK;
-                        const wxString page(uri);
-                        CoTaskMemFree(uri);
-                        if (WebView::IsPhotoTileUrl(page)) {
-                            args->put_State(COREWEBVIEW2_PERMISSION_STATE_ALLOW);
-                            BOOST_LOG_TRIVIAL(info) << "PhotoTile: clipboard read allowed for the photo-tile page";
+                        const wxString page(source);
+                        CoTaskMemFree(source);
+                        wxString origin;
+                        if (SUCCEEDED(args->get_Uri(&uri)) && uri != nullptr) {
+                            origin = uri;
+                            CoTaskMemFree(uri);
                         }
+                        if (WebView::IsPhotoTileUrl(page) && !origin.Lower().StartsWith("http")) {
+                            args->put_State(COREWEBVIEW2_PERMISSION_STATE_ALLOW);
+                            BOOST_LOG_TRIVIAL(info) << "PhotoTile: clipboard read allowed for the photo-tile page (origin=" << origin.ToUTF8().data() << ")";
+                        } else
+                            BOOST_LOG_TRIVIAL(info) << "WebView: clipboard read left to the default, origin=" << origin.ToUTF8().data()
+                                                    << ", page=" << page.ToUTF8().data();
                     } catch (...) {}
                     return S_OK;
                 }).Get(),

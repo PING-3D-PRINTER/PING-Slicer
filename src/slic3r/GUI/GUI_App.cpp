@@ -5115,6 +5115,21 @@ static std::string ping_js_escape(const std::string& s)
     return out;
 }
 
+/* base64 解碼走這支（AIP 第二班 2026-10-06 真 App 驗收：照片磚頁送一塊 "abc" ⇒ App 當場閃退）。
+   beast 的 base64::decode 只保證寫在 decoded_size(n)＝n/4*3 以內，前提是 n 為 4 的倍數（beast 註明 requires n&3==0）；
+   不是的話會多寫 1～2 byte 到緩衝區外，n < 4 時緩衝區是空的＝寫到空指標。
+   ⇒ 長度不是 4 的倍數就不解、回空的：呼叫端原本的「解不開／不完整」判斷（解出來是空的、長度不符）照原路擋下、照原句回報。
+   回傳 first＝解出的位元組，second＝beast 讀到第幾個字元（呼叫端用它檢查後面只剩 '='）。 */
+static std::pair<std::vector<unsigned char>, size_t> ping_base64_decode(const std::string& encoded)
+{
+    if (encoded.empty() || encoded.size() % 4 != 0)
+        return {};
+    std::vector<unsigned char> out(boost::beast::detail::base64::decoded_size(encoded.size()));
+    const auto r = boost::beast::detail::base64::decode(out.data(), encoded.data(), encoded.size());
+    out.resize(r.first);
+    return {std::move(out), r.second};
+}
+
 /* AIP 第二班（開發中清單 #22）：照片磚頁分塊送來一個檔——「貼回的 AI 圖」與「我的款式」存檔共用這三段。
    規則照 phototile_matlib_save_* 抄（材料庫那支照出貨的樣子不動）：①連號 ②塊數 ③總長度 ④上限，另加壞 base64 一道；
    中途壞了只記原因、後面的塊一律不收，到 end 才回報一次——不回報兩次，也絕不半套落檔。
@@ -5150,11 +5165,9 @@ static void photo_tile_upload_chunk(PhotoTileUpload& up, size_t index, const std
         fail("的分塊亂序或遺失，");
         return;
     }
-    std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
-    const auto dr = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
-    decoded.resize(dr.first);
+    const auto [decoded, consumed] = ping_base64_decode(encoded);
     size_t pad = 0;                                    // 壞 base64 一律擋（判法同 phototile_matlib_save_chunk）
-    for (size_t k = dr.second; k < encoded.size(); ++k) {
+    for (size_t k = consumed; k < encoded.size(); ++k) {
         if (encoded[k] == '=') ++pad; else { pad = 99; break; }
     }
     if (encoded.size() % 4 != 0 || pad > 2 || decoded.empty()) {
