@@ -46,6 +46,7 @@ public:
     void ShowPhotoTile(const wxString& image_path = wxEmptyString);
     void ShowStepRepair();
     bool IsStepRepairPage() const;
+    bool IsPhotoTilePage() const;   // AIP 第二班：照片磚工作室頁（判準＝WebView::IsPhotoTileUrl）
 
     void UpdateState();
     void OnIdle(wxIdleEvent& evt);

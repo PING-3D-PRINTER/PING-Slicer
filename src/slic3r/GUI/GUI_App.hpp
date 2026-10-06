@@ -226,6 +226,18 @@ public:
 
 class PhotoTileEngineHost;   // C-2：照片磚隱形宿主（定義在 PhotoTileEngineHost.hpp，只在 .cpp 引入）
 
+/* AIP 第二班（開發中清單 #22）：照片磚頁分塊送來一個檔的收件狀態——「貼回的 AI 圖」與「我的款式」存檔共用。
+   規則照材料庫那支（phototile_matlib_save_*）抄：state 0＝閒置、1＝收件中、2＝這一批已作廢（原因記在 fail，等 end 一次回報）。 */
+struct PhotoTileUpload
+{
+    std::vector<unsigned char> buffer;
+    size_t      expected_size{ 0 };
+    size_t      expected_chunks{ 0 };
+    size_t      next_chunk{ 0 };
+    int         state{ 0 };
+    std::string fail;
+};
+
 class GUI_App : public wxApp
 {
 public:
@@ -304,6 +316,11 @@ private:
        壓平會把 source 換成壓平圖，但這個記錄不動 ⇒ 壓平後仍存得到真正花錢拿到的那張。
        換照片即作廢（與 origin_path 同步清）。空＝本張照片還沒生過圖。 */
     std::string     m_photo_tile_ai_path;
+    /* AIP 第二班：客戶在自己的 AI 產好、貼回工作室的圖（phototile_ai_import_*；成功後跟金鑰直連生回來的圖一樣
+       當 AI 圖：source＝ai_path＝它、origin 記原照片）；以及「我的款式」存檔（phototile_mystyles_save_*）。 */
+    PhotoTileUpload m_photo_tile_import;
+    std::string     m_photo_tile_import_id;     // 頁面這一次貼回的編號（end 回報時原樣帶回，頁面拿來對是不是自己等的那張）
+    PhotoTileUpload m_photo_tile_mystyles;
     /* ── C-2 第 3 項：閒置預熱（Eric 2026-08-02 裁 A） ───────────────────────────
        C-1 閘門①實錄：「app 一開就拖照片」＝引擎冷啟動撞 app 初始化 ⇒ 首輪 6,579ms、
        UI 漂移 4,503ms；同一顆引擎穩態只要 900ms／漂移 17ms。差額全在「建 WebView2 環境

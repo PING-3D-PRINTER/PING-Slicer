@@ -111,6 +111,9 @@ public:
         if (m_processFailedToken.value != 0)
             if (auto webView2 = (ICoreWebView2 *) GetNativeBackend())
                 webView2->remove_ProcessFailed(m_processFailedToken);
+        if (m_permissionToken.value != 0)
+            if (auto webView2 = (ICoreWebView2 *) GetNativeBackend())
+                webView2->remove_PermissionRequested(m_permissionToken);
     }
 
     bool SetUserAgent(const wxString &userAgent)
@@ -249,6 +252,32 @@ private:
             &m_processFailedToken);
         if (FAILED(hr))
             BOOST_LOG_TRIVIAL(warning) << "WebView: add_ProcessFailed failed, hr=" << hr;
+        /* AIP 第二班（開發中清單 #22）：照片磚工作室的〔貼上圖片〕用 navigator.clipboard.read() 讀剪貼簿裡的圖；
+           WebView2 預設會跳詢問或拒絕 ⇒ 只放行「照片磚那一頁」的讀剪貼簿，其他頁、其他權限一律照預設（不碰）。
+           這裡掛在每個內嵌網頁上（首頁、登入、外部印表機頁…都走這裡）⇒ 一定要用網址過濾。
+           Ctrl+V（網頁的 paste 事件）不需要這個權限——這條不通時頁面會請使用者直接按 Ctrl+V。 */
+        hr = webView2->add_PermissionRequested(
+            Microsoft::WRL::Callback<ICoreWebView2PermissionRequestedEventHandler>(
+                [](ICoreWebView2 *, ICoreWebView2PermissionRequestedEventArgs *args) -> HRESULT {
+                    try { // 例外不可穿越 COM 回呼（SOP_WebView2 §一）
+                        COREWEBVIEW2_PERMISSION_KIND kind = COREWEBVIEW2_PERMISSION_KIND_UNKNOWN_PERMISSION;
+                        if (args == nullptr || FAILED(args->get_PermissionKind(&kind)) || kind != COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ)
+                            return S_OK;
+                        LPWSTR uri = nullptr;
+                        if (FAILED(args->get_Uri(&uri)) || uri == nullptr)
+                            return S_OK;
+                        const wxString page(uri);
+                        CoTaskMemFree(uri);
+                        if (WebView::IsPhotoTileUrl(page)) {
+                            args->put_State(COREWEBVIEW2_PERMISSION_STATE_ALLOW);
+                            BOOST_LOG_TRIVIAL(info) << "PhotoTile: clipboard read allowed for the photo-tile page";
+                        }
+                    } catch (...) {}
+                    return S_OK;
+                }).Get(),
+            &m_permissionToken);
+        if (FAILED(hr))
+            BOOST_LOG_TRIVIAL(warning) << "WebView: add_PermissionRequested failed, hr=" << hr;
         auto *evt = new wxCommandEvent(EVT_WEBVIEW_BACKEND_READY, GetId());
         evt->SetEventObject(this);
         wxQueueEvent(this, evt);
@@ -260,6 +289,7 @@ private:
     COREWEBVIEW2_PREFERRED_COLOR_SCHEME pendingColorScheme = COREWEBVIEW2_PREFERRED_COLOR_SCHEME_AUTO;
     bool                   m_backendSeen = false;
     EventRegistrationToken m_processFailedToken{};
+    EventRegistrationToken m_permissionToken{};
 };
 
 #elif defined __WXOSX__
@@ -483,6 +513,24 @@ void WebView::LoadUrl(wxWebView * webView, wxString const &url)
     if (!url2.empty()) { url2 = wxURI(url2).BuildURI(); }
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << url2.ToUTF8();
     webView->LoadURL(url2);
+}
+
+bool WebView::IsPhotoTileUrl(wxString const &url)
+{
+    // 去掉 query／fragment、解開 %xx（WebView2 會把空白與中文編碼）、反斜線換正斜線、去掉開頭的斜線（file:// 與 file:/// 都有人報）
+    auto strip = [](wxString s) {
+        s.Replace("\\", "/");
+        while (s.StartsWith("/"))
+            s.Remove(0, 1);
+        return s;
+    };
+    const wxString page = wxURI::Unescape(url.BeforeFirst('#').BeforeFirst('?'));
+    if (!page.Lower().StartsWith("file:"))
+        return false;
+    if (Slic3r::resources_dir().empty())
+        return false;
+    const wxString expected = strip(wxString::FromUTF8(Slic3r::resources_dir()) + "/web/phototile/index.html");
+    return strip(page.Mid(5)).IsSameAs(expected, false);   // 不分大小寫：Windows 路徑
 }
 
 bool WebView::RunScript(wxWebView *webView, wxString const &javascript)
