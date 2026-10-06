@@ -449,13 +449,13 @@
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
 <script src="matlib.js?v=20261003"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
-<script src="engine.js?v=20261004b"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="engine.js?v=20261006"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <script src="matflow.js?v=20261003"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
 <script src="stylelib.js?v=20261006b"></script>   <!-- 款式庫：正本＝款式庫_照片磚.json，重產＝verify_phototile_stylelib.py --sync。🔴 改了就要動版本字串 -->
-<script src="aiflow.js?v=20261006"></script>   <!-- AIP 刀 4：複製提示詞→用自己的 AI 產圖→貼回（R9-11）；在 stylelib／matflow／size_ratio 之後載。🔴 改了就要動版本字串 -->
+<script src="aiflow.js?v=20261006b"></script>   <!-- AIP 刀 4：複製提示詞→用自己的 AI 產圖→貼回（R9-11）；在 stylelib／matflow／size_ratio 之後載。🔴 改了就要動版本字串 -->
 <!-- R11-6（Eric 2026-09-16 裁）：刪除自訂圖要跳確認窗。窗裡放縮圖＋圖名（七律#3 標籤緊貼所指物），
      寫明後果；鈕序＝「刪除」在左、「取消」恆在最右（ping-ux LAY-15）；ESC 與點背景＝取消。
      ⚠️ 刻意不套 LAY-15 增補的「末鈕深色主要」——那條與「取消恆在最右」有已登記的互斥，Eric 2026-08-18 明示暫緩。 -->
@@ -2640,6 +2640,7 @@ if(window.PhotoTileAiFlow) PhotoTileAiFlow.mount({
   lib:()=>STYLE_LIB, styleById:ptStyleById, tones:ptTones, minTile:ptMinTile, matInfo:ptMatInfo,
   levelCap:md=>{ const i=ptMatInfo(md); return i ? i.cap : 8; }, colors:md=>{ const i=ptMatInfo(md); return i ? i.colors : null; },
   enPalette:hx=>PhotoTileMatFlow.aiPaletteLine({colors:hx}), layerMm:md=>PhotoTileEngine.layerHeightMm(md, params.nozzle),
+  firstLayerMm:md=>PhotoTileEngine.firstLayerMm(md, params.nozzle),
   params:()=>params, aspect:()=>imgAspect, locked:()=>sizeAspectLocked, mode:()=>slotCount===4?'quad':'dual',
   subject:()=>ptSubject, machineCap:()=>machineCap, thickAt:h=>ptThickUserSet ? params.thick : ptThickAuto(h), thickAuto:ptThickAuto,
   hasImage:()=>!!img, matReady:()=>calibOwnsSlots(), deltaE:()=>lastDeltaE,

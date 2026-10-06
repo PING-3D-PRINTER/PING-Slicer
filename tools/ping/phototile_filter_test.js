@@ -479,11 +479,16 @@ console.log('— 7. 引擎層高表＝19 支「同進照片磚」製程檔的 la
     const mode = m[1] === 'FF' ? 'quad' : 'dual', nozzle = Number(m[2]), lh = Number(j.layer_height);
     seen.add(mode + nozzle);
     if (E.layerHeightMm(mode, nozzle) !== lh) bad.push(`${f}：製程 ${lh}、引擎表 ${E.layerHeightMm(mode, nozzle)}`);
+    // 第四棒 Q1：首層高表（工作室算「磚最高多高才切得出來」）；製程檔沒寫這一鍵＝也算不符（不去猜繼承來的值）
+    const fl = Number(j.initial_layer_print_height);
+    if (E.firstLayerMm(mode, nozzle) !== fl) bad.push(`${f}：製程首層 ${j.initial_layer_print_height}、引擎首層表 ${E.firstLayerMm(mode, nozzle)}`);
   }
-  ok(bad.length === 0, '每一支都跟引擎表相同' + (bad.length ? '：' + bad.join('；') : ''));
-  const tbl = E.layerTable(), miss = [];
+  ok(bad.length === 0, '每一支的層高與首層高都跟引擎表相同' + (bad.length ? '：' + bad.join('；') : ''));
+  const tbl = E.layerTable(), ftbl = E.firstLayerTable(), miss = [];
   for (const mode of Object.keys(tbl)) for (const nz of Object.keys(tbl[mode])) if (!seen.has(mode + Number(nz))) miss.push(mode + ' ' + nz);
   ok(miss.length === 0, '引擎表每一格都有製程檔對得到' + (miss.length ? '：缺 ' + miss.join('、') : ''));
+  ok(JSON.stringify(Object.keys(ftbl).map(md => [md, Object.keys(ftbl[md])])) === JSON.stringify(Object.keys(tbl).map(md => [md, Object.keys(tbl[md])])),
+    '首層表跟層高表的格子一樣（同料數、同口徑）');
 }
 
 console.log(`\n${pass} 過、${fail} 敗`);

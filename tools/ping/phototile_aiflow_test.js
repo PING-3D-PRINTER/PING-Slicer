@@ -378,5 +378,75 @@ check('CIS：橘只標「你在這裡」（目前這一步、目前這張）；�
   assert(!/\.btn\.primary\{/.test(afCss), 'aiflow.css 自己另定主要按鈕');
 });
 
+/* ---- 第四棒 Q1（Eric 2026-10-06 20:39「照建議」）：高的上限＝最後一層不超過可印高 ---- */
+/* 切片怎麼疊層（Orca generate_object_layers：首層之後一層一層加，直到頂端 + EPSILON ≥ 物件高）——跟 aiflow 的算式分開寫，當獨立對照 */
+const orcaTop = (H, lh, first) => H <= first ? first : first + Math.ceil((H - first) / lh - 1e-6) * lh;
+check('Q1 真 App 實測那兩顆：FD300 高 300＝最後一層 300.05、FF600 高 580＝580.05（超過可印高，切片擋下）', () => {
+  assert(orcaTop(300, E.layerHeightMm('dual', 0.4), E.firstLayerMm('dual', 0.4)) > 300 + 1e-9);
+  assert(orcaTop(580, E.layerHeightMm('quad', 0.4), E.firstLayerMm('quad', 0.4)) > 580 + 1e-9);
+  assert(orcaTop(579.5, E.layerHeightMm('quad', 0.4), E.firstLayerMm('quad', 0.4)) <= 580 + 1e-9, '579.5 那顆真 App 切得出來');
+});
+check('Q1 sliceTopMm：七台 × 各口徑的上限＝最後一層不超過可印高、而且再高 0.1 mm 就超過（取到 0.1 mm）', () => {
+  let n = 0;
+  for (const m of MODELS) for (const nz of m.noz || m.nozzles) {
+    const lh = E.layerHeightMm(m.mode, Number(nz)), fl = E.firstLayerMm(m.mode, Number(nz)), top = AF.sliceTopMm(m.maxH, lh, fl);
+    assert(top <= m.maxH && top > m.maxH - lh - 0.1, m.model + ' ' + nz + '：' + top);   // 層格剛好落在可印高（FF600 0.6：0.4＋1656×0.35＝580）＝不用收
+    assert(Math.abs(top * 10 - Math.round(top * 10)) < 1e-9, '不是 0.1 mm 的倍數：' + top);
+    assert(orcaTop(top, lh, fl) <= m.maxH + 1e-9, m.model + ' ' + nz + ' 上限 ' + top + ' 自己就切不了');
+    assert(orcaTop(top + 0.1, lh, fl) > m.maxH + 1e-9, m.model + ' ' + nz + ' 上限 ' + top + ' 還能再高 0.1');
+    n++;
+  }
+  assert(n >= 19, '口徑組合太少：' + n);
+  assert.strictEqual(AF.sliceTopMm(300, 0.2, 0.25), 299.8); assert.strictEqual(AF.sliceTopMm(580, 0.25, 0.3), 579.8);
+  assert.strictEqual(AF.sliceTopMm(270, 0.2, 0.25), 269.8); assert.strictEqual(AF.sliceTopMm(600, 0.5, 0.55), 599.5);
+  assert.strictEqual(AF.sliceTopMm(300, null, 0.25), 300, '沒有層高（舊頁面轉接）＝照舊');
+});
+check('Q1 sliceablePick：上限換成切得出來的、可印高記 maxHPrint；原因那句講可印高；拿不到層高＝原物件照舊', () => {
+  const raw = AF.pickModel(MODELS, 'dual', 'FD300 同進'), pk = AF.sliceablePick(raw, 0.2, 0.25);
+  assert.deepStrictEqual([pk.mdl.maxH, pk.mdl.maxHPrint, pk.name, pk.unknown, raw.mdl.maxH], [299.8, 300, 'FD300', false, 300], '不能改到原本的 models');
+  assert.strictEqual(AF.capReason(200, 300, 20, pk, 'reach'), 'FD300 最高 299.8 mm（機型可印高度 300 mm，最上面一層不能超過）');
+  assert.strictEqual(AF.sliceablePick(raw, null, null), raw);
+  assert.strictEqual(AF.sliceablePick(null, 0.2, 0.25), null);
+  assert.strictEqual(AF.maxHFree(150, pk.mdl, thick10, 'reach'), 299.8, '小數上限要取得到（不能退到 299）');
+  assert.strictEqual(AF.maxHFree(150, raw.mdl, thick10, 'reach'), 300, '整數上限行為不變');
+  assert.strictEqual(AF.maxWLocked(2 / 3, pk.mdl, thick10, 'reach'), 199, '直式 2:3 高被 299.8 限住');
+  assert(/return sliceablePick\(pickModel\(mc\.models, md, /.test(afSrc) && afSrc.includes('pg.layerMm(md), pg.firstLayerMm ? pg.firstLayerMm(md) : null); }'), '頁面所有上限都要走 capPick 換過的那台');
+  assert(/firstLayerMm:md=>PhotoTileEngine\.firstLayerMm\(md, params\.nozzle\)/.test(idx), 'index.html 轉接沒送首層高');
+});
+
+/* ---- 第四棒 Q2（Eric 2026-10-06 20:39「照建議」；規格 R6-15）：提示詞的料色＝這一組量到的兩端 ---- */
+check('Q2 printHexes：雙料取這一對量到的兩端（標稱色跟量到的不同時改寫實測）；正式那組白×深灰不變', () => {
+  // 2026-09-23 量的白×紅（四料白紅藍黑那組的一對；D:/_sa/t063/out/libA_final）——記的線材色跟量到的兩端差很多
+  const ML = require(path.join(WEB, 'matlib.js'));
+  globalThis.PhotoTileMatLib = globalThis.PhotoTileMatLib || ML; globalThis.PhotoTileEngine = globalThis.PhotoTileEngine || E;
+  const pts = ['#CAC8C3', '#C4B9B4', '#BDA7A2', '#B6958F', '#AF807A', '#A86761', '#A0453E', '#981103'];
+  const mk = (aLabel, aHex, bLabel, bHex, hx, src) => ({ id: ML.pairId({ type: 'PLA', label: aLabel }, { type: 'PLA', label: bLabel }),
+    a: { type: 'PLA', fid: null, label: aLabel, hex: aHex }, b: { type: 'PLA', fid: null, label: bLabel, hex: bHex }, kind: '雙料 8 階直立條',
+    pts: hx.map((h, i) => ({ S: Math.round((1 - i / 7) * 10000) / 10000, hex: h })), measuredAt: '2026-09-23', source: src, claimedAt: null, prev: null });
+  const red = { schema: 2, legacyAskedAt: null, archived: [], pairs: [mk('白', '#F2F0EB', '紅', '#C0392B', pts, 'readback')] };
+  const keys = F.validSets(red, 'dual')[0].keys, inf = F.setInfo(red, 'dual', keys).info || F.setInfo(red, 'dual', keys);
+  assert.deepStrictEqual(inf.colors, ['#F2F0EB', '#C0392B'], '這組 matflow 給的是記下的線材色（修之前提示詞就寫這兩個）');
+  assert.deepStrictEqual(AF.printHexes(inf, ML.matKey), ['#CAC8C3', '#981103']);
+  const gray = ['#F2F0EB', '#D8D6D2', '#BEBDBA', '#A4A3A1', '#898988', '#6F6F6F', '#555657', '#3B3C3E'];
+  const off = { schema: 2, legacyAskedAt: null, archived: [], pairs: [mk('白', '#F2F0EB', '深灰', '#3B3C3E', gray, 'readback')] };
+  const k2 = F.validSets(off, 'dual')[0].keys, i2 = F.setInfo(off, 'dual', k2).info || F.setInfo(off, 'dual', k2);
+  assert.deepStrictEqual(AF.printHexes(i2, ML.matKey), i2.colors, '量到的兩端＝記下的色時不變（正式版材料庫就是這樣）');
+});
+check('Q2 printHexes：四料每支料取它在這組裡的那一端（a 端＝S 最大、b 端＝S 最小，不看排列順序）；先取能用的那對；對不上退回料色', () => {
+  const key = m => m.type + '|' + m.label, M4 = ['白', '紅', '藍', '黑'].map(l => ({ key: 'PLA|' + l, label: l }));
+  const pair = (a, b, ha, hb, ok) => ({ ok, pair: { a: { type: 'PLA', label: a }, b: { type: 'PLA', label: b },
+    pts: [{ S: 0, hex: hb }, { S: 0.5, hex: '#808080' }, { S: 1, hex: ha }] } });
+  const info = { colors: ['#F2F0EB', '#C0392B', '#2E86C1', '#1A1A1A'], mats: M4, pairs: [
+    pair('白', '藍', '#111111', '#065E99', false),      // 不能用的那對排最前面：白不能取它的 #111111
+    pair('紅', '白', '#981103', '#CAC8C3', true),       // 白在 b 端
+    pair('白', '黑', '#CAC8C3', '#000000', true), pair('紅', '藍', '#981103', '#065E99', true)] };
+  assert.deepStrictEqual(AF.printHexes(info, key), ['#CAC8C3', '#981103', '#065E99', '#000000']);
+  assert.deepStrictEqual(AF.printHexes({ colors: ['#123456'], mats: [{ key: 'PLA|綠' }], pairs: info.pairs }, key), ['#123456'], '對不上＝退回料色');
+  assert.deepStrictEqual(AF.printHexes(info, null), info.colors, '沒有 matKey＝照舊');
+  assert.strictEqual(AF.printHexes(null, key), null);
+  assert(/hexes: printHexes\(pg\.matInfo\(st\.mode\), root\.PhotoTileMatLib && root\.PhotoTileMatLib\.matKey\) \|\| pg\.colors\(st\.mode\) \|\| \[\]/.test(afSrc),
+    '提示詞（含英文那行、「顏色不對」那句）都要從 promptCtx 的 hexes 取');
+});
+
 console.log('\n' + (fail ? '❌ ' : '') + pass + ' 過、' + fail + ' 敗');
 process.exit(fail ? 1 : 0);

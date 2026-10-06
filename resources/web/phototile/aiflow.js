@@ -172,14 +172,33 @@ function maxWLocked(asp, m, thick, rule) {
   return SIZE_MIN;
 }
 function maxWFree(H, m, thick, rule) { let w = Math.floor(m.bedD - W_MARGIN); for (; w > SIZE_MIN; w--) { if (fitsAt(w, H, thick(H), m, rule).ok) return w; } return SIZE_MIN; }
-function maxHFree(W, m, thick, rule) { let h = Math.floor(m.maxH); for (; h > SIZE_MIN; h--) { if (fitsAt(W, h, thick(h), m, rule).ok) return h; } return SIZE_MIN; }
+function maxHFree(W, m, thick, rule) {
+  let h = Math.floor(m.maxH);
+  if (h < m.maxH && fitsAt(W, m.maxH, thick(m.maxH), m, rule).ok) return m.maxH;   // 上限不是整數（sliceTopMm）＝頂端那格先試
+  for (; h > SIZE_MIN; h--) { if (fitsAt(W, h, thick(h), m, rule).ok) return h; } return SIZE_MIN;
+}
+/* 第四棒 Q1（Eric 2026-10-06 20:39「照建議」）：磚高設到機型可印高，切片會被擋「最後一層超出了最大構建高度」——
+   首層＋整數層疊上去會超出幾十微米（真 App 實測 FD300 300→300.05、FF600 580→580.05）。
+   ⇒ 高的上限＝最後一層不超過可印高的最高磚高，取到 0.1 mm（頁面尺寸的精度）。層高、首層＝照片磚製程檔（引擎兩張表）；
+   拿不到（舊頁面轉接）＝照舊用可印高。 */
+function sliceTopMm(maxH, layer, first) {
+  if (!(layer > 0) || !(first > 0) || !(maxH >= first)) return maxH;
+  const n = Math.floor((maxH - first) / layer + 1e-9);
+  return Math.floor((first + n * layer) * 10 + 1e-6) / 10;
+}
+/* pickModel 的結果換成「切得出來」的上限；可印高另記 maxHPrint 給原因那句講 */
+function sliceablePick(pick, layer, first) {
+  if (!pick) return pick;
+  const top = sliceTopMm(pick.mdl.maxH, layer, first);
+  return top >= pick.mdl.maxH ? pick : Object.assign({}, pick, { mdl: Object.assign({}, pick.mdl, { maxH: top, maxHPrint: pick.mdl.maxH }) });
+}
 /* 高到這台上限時最寬多少（只有 delta 頂端這一條會比「直徑 −50」更窄）；厚度用自動值（不看自己設的） */
 function widestAtTop(m, thickAuto, rule) { const cw = m.bedD - W_MARGIN; for (let w = cw; w > SIZE_MIN; w--) { if (fitsAt(w, m.maxH, thickAuto(m.maxH), m, rule).ok) return w; } return SIZE_MIN; }
 /* 擋住時講是哪一條（FBK-11；文案照原型 capReason） */
 function capReason(W, H, T, pick, rule) {
   const m = pick.mdl, f = fitsAt(W, H, T, m, rule);
   if (f.why === 'w') return pick.name + ' 最寬 ' + (m.bedD - W_MARGIN) + ' mm（要留洗料塔的位置）';
-  if (f.why === 'h') return pick.name + ' 最高 ' + m.maxH + ' mm（機型可印高度）';
+  if (f.why === 'h') return pick.name + ' 最高 ' + m.maxH + ' mm（機型可印高度' + (m.maxHPrint > m.maxH ? ' ' + m.maxHPrint + ' mm，最上面一層不能超過' : '') + '）';
   if (f.why === 'top') return '磚這麼高時，噴頭搆不到盤邊（機台越往上、搆得到的圈越小）';
   if (f.why === 'tower') return '磚這麼高時，旁邊的洗料塔印不到頂';
   return '';
@@ -201,6 +220,31 @@ function pickModel(models, mode, currentModel) {
   return { mdl: small, name: modelShort(small.model), unknown: true };
 }
 function modelLabel(pick) { return pick.unknown ? '不確定是哪台，先照最小的 ' + pick.name + ' 算' : pick.mdl.model; }
+
+/* 第四棒 Q2（Eric 2026-10-06 20:39「照建議」；規格 R6-15「AI 產圖的輸入要帶上那組可印色階」）：
+   提示詞寫給 AI 的料色＝這一組自己量到的兩端（實測），不是線材標稱色。顏色檢查比的是用實測色做的列印模擬——
+   四料白紅藍黑那組量到的白是 #CAC8C3（標稱 #F2F0EB），AI 照標稱色畫也會被判「顏色不對」（真 App：色差 20.4 vs 用實測色 10.4）。
+   雙料的 info.colors 本來就是那一對記下的兩端，取出來跟現在相同。取法：每支料在這組任一對（先取能用的那對）的那一端
+   （S 最大＝a 端、最小＝b 端）；料鍵用 matlib 的 matKey（keyOf）；對不上或沒量測＝退回 info.colors 那一格。 */
+function printHexes(info, keyOf) {
+  if (!info || !Array.isArray(info.colors)) return null;
+  const mats = Array.isArray(info.mats) ? info.mats : [], pairs = Array.isArray(info.pairs) ? info.pairs.filter(v => v && v.pair) : [];
+  const ends = v => {
+    const pts = (Array.isArray(v.pair.pts) ? v.pair.pts : []).filter(t => t && /^#[0-9a-f]{6}$/i.test(t.hex) && isFinite(t.S));
+    if (!pts.length) return null;
+    return { a: pts.reduce((x, y) => (y.S > x.S ? y : x)).hex, b: pts.reduce((x, y) => (y.S < x.S ? y : x)).hex };
+  };
+  const order = pairs.filter(v => v.ok).concat(pairs.filter(v => !v.ok));
+  return info.colors.map((c, i) => {
+    const k = mats[i] && mats[i].key;
+    if (k && typeof keyOf === 'function') for (const v of order) {
+      const e = ends(v); if (!e) continue;
+      if (keyOf(v.pair.a) === k) return e.a;
+      if (keyOf(v.pair.b) === k) return e.b;
+    }
+    return c;
+  });
+}
 
 /* ---- 我的款式（R9-11 Q9／Q10）：存在這台電腦（C++ phototile_mystyles_*，檔＝<data_dir>/phototile/my_styles.json） ---- */
 const MINE_NAME_MAX = 20;
@@ -243,6 +287,7 @@ const core = {
   langInfo, shapeKey, shapeOf, minPxOf, xMinMm, zMinMm, fillT, detailLine, paletteLine, templateOf, buildPrompt, phraseOf, fixText, sizeChangedNote,
   aspectGap, isMismatch, ratioTxt, cropPct, aiShapeLabel, lumGrid, sameAsPhoto, checkList, warnCount,
   limitZ, reachAt, fitsAt, maxWLocked, maxWFree, maxHFree, widestAtTop, capReason, modelShort, pickModel, modelLabel,
+  sliceTopMm, sliceablePick, printHexes,
   clampTones, validateMine, mineDraftFrom, mineRecord, mineValid, parseMine, serializeMine, utf8Bytes, b64Bytes, bytesFromB64, isPng,
 };
 const doc = root && root.document;
@@ -289,7 +334,8 @@ function baseAspect() {
 function promptCtx(st) {
   const p = pg.params(), li = langInfo(S.uiLang, af());
   return { lib: lib(), style: st, mine: isMineId(st.id), lang: li.prompt, reply: li.reply, aspect: baseAspect(), tileW: p.width,
-    xMinMm: xMinMm(p.noiseMm, p.nozzle), zMinMm: zMinMm(pg.layerMm(st.mode)), hexes: pg.colors(st.mode) || [], tones: tonesFor(st),
+    xMinMm: xMinMm(p.noiseMm, p.nozzle), zMinMm: zMinMm(pg.layerMm(st.mode)), tones: tonesFor(st),
+    hexes: printHexes(pg.matInfo(st.mode), root.PhotoTileMatLib && root.PhotoTileMatLib.matKey) || pg.colors(st.mode) || [],   // 第四棒 Q2：實測兩端
     enPalette: pg.enPalette };
 }
 function pxNow(st) {
@@ -307,7 +353,8 @@ function fixFor(key) {
 
 /* ---- 各機上限：頁面接進改尺寸那一段（applySizeChange 呼叫 capFit） ---- */
 function capPick(mode) { if (!pg) return null; const mc = pg.machineCap(); if (!mc || !Array.isArray(mc.models)) return null;
-  const md = mode || pg.mode(); return pickModel(mc.models, md, (mc.current === md) ? mc.currentModel : null); }
+  const md = mode || pg.mode();
+  return sliceablePick(pickModel(mc.models, md, (mc.current === md) ? mc.currentModel : null), pg.layerMm(md), pg.firstLayerMm ? pg.firstLayerMm(md) : null); }
 function thickFn() { return h => pg.thickAt(h); }
 function thickAutoFn() { return h => pg.thickAuto(h); }
 function maxWidthNow(mode) {
