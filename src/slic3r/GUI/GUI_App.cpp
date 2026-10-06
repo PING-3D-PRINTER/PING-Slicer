@@ -5400,12 +5400,10 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     return "";
                 }
 
-                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
-                const auto result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
-                decoded.resize(result.first);
-                const size_t trailing_padding = encoded.size() - result.second;
+                const auto [decoded, consumed] = ping_base64_decode(encoded);
+                const size_t trailing_padding = encoded.size() - consumed;
                 const bool valid_padding = encoded.size() % 4 == 0 && trailing_padding <= 2 &&
-                    std::all_of(encoded.begin() + result.second, encoded.end(), [](char value) { return value == '='; }) &&
+                    std::all_of(encoded.begin() + consumed, encoded.end(), [](char value) { return value == '='; }) &&
                     (trailing_padding == 0 || index + 1 == m_step_repair_export_expected_chunks);
                 if (!valid_padding || decoded.empty() ||
                     m_step_repair_export_buffer.size() + decoded.size() > m_step_repair_export_expected_size) {
@@ -5575,9 +5573,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     return "";
                 }
 
-                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
-                const auto result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
-                decoded.resize(result.first);
+                const std::vector<unsigned char> decoded = ping_base64_decode(encoded).first;
                 if (decoded.empty() || m_photo_tile_export_buffer.size() + decoded.size() > m_photo_tile_export_expected_size) {
                     BOOST_LOG_TRIVIAL(warning) << "Photo tile export chunk could not be decoded";
                     m_photo_tile_export_active = false;
@@ -6091,9 +6087,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     return "";
                 }
 
-                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
-                const auto decode_result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
-                decoded.resize(decode_result.first);
+                const std::vector<unsigned char> decoded = ping_base64_decode(encoded).first;
                 if (decoded.empty() || m_photo_tile_image_buffer.size() + decoded.size() > m_photo_tile_image_expected_size) {
                     BOOST_LOG_TRIVIAL(warning) << "Photo tile image chunk could not be decoded";   // ③總長上限
                     m_photo_tile_image_active = false;
@@ -6247,13 +6241,11 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     fail("材料庫存檔的分塊亂序或遺失，這次沒有存檔。");
                     return "";
                 }
-                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
-                const auto dr = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
-                decoded.resize(dr.first);
+                const auto [decoded, consumed] = ping_base64_decode(encoded);
                 /* 壞 base64 一律擋（同 matlib.js b64ToBytes）：beast 遇到非法字元會「停下來」而不是報錯，
                    不驗就會靜默收下一段較短的資料。合法＝長度是 4 的倍數、停下來之後只剩最多兩個 '='。 */
                 size_t pad = 0;
-                for (size_t k = dr.second; k < encoded.size(); ++k) {
+                for (size_t k = consumed; k < encoded.size(); ++k) {
                     if (encoded[k] == '=') ++pad; else { pad = 99; break; }
                 }
                 if (encoded.size() % 4 != 0 || pad > 2 || decoded.empty()) {
@@ -6349,11 +6341,11 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 const size_t      want    = root.get<size_t>("data.size", 0);
                 const std::string encoded = root.get<std::string>("data.base64", "");
                 std::string       name    = root.get<std::string>("data.name", "");
-                std::vector<unsigned char> bytes(boost::beast::detail::base64::decoded_size(encoded.size()));
-                const auto dr = boost::beast::detail::base64::decode(bytes.data(), encoded.data(), encoded.size());
-                bytes.resize(dr.first);
+                std::vector<unsigned char> bytes;
+                size_t                     consumed = 0;
+                std::tie(bytes, consumed) = ping_base64_decode(encoded);   // 不用結構化繫結：bytes 下面要被 CallAfter 的 lambda 捕捉（C++17 不行）
                 size_t pad = 0;   // 壞 base64 一律擋（判法同 phototile_matlib_save_chunk：beast 遇到非法字元只會停下來、不報錯）
-                for (size_t k = dr.second; k < encoded.size(); ++k) {
+                for (size_t k = consumed; k < encoded.size(); ++k) {
                     if (encoded[k] == '=') ++pad; else { pad = 99; break; }
                 }
                 if (want == 0 || want > max_matlib_bytes || encoded.size() % 4 != 0 || pad > 2 || bytes.size() != want) {
