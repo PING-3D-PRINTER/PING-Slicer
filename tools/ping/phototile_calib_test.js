@@ -1032,11 +1032,14 @@ function fakeImg(){
     assert(!/slots\[[^\]]*\](\.color)?\s*=[^=]/.test(body), '開圖時還在改料槽');
   });
   await check('🔴 R6-16 段 D：AI 回圖不再依圖改料色（R9-10 在選色這一關被取代）', () => {
-    const i0 = idxHtml.indexOf('async aiEnd(m){');
-    assert(i0 > 0, '找不到 aiEnd');
-    const body = idxHtml.slice(i0, idxHtml.indexOf('ptSourceTitle(\'ai\');', i0)).replace(/\/\*[\s\S]*?\*\//g, '');
+    /* AIP 刀 4 有意識地改寫：收圖改成 ptAiAccept 一支（金鑰直連的 aiEnd 與貼回的 aiImported 同一條），守它。 */
+    const i0 = idxHtml.indexOf('function ptAiAccept(bmp, s, why){');
+    assert(i0 > 0, '找不到 ptAiAccept');
+    const body = idxHtml.slice(i0, idxHtml.indexOf('\n}', i0)).replace(/\/\*[\s\S]*?\*\//g, '');
     assert(!/slots\[[^\]]*\](\.color)?\s*=[^=]/.test(body), 'AI 回圖時還在改料槽');
     assert(/simulate\(\);/.test(body), 'AI 回圖之後沒有照目前的料出模擬');
+    const a0 = idxHtml.indexOf('async aiEnd(m){');
+    assert(/PhotoTileAiFlow\.onKeyResult\(bmp, blob, st\)/.test(idxHtml.slice(a0, idxHtml.indexOf('aiError(jobId', a0))), 'aiEnd 沒走 ptAiAccept 那一條');
   });
   await check('🔴 R6-16 段 D：「依這張圖建議配色」語意反轉成「依料重算圖面顏色」，按它不改料色、不收回「已套用」', () => {
     assert(/id="btnSuggest"[^>]*>[\s\S]{0,80}重算圖面顏色<\/button>/.test(idxHtml), '按鈕字沒換成「依料重算圖面顏色」');
@@ -1168,10 +1171,19 @@ function fakeImg(){
     const line = F.aiPaletteLine(F.setInfo(lb, 'dual', [keyOf(lb, '白'), keyOf(lb, '深灰')]));
     assert(line.includes('#F2F0EB') && line.includes('#707279') && /mix of any two/.test(line), line);
     assert.strictEqual(F.aiPaletteLine(null), '');
+    /* AIP 刀 4（牌 c-1006-AIP-02）有意識地改寫：提示詞組法從 ptAiGenerate 搬進 aiflow.js 的 buildPrompt（客戶複製的與金鑰直連同一份，
+       R9-11「提示詞本體不另寫一套」）⇒ 這條改成實跑 buildPrompt 看料色那一行排在品味規則後面、英文那一行仍是 matflow 這一份。 */
     const i0 = idxHtml.indexOf('function ptAiGenerate(s, tones){');
     assert(i0 > 0, '找不到 ptAiGenerate');
     const body = idxHtml.slice(i0, idxHtml.indexOf('\n}', i0));
-    const iTone = body.indexOf('STYLE_LIB.constants.toneRules'), iPal = body.indexOf('PhotoTileMatFlow.aiPaletteLine(');
+    assert(/const prompt=PhotoTileAiFlow\.promptFor\(s, false\);/.test(body), 'ptAiGenerate 沒走 aiflow.js 的組法');
+    assert(/enPalette:hx=>PhotoTileMatFlow\.aiPaletteLine\(\{colors:hx\}\)/.test(idxHtml), '英文料色那一行不是 matflow 這一份');
+    const AF = require(path.join(WEB, 'aiflow.js'));
+    const box = {}; require('vm').runInNewContext(fs.readFileSync(path.join(WEB, 'stylelib.js'), 'utf8'), box);
+    const LIB = box.PT_STYLE_LIB, st = LIB.styles.find(s => s.id === 'silhouette');
+    const pr = AF.buildPrompt({ lib: LIB, style: st, lang: 'en', reply: 'English', aspect: 1.5, tileW: 100, xMinMm: 1, zMinMm: 0.2,
+      hexes: ['#F2F0EB', '#707279'], tones: 3, enPalette: hx => F.aiPaletteLine({ colors: hx }), preface: false });
+    const iTone = pr.indexOf(LIB.constants.toneRules), iPal = pr.indexOf(line.slice(0, 40));
     assert(iTone > 0 && iPal > iTone, '色盤那一行沒接在 toneRules 後面（放上面會被它讓位）');
     assert(/if\(!calibOwnsSlots\(\)\)\{/.test(body), '沒選料也照樣產圖（R6-15：先有顏色）');
   });

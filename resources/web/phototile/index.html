@@ -144,7 +144,6 @@
           max-width:420px; width:calc(100% - 40px); padding:18px 20px 14px;}
   .cfmTitle{font-size:15px; font-weight:700; color:var(--black); margin:0 0 8px;}
   .cfmBody{font-size:12.5px; line-height:1.85; color:#444; margin:0 0 14px; white-space:pre-line;}
-  .cfmCost{color:var(--orange); font-weight:700;}
   .cfmBtns{display:flex; justify-content:flex-end; gap:8px;}
   .cfmBox .btn.cur{border-color:var(--black); box-shadow:inset 3px 0 0 var(--orange); font-weight:700;}
   .sizebar{padding:8px 10px 10px; border-top:1px solid #eee;}
@@ -204,6 +203,7 @@
   .pttoast.on{opacity:1;}
 </style>
 <link rel="stylesheet" href="matflow.css?v=20261003">   <!-- 段 F（車 3）兩條流程的樣式；🔴 改了 matflow.css 就要動版本字串 -->
+<link rel="stylesheet" href="aiflow.css?v=20261006">   <!-- AIP 刀 4：複製提示詞流程（aiflow.js 畫）；🔴 改了就要動版本字串 -->
 </head>
 <body>
 
@@ -290,8 +290,8 @@
        塞這裡不會讓既有捲動變糟——判例 R-01：一覽可操作是硬底線，空間不夠先砍間距、不砍可操作高度。
        （2026-09-07 平躺自產品移除，工作室只剩垂直混色 ⇒ 本區恆顯示。） -->
   <section class="panel" id="stylePanel">
-    <h2>款式 <span class="hint">系統挑出這個尺寸做得出來的</span></h2>
-    <div class="pad">
+    <h2 id="styleH2">款式 <span class="hint">系統挑出這個尺寸做得出來的</span></h2>
+    <div class="pad" id="stylePad">
       <div class="row"><label>題材</label>
         <select id="subjectSel"></select>
         <span class="sub" id="subjectInfo"></span>
@@ -301,6 +301,8 @@
       <div id="styleFix"></div>
       <div class="stylegrid" id="styleGrid"></div>
     </div>
+    <!-- AIP 刀 4（R9-11 Q2）：點 AI 款式卡＝就地打開三步（複製提示詞 → 到 ChatGPT 產圖 → 把圖貼回來），不跳確認窗、不花錢、不改設定。aiflow.js 畫。 -->
+    <div class="pad" id="afPad" hidden></div>
   </section>
   </div>
 
@@ -452,7 +454,8 @@
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
-<script src="stylelib.js?v=20261006"></script>   <!-- 款式庫：正本＝款式庫_照片磚.json，重產＝verify_phototile_stylelib.py --sync。🔴 改了就要動版本字串 -->
+<script src="stylelib.js?v=20261006b"></script>   <!-- 款式庫：正本＝款式庫_照片磚.json，重產＝verify_phototile_stylelib.py --sync。🔴 改了就要動版本字串 -->
+<script src="aiflow.js?v=20261006"></script>   <!-- AIP 刀 4：複製提示詞→用自己的 AI 產圖→貼回（R9-11）；在 stylelib／matflow／size_ratio 之後載。🔴 改了就要動版本字串 -->
 <!-- R11-6（Eric 2026-09-16 裁）：刪除自訂圖要跳確認窗。窗裡放縮圖＋圖名（七律#3 標籤緊貼所指物），
      寫明後果；鈕序＝「刪除」在左、「取消」恆在最右（ping-ux LAY-15）；ESC 與點背景＝取消。
      ⚠️ 刻意不套 LAY-15 增補的「末鈕深色主要」——那條與「取消恆在最右」有已登記的互斥，Eric 2026-08-18 明示暫緩。 -->
@@ -1132,6 +1135,7 @@ function simulate(){   // 2026-09-07 平躺（疊色）模擬、drawCore、listS
   /* 🔴 段 F（R6-16 推論①）：還沒選顏色＝手上沒有量過的料 ⇒ 不拿理論色頂上，模擬區講清楚要先做什麼。 */
   if(!calibOwnsSlots()){ simulateBlank(); return; }
   simulateVertical(); ptMatStatus();
+  if(window.PhotoTileAiFlow) PhotoTileAiFlow.refresh();   // AIP 刀 4：結果畫面的四項檢查跟著新的模擬色差走
 }
 function simulateBlank(){
   simCanvas.width=4; simCanvas.height=4; simCtx.clearRect(0,0,4,4);
@@ -1157,7 +1161,7 @@ function syncSizeInputs(){
   document.getElementById('wIn').value=params.width;
   document.getElementById('hIn').value=params.height;
 }
-function applySizeChange(changed, rawValue, rebuild=true){
+function applySizeChange(changed, rawValue, rebuild=true, capWhy=''){
   if(sizeAspectLocked && srcBitmap){
     const next=fitAspectSize({
       width:changed==='width' ? rawValue : params.width,
@@ -1170,6 +1174,8 @@ function applySizeChange(changed, rawValue, rebuild=true){
   }else{
     params.height=roundMm(clampSizeMm(rawValue,params.height,SIZE_MIN_MM,SIZE_MAX_MM),1);
   }
+  /* AIP 刀 4（R9-11 v3 後九題 Q1～Q3）：各機上限疊在 800 mm 絕對上限上面——超過這台就停在上限、尺寸卡寫原因（Q2 硬擋＝根 AGENTS 具名例外）。 */
+  if(window.PhotoTileAiFlow) PhotoTileAiFlow.capFit(changed, capWhy);
   syncSizeInputs();
   ptThickSync();                                              // 高變了 ⇒ 防倒下限跟著變
   /* 【0805 規格 §2.2】改尺寸只重建格點＋重算，**不重新建議配色**——實體尺寸跟顏色無關，
@@ -1225,6 +1231,7 @@ function loadBitmap(bmp, label){
   if(typeof ptSourceTitle==='function') ptSourceTitle('');   // 換圖＝回到「原圖」
   ptLastStyleJob=null;                                        // 換圖＝上一張的壓平設定作廢（「依料重算」不會拿它去壓新圖）
   imgAspect=bmp.height/bmp.width;                      // 高/寬，尺寸寬高比連動
+  if(window.PhotoTileAiFlow) PhotoTileAiFlow.onPhoto(bmp);   // AIP 刀 4：這張就是「原圖」（貼成原圖檢查、複製照片、回到原圖都用它）
   if(sizeAspectLocked) applySizeChange('width',params.width,false);
   else syncSizeInputs();
   buildGrid();
@@ -1396,18 +1403,11 @@ window.PINGPhotoTile={
            料在選圖之前就定了，AI 圖回來**只照目前的料**分階（下面壓平用的就是目前料的候選色），不再改料色。
            「好看的紅圖被壓成藍」那個痛點的解法改成：產圖**之前**就讓 AI 知道這組料印得出哪些顏色（R6-15），
            而不是產完再回頭換料。以上原文保留供追溯。 */
-      /* 🔴 **排隊要在 simulate() 之前**（2026-09-02 攔截實測抓到）：排出去的工作是在
-         simulateVertical 的**尾端**才發送，先 simulate 再設 pending ＝永遠慢一步、
-         那個 pending 會躺在那裡沒人送 ⇒ 壓平整個沒觸發，而畫面看起來一切正常。
-         這一行的位置就是這個修法有沒有生效的全部差別。 */
-      if(ptAiStyle && (slotCount===2 || slotCount===4))   // 四料也壓平（Eric 2026-09-03 裁③）
-        ptStylePending={styleId:ptAiStyle.id, tones:ptAiStyle.tones, useCurrent:true};
-      ptAiHasImage=true;                                   // 「另存 AI 圖」從這一刻起才有東西可存
-      srcBitmap=bmp; srcShow=bmp; buildGrid();             // 9-5：左邊從此一律放這張 AI 原圖（壓平只換引擎輸入）
-      simulate();                                          // R6-16：照目前的料分階，不改料色（原本四料這裡會跑 suggest()）
-      ptSourceTitle('ai');
-      /* 圖已經是新的了 ⇒ 遮罩要嘛關掉、要嘛換成下一段（壓平）在做的事。 */
-      ptSourceBusy(ptStyleJob ? '壓成平色階中…' : '', ptStyleJob ? '約 1~2 秒' : '');
+      /* AIP 刀 4：收圖改走 ptAiAccept（貼回的圖同一條）——進「這次產的」清單、走同一套檢查（R9-11 Q3），
+         比例不同時磚跟著圖改高度、不再拉伸（Q1）。C++ 這時已經把來源換成這張，不必再送一次。 */
+      const st=ptAiStyle && (ptStyleById(ptAiStyle.id) || (window.PhotoTileAiFlow && PhotoTileAiFlow.mineById(ptAiStyle.id)));
+      if(window.PhotoTileAiFlow && st) PhotoTileAiFlow.onKeyResult(bmp, blob, st);
+      else if(st) ptAiAccept(bmp, st, '');
       /* 🔴 **AI 圖一定要再過一次 k-means 壓平**（Eric 2026-09-02 裁「甲」，實測導出）。
          為什麼：prompt 寫「EXACTLY N flat colors」，但模型實際回的是**兩萬種顏色**（實測
          19,342~24,272）。那些顏色接著要被「影像 L* 硬對映到料窗、取最近階」分箱——
@@ -1469,6 +1469,7 @@ window.PINGPhotoTile={
     applyNozzleFromHost();      /* 2026-09-08：口徑跟進來時機器的噴嘴（Eric：「口徑可否依照機器選擇的口徑自動變化」） */
     syncModeAvailability();
     if(window.PhotoTileMatFlow) PhotoTileMatFlow.refresh();   /* 段 F：機上線材與料種清單到了 ⇒ 校正片名目色、「指定材料」的料種下拉、舊資料那一問才有 */
+    if(window.PhotoTileAiFlow) PhotoTileAiFlow.onCapability(machineCap);   /* AIP 刀 4：uiLang＝提示詞語言、models＝各機上限 */
   },
   /* ── C-2：宿主生成鏈的回推入口（C++ RunScript 呼叫；欄位＝GUI_App 檔尾三支 handler）── */
   jobProgress(p){
@@ -1499,13 +1500,24 @@ window.PINGPhotoTile={
   matlibLoaded(msg){ matlibOnHostLoaded(msg); },
   matlibSaved(msg){ matlibOnHostSaved(msg); },
   /* 🆕 T062「匯出材料庫…」的結果（C++ phototile_matlib_export 回推）：{ok, path, message}。 */
-  matlibExported(msg){ if(window.PhotoTileMatFlow) PhotoTileMatFlow.onExported(msg); }
+  matlibExported(msg){ if(window.PhotoTileMatFlow) PhotoTileMatFlow.onExported(msg); },
+  /* AIP 刀 4（刀 3 的協定）：貼回的圖收下了沒／回到原圖／我的款式讀寫——畫面與規則在 aiflow.js。 */
+  aiImported(m){ if(window.PhotoTileAiFlow) PhotoTileAiFlow.onImported(m); },
+  sourceOrigin(m){ if(window.PhotoTileAiFlow) PhotoTileAiFlow.onOrigin(m); },
+  mystylesLoaded(m){ if(window.PhotoTileAiFlow) PhotoTileAiFlow.onMineLoaded(m); },
+  mystylesSaved(m){ if(window.PhotoTileAiFlow) PhotoTileAiFlow.onMineSaved(m); }
 };
 const dz=document.getElementById('dropZone');
 dz.addEventListener('dragover',e=>{e.preventDefault(); dz.classList.add('drag');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
-dz.addEventListener('drop',e=>{e.preventDefault(); dz.classList.remove('drag'); loadFile(e.dataTransfer.files[0]);});
+dz.addEventListener('drop',e=>{e.preventDefault(); dz.classList.remove('drag'); ptDropFile(e.dataTransfer.files[0]);});
+/* AIP 刀 4：AI 產圖畫面打開時，貼上／拖放的圖＝貼回 AI 圖（aiflow.js）；其他時候照舊＝換新照片。
+   數字欄、文字欄裡按 Ctrl+V＝一般貼上，不攔（原型 v4 會把它攔成貼回圖＝錯，計畫頁「跟原型不同的地方」）。 */
+function ptDropFile(f){ if(!(window.PhotoTileAiFlow && PhotoTileAiFlow.onDropFile(f))) loadFile(f); }
 document.addEventListener('paste',e=>{
+  const t=e.target;
+  if(t && (t.isContentEditable || t.tagName==='TEXTAREA' || t.tagName==='SELECT' || (t.tagName==='INPUT' && !/^(checkbox|radio|range|button|submit|file|color)$/.test(t.type)))) return;
+  if(window.PhotoTileAiFlow && PhotoTileAiFlow.onPaste(e)) return;
   for(const it of e.clipboardData.items) if(it.type.startsWith('image/')) return loadFile(it.getAsFile());
 });
 document.getElementById('fileIn').onchange=e=>loadFile(e.target.files[0]);
@@ -1662,6 +1674,7 @@ document.getElementById('modeSeg').addEventListener('click',e=>{
   /* 【0805 規格 §2.2】切雙料/四色不重新建議：slots 恆有 4 格（SLOT_DEFAULT），
      切換不需要靠 suggest() 生槽位，原本這樣做只是順手把使用者的配色洗掉。 */
   renderSlots(); simulate();
+  if(window.PhotoTileAiFlow) PhotoTileAiFlow.capRecheck('');   // AIP 刀 4：料數換了＝照的那台換了
 });
 function syncOrientUI(){
   /* 2026-09-07 平躺移除：所有列恆顯示；這裡只剩「生成中按鈕讓位給進度」（A 案就地轉換） */
@@ -1714,6 +1727,7 @@ document.getElementById('tIn').onchange=e=>{
   ptThickUserSet=v>0;                                        // 打了數字＝他的值，之後不蓋；清空／0＝回到自動值（#40）
   if(ptThickUserSet){ const S=window.PingPhotoTileSize; params.thick=Math.max(S.THICK_MIN_MM,Math.min(S.THICK_MAX_MM,v)); }
   ptThickSync();
+  if(window.PhotoTileAiFlow) PhotoTileAiFlow.capRecheck('');
 };
 /* 厚度自動值＋提醒（#40＋AIP 刀 2）：沒自己改＝max(料數預設, 防倒下限)；算式與文案在 size_ratio.js */
 function ptThickSync(){
@@ -2036,10 +2050,13 @@ function ptStyleById(id){ return STYLE_LIB.styles.find(s=>s.id===id); }
 function ptUsable(s){
   /* 四料：雙料的每一階都落在兩支料的連線上（規格硬約束⑤）⇒ 要第二個色相就一定得四料。 */
   if(s.mode==='quad' && !ptQuadOk()) return {ok:false, kind:'quad', why:'需要四料機台'};
-  /* 2026-09-02：生圖已進產品 ⇒ 擋下的理由改成**真正缺的那件事**（缺金鑰），
-     不再寫「尚未開放」——那句現在是假的，而假的理由會讓人去找錯方向。 */
-  if(s.requiresAI && !ptAiReady()) return {ok:false, kind:'ai', why:'需要先設定 AI 生圖金鑰'};
-  if(params.width < ptMinTile(s)) return {ok:false, kind:'size', why:'需放大到 '+ptMinTile(s)+' mm'};
+  /* AIP 刀 4（R9-11）：AI 款式改成客戶用自己的 AI 產圖、貼回來 ⇒ 不再擋「沒有金鑰」。
+     放大也到不了（這台這個比例最寬 N mm）＝kind 'cant'，不給「放大」那顆鈕（原型 v4 usable）。 */
+  if(params.width < ptMinTile(s)){
+    const wm=window.PhotoTileAiFlow ? PhotoTileAiFlow.maxWidthNow(s.mode) : null;
+    if(wm!==null && wm<ptMinTile(s)) return {ok:false, kind:'cant', why:'這台這個比例最寬 '+wm+' mm，這款要 '+ptMinTile(s)+' mm'};
+    return {ok:false, kind:'size', why:'需放大到 '+ptMinTile(s)+' mm'};
+  }
   return {ok:true, kind:'ok', why:''};
 }
 function ptCandidates(){
@@ -2104,13 +2121,42 @@ function ptSourceTitle(kind){
   /* 2026-09-08 Eric 打叉「原照片仍保留…」那句（說明不太有用）⇒ 拿掉；標題只說來源是什麼。 */
   /* 9-5：AI 圖壓平後左邊仍是 AI 原圖（不再貼回壓平結果）⇒ 標題就說「AI 生成」；左右差在哪寫在款式區那一行（ptStyleStat），
      不塞進標題——1366 寬實量：標題多一句提示就換行，原圖被推低、破掉兩圖頂端對齊（0918 版面 A）。 */
-  if(kind==='style')   el.innerHTML=(ptAiHasImage && ptStyleFromAi ? '來源（AI 生成）' : '來源（已風格化）')+save;
-  else if(kind==='ai') el.innerHTML='來源（AI 生成）'+save;
+  /* AIP 刀 4：AI 圖＝「來源（AI 產的圖・第 N 張）〔回到原圖〕」（原型 v4；aiflow.js 給字） */
+  const ai=window.PhotoTileAiFlow ? PhotoTileAiFlow.titleHtml() : '來源（AI 生成）';
+  document.body.classList.toggle('ptSrcAi', kind==='ai' || (kind==='style' && ptAiHasImage && ptStyleFromAi));
+  if(kind==='style')   el.innerHTML=(ptAiHasImage && ptStyleFromAi ? ai : '來源（已風格化）')+save;
+  else if(kind==='ai') el.innerHTML=ai+save;
   else                 el.innerHTML='原圖 '+hint;
 }
 let ptAiHasImage=false;                 // 本張照片有沒有生過 AI 圖（決定「另存 AI 圖」按鈕出不出現）
 let ptStyleFromAi=false;                // 9-5：最近一次壓平的是 AI 圖（input current）⇒ 左邊留 AI 原圖；本地款式＝false
 function ptAiForget(){ ptAiHasImage=false; }   // 換照片＝作廢（C++ 端的 m_photo_tile_ai_path 同步清）
+/* AIP 刀 4：AI 圖收進來（金鑰直連的 aiEnd 與貼回的 aiImported 同一條；裁切與送 C++ 已在 aiflow.js 做完）。
+   色階數照款式（壓不過這組料的上限）→ 排壓平（🔴 要在 simulate() 之前：排出去的工作在 simulateVertical 尾端才發，
+   先 simulate 再排＝永遠慢一步、壓平整個沒觸發）→ 換來源、左邊放這張 AI 原圖（9-5）→
+   🔴 R9-11 Q1：比例鎖住時磚跟著這張圖改高度（寬不變、不拉伸；原本金鑰直連是拉伸）。 */
+function ptAiAccept(bmp, s, why){
+  const inf=window.PhotoTileMatFlow ? PhotoTileMatFlow.info() : null, tones=Math.min(ptTones(s), inf ? inf.cap : 8);
+  params.klevels=tones; const lv=document.getElementById('levelsIn'); if(lv) lv.value=tones;
+  if(typeof renderCycleUI==='function') renderCycleUI();
+  ptAiStyle={id:s.id, tones};
+  if(slotCount===2 || slotCount===4) ptStylePending={styleId:s.id, tones, useCurrent:true};   // 四料也壓平（Eric 2026-09-03 裁③）
+  ptAiHasImage=true;                                   // 「另存 AI 圖」從這一刻起才有東西可存
+  imgAspect=bmp.height/bmp.width;
+  applySizeChange('width', params.width, false, why||'');
+  srcBitmap=bmp; srcShow=bmp; buildGrid();             // 9-5：左邊從此一律放這張 AI 原圖（壓平只換引擎輸入）
+  simulate();                                          // R6-16：照目前的料分階，不改料色
+  ptSourceTitle('ai');
+  ptSourceBusy(ptStyleJob ? '壓成平色階中…' : '', ptStyleJob ? '約 1~2 秒' : '');
+  ptApplied=/^my-/.test(s.id) ? null : s.id; ptRender();
+}
+/* 〔回到原圖〕（C++ 已換回原照片）：來源、比例、色階數回到 AI 圖之前；這次產的圖留在 aiflow 的清單上 */
+function ptAiToPhoto(bmp, levels){
+  ptAiHasImage=false; ptStyleFromAi=false; ptLastStyleJob=null; ptStylePending=null; ptApplied=null;
+  if(levels){ params.klevels=levels; const lv=document.getElementById('levelsIn'); if(lv) lv.value=levels; if(typeof renderCycleUI==='function') renderCycleUI(); }
+  if(bmp){ srcBitmap=bmp; srcShow=null; imgAspect=bmp.height/bmp.width; applySizeChange('width', params.width, false); buildGrid(); }
+  simulate(); ptSourceTitle(''); ptRender();
+}
 function ptAiSave(){
   const st=document.getElementById('aiSaveStat');
   if(!slicerBridgeReady()){
@@ -2162,6 +2208,7 @@ function ptStylizeSend(job, levels, cands){
   ptStyleJob='sty-'+Date.now();
   ptLastStyleJob={styleId:job.styleId, tones:job.tones, useCurrent:!!job.useCurrent};   // 「依料重算圖面顏色」照這一款重壓
   ptStyleFromAi=!!job.useCurrent;       // 9-5：current＝AI 圖（C++ 端優先取 AI 原圖，T061 起重壓也不會吃到上一次的壓平結果）
+  if(!job.useCurrent && window.PhotoTileAiFlow) PhotoTileAiFlow.onLocalSource();
   ptStyleChunks=null; ptStyleMeta=null;
   ptSyncBusy();                                          // 壓平中：款式卡鎖住
   ptStyleStat(job.useCurrent ? '正在把 AI 生成的圖壓成 '+job.tones+' 個平色階…（約 1~2 秒）'
@@ -2191,27 +2238,13 @@ function ptStylizeSend(job, levels, cands){
 const PT_AI=(STYLE_LIB.constants&&STYLE_LIB.constants.aiImage)||{};
 let ptAiJob=null, ptAiChunks=null, ptAiMeta=null;
 let ptAiStyle=null;                     // 這次生圖是哪個款式／幾階
-let ptAiPending=null;                  // {styleId,tones}：等 ptRender() 畫完才發（見 ptApply 的說明）
 /* 🔴 R9-4 的自動驗（keyRegion）目前只在 dev 端 harness，**產品裡沒有** ⇒ 自動重生不能開。
    R9-5 說「只在自動驗沒過時重試」；沒有驗就沒有「沒過」這個訊號，無條件重試＝重複燒錢，
    正是那條要擋的事。自動驗進產品之後，把這個改 true、費用文案會自動改口。 */
 const PT_AI_AUTO_VERIFY=false;
 
-/* R9-8：尺寸照磚體長寬比挑，**不讓使用者選**。決定權在頁面（C++ 只當守門的）——
-   因為 prompt 的 {minPx} 要用生圖寬度去算，頁面若不知道自己會拿到哪個尺寸就會算錯。 */
-function ptAiSize(){
-  const w=+params.width||0, h=+params.height||0;
-  if(!(w>0)||!(h>0)) return '1024x1024';
-  const r=w/h;
-  return r>=1.2 ? '1536x1024' : (r<=1/1.2 ? '1024x1536' : '1024x1024');
-}
-/* minPx＝2×口徑 ÷ 磚寬 × 生圖解析度（R9-8）。這是「印得出來的最細線」換算到生圖像素，
-   寫進 prompt 是要模型別畫比這更細的東西——它管的是**可印性**，不是美感。 */
-function ptAiMinPx(size){
-  const w=+params.width||100;
-  const f=(STYLE_LIB.constants&&STYLE_LIB.constants.minWidthFactor)||2;
-  return Math.max(1, Math.round(f*(+params.nozzle||0.4)/w*(parseInt(size,10)||1024)));
-}
+/* R9-8：尺寸照磚體長寬比挑，**不讓使用者選**；{minPx} 要用生圖寬度算 ⇒ 尺寸與提示詞裡寫的形狀必須是同一個。
+   AIP 刀 4：兩個都改由 aiflow.js 算（apiSize／buildPrompt；原照片的比例，不跟著上一張 AI 圖改過的高度），原本的 ptAiSize／ptAiMinPx 退場。 */
 /* R9-6：**單價講死、總額講上限**。兩個都用「約」是懶惰，兩個都寫死是說謊。
    自動驗還沒進產品時沒有自動重生 ⇒ 這裡就只講單價，不去講一個不會發生的上限。 */
 function ptAiCostText(){
@@ -2229,10 +2262,7 @@ function ptAiGenerate(s, tones){
     ptStyleStat('⚠ 此環境無法生圖（需要在 PING Slicer 裡開工作室）——目前顯示的是原本的照片。');
     return;
   }
-  if(!ptAiReady()){
-    ptStyleStat('⚠ 尚未設定 AI 生圖金鑰——請到「幫助 → 設定 AI 生圖服務金鑰」填一把。');
-    return;
-  }
+  if(!ptAiReady()) return;   // AIP 刀 4：這一行只在開發者模式（這台存了金鑰）才出現
   if(!img){
     ptStyleStat('⚠ 請先載入一張照片，AI 款式是拿你的照片去改，不是憑空生一張。');
     return;
@@ -2242,7 +2272,7 @@ function ptAiGenerate(s, tones){
     ptStyleStat('⚠ 先在右欄「選顏色」選一組校正過的料——AI 產圖會照這組料印得出的顏色去畫。');
     return;
   }
-  const size=ptAiSize();
+  const size=PhotoTileAiFlow.apiSize();
   /* 佔位代換與 dev 端 pipeline.py 逐字同法（那邊是 ground truth，別自己另發明一套）。 */
   /* 🔴 調性鐵則一律接在款式 prompt 後面（Eric 2026-09-16 裁「寫進去」）。
      在這之前它只活在臨時檔裡、要有人記得疊——四料第一輪就是沒疊，五張漂了四張。
@@ -2250,11 +2280,10 @@ function ptAiGenerate(s, tones){
   /* 🆕 Q1（Eric 2026-09-23 裁「照建議」；R6-15）：尾端再接一行「只能用這組料的顏色，以及它們兩兩的混色」
      （顏色＝第 1 步從材料庫選的那組量到的色）。接在 toneRules **後面**：它自己寫「與上面的配色指示衝突時以上面為準」，
      放在它上面會被它讓位。⚠ 另一個消費端 照片磚管線/pipeline.py 沒有「選料」這一步（離線管線拿款式參考色），不接這一行。 */
-  const prompt=String(s.promptTemplate||'')
-    .split('{minPx}').join(String(ptAiMinPx(size)))
-    .split('{tones}').join(String(tones))
-    + (s.promptTemplate ? '\n\n' + String(STYLE_LIB.constants.toneRules || '') : '')
-    + (s.promptTemplate ? '\n\n' + PhotoTileMatFlow.aiPaletteLine(PhotoTileMatFlow.info()) : '');
+  /* 🆕 AIP 刀 4（R9-11「開發者模式用金鑰驗過的提示詞，就是客戶拿到的那一份」）：組法改走 aiflow.js 的 buildPrompt——
+     款式模板（中／英跟介面語言）→ 品味規則 → 列印細節 → 料色那一行，跟客戶複製的同一份、只少「對聊天型 AI 講的話」。
+     佔位代換照舊與 pipeline.py 同法；toneRules 的另一個消費端仍是 照片磚管線/pipeline.py。 */
+  const prompt=PhotoTileAiFlow.promptFor(s, false);
   ptAiJob='ai-'+Date.now(); ptAiChunks=null; ptAiMeta=null;
   ptSyncBusy();                                          // 生圖中：款式卡鎖住（Eric 2026-09-03：生圖中點到模板不該再問要不要生圖）
   ptAiStyle={id:s.id, tones:tones};        // aiEnd 要用它接續壓平（見那裡的說明）
@@ -2331,8 +2360,6 @@ function ptConfirmApply(s, isRegen, enlargeTo){
     /* 🔴 同時只准有一個框（2026-09-02 實測抓到）：連續丟兩張圖時，前一張的題材框還開著，
        第二個框會疊上去 ⇒ 兩層遮罩、按鈕看起來重複，而且關掉一層還有一層。舊的直接收掉。 */
     document.querySelectorAll('.cfmBack').forEach(el=>el.remove());
-    const ai=!!s.requiresAI;
-    const cost=(PT_AI.unitCostNtd&&PT_AI.unitCostNtd[PT_AI.quality||'low']);
     const lines=[];
     /* Eric 2026-09-03：點到「需放大」的款式直接在同一個窗問，不讓他自己去改尺寸再點一次。
        放大是本窗最大的後果，放第一行（FBK-12：先講後果再問要不要）。 */
@@ -2341,12 +2368,8 @@ function ptConfirmApply(s, isRegen, enlargeTo){
       lines.push('會先把寬度放大到 '+enlargeTo+' mm（目前 '+params.width+' mm'
                  +((lock&&lock.checked)?'，高度等比跟著放大':'')+'）。');
     }
-    if(ai){
-      lines.push('這一款會用 AI 重畫你的照片，約 20~40 秒。');
-      if(typeof cost==='number') lines.push('COST每張 NT$'+cost+'（算在你自己的 AI 帳號上）');
-    }else{
-      lines.push('這一款在你的電腦上重新計算，約 1~2 秒，不花錢。');
-    }
+    /* AIP 刀 4（R9-11 Q2）：AI 款式不再跳這個窗（點卡＝就地打開三步，不花錢、不改設定）⇒ 這裡只剩本地款式。 */
+    lines.push('這一款在你的電腦上重新計算，約 1~2 秒，不花錢。');
     /* 段 F（R6-16）：款式只換「怎麼畫」，不換「用哪幾支料」——料色維持第 1 步選的那組；色階數照款式建議，但壓不過這組料的上限（R6-7 附款）。 */
     const inf=window.PhotoTileMatFlow ? PhotoTileMatFlow.info(s.mode) : null, cap=inf ? inf.cap : 8;
     lines.push('套用會把色階數改成 '+Math.min(tones,cap)+' 階'+(tones>cap?'（款式建議 '+tones+' 階，這組料最多做得出 '+cap+' 階）':'')
@@ -2357,13 +2380,10 @@ function ptConfirmApply(s, isRegen, enlargeTo){
     const h=document.createElement('div'); h.className='cfmTitle';
     h.textContent=(isRegen?'要用「':'要套用「')+s.name+(isRegen?'」再生成一張嗎？':'」嗎？');
     const b=document.createElement('div'); b.className='cfmBody';
-    /* 逐行 append：費用那行要標色，但**不拼 HTML**——款式名與訊息一律走 textContent。 */
+    /* 逐行 append、**不拼 HTML**——款式名與訊息一律走 textContent。 */
     lines.forEach((t,i)=>{
       if(i) b.appendChild(document.createElement('br'));
-      if(t.startsWith('COST')){
-        const sp=document.createElement('span'); sp.className='cfmCost'; sp.textContent=t.slice(4);
-        b.appendChild(sp);
-      } else b.appendChild(document.createTextNode(t));
+      b.appendChild(document.createTextNode(t));
     });
     const btns=document.createElement('div'); btns.className='cfmBtns';
     const no=document.createElement('button'); no.className='btn'; no.textContent='取消';
@@ -2384,14 +2404,21 @@ function ptConfirmApply(s, isRegen, enlargeTo){
   });
 }
 
-function ptApply(s){
-  const want=s.mode==='quad'?4:2;
+/* 料數切到這一款的（套本地款式；打開 AI 款式時 redraw＝馬上重畫，料色那一行才對得上）。沒有四料機＝講出來、不切。 */
+function ptEnsureMode(mode, redraw){
+  const want=mode==='quad'?4:2;
   if(want===4 && !ptQuadOk()){
     ptNotice(typeof modeBlockedMessage==='function' ? modeBlockedMessage() : '這款需要四料機台。');
     return false; }
+  if(slotCount===want) return true;
   slotCount=want;
   const seg=document.getElementById('modeSeg');
   if(seg) for(const b of seg.children) b.classList.toggle('on', +b.dataset.n===want);
+  if(redraw){ renderSlots(); simulate(); }
+  return true;
+}
+function ptApply(s){
+  if(!ptEnsureMode(s.mode)) return false;
   /* ⛔ 下面這段（2026-08-17）已被 R6-16 推翻（2026-09-22 裁；段 F 落地），原文保留供追溯、**不要照它做**：
      料色：先寫進款式宣告的那組（沒有圖時的合理初值），再看要不要交給自動配色。
      🔴 分界＝這個款式吃的是「AI 生的平面化圖」還是「原始照片」（Eric 2026-08-17 裁）：
@@ -2418,13 +2445,7 @@ function ptApply(s){
      這裡只排隊；真正發送在 simulateVertical 尾端（那時料色與色階才定案）。 */
   if(Array.isArray(s.pipeline) && s.pipeline.length)
     ptStylePending={styleId:s.id, tones:tones};
-  /* 丙案：AI 款式＝套用就去生圖，但**排到 ptRender() 之後才發**（2026-09-02 實測踩到）。
-     🔴 不可以在這裡直接發：點款式的流程是 ptApply() → ptRender()，而 ptRender 會重寫
-        同一條狀態列 ⇒ 不論是「AI 生圖中…」還是「請先載入一張照片」都會被立刻蓋掉，
-        使用者按下去看起來毫無反應。與甲案排隊等 levels 的理由不同（那是等資料），
-        這裡純粹是**等畫面重畫完**。 */
-  else if(s.requiresAI)
-    ptAiPending={styleId:s.id, tones:tones};
+  /* AIP 刀 4：AI 款式不走 ptApply 了（點卡＝aiflow.js 打開三步；金鑰直連在三步最下面那一行）。 */
   else
     ptStyleStat('');
   ptApplied=s.id;
@@ -2442,7 +2463,11 @@ function ptSizeBarSync(){
   /* 寬／高的顯示欄位＝輸入欄位本身（Eric 2026-09-03 令「結合後面的顯示欄位，跟輸入欄位做在同一個」）：
      值由 syncSizeInputs() 同步進 #wIn／#hIn，這裡不再另外印一份數字。 */
   const hint=document.getElementById('sizeBarHint');
-  if(hint){
+  /* AIP 刀 4（R9-11 v3 後九題 Q1～Q3）：宿主送了各機資料（models）＝寫這台的上限、拉桿到上限就停；沒送（舊宿主／瀏覽器）＝照舊 */
+  const cap=window.PhotoTileAiFlow ? PhotoTileAiFlow.capInfo(hint) : null;
+  for(const [id,v] of [['wRange',cap&&cap.maxW],['wIn',cap&&cap.maxW],['hIn',cap&&cap.maxH]]){ const el=document.getElementById(id); if(el) el.max=v||SIZE_MAX_MM; }
+  if(window.PhotoTileAiFlow) PhotoTileAiFlow.refresh();
+  if(hint && !cap){
     /* 機台真實上限（2026-09-02 由 %APPDATA% 的機器 preset 實查）：
        可印高 FD300 300／FF600 580／FF800 600；盤面直徑約 300／600／800。
        放這裡是因為使用者拉到超過機台時，這行就是他唯一的線索。 */
@@ -2472,14 +2497,14 @@ function ptRender(){
   const cands=ptCandidates();
   /* 推薦：可用的裡 priority 最小。使用者自己點過就固定住，除非它變成不可用。 */
   const cur=ptStyle?ptStyleById(ptStyle):null;
-  if(!ptUserPicked || !cur || !cands.some(s=>s.id===ptStyle) || !ptUsable(cur).ok){
+  if(!/^my-/.test(ptStyle||'') && (!ptUserPicked || !cur || !cands.some(s=>s.id===ptStyle) || !ptUsable(cur).ok)){   // my-＝我的款式開著（aiflow.js）
     const good=cands.filter(s=>ptUsable(s).ok);
     ptStyle=good.length?good[0].id:null;
   }
 
   const g=document.getElementById('styleGrid');
   if(g){
-    g.innerHTML=cands.length ? cands.map(s=>{
+    g.innerHTML=(cands.length ? cands.map(s=>{
       const u=ptUsable(s);
       return '<div class="scard'+((s.id===ptStyle&&u.ok)?' sel':'')+(s.id===ptApplied?' applied':'')+(u.ok?'':' off')+'" data-s="'+s.id+'">'
         +'<div><span class="nm">'+s.name+'</span>'
@@ -2492,17 +2517,21 @@ function ptRender(){
            會用「一般狗臉」的先驗補上，印出來好看但不是他家那隻＝**那是客訴，不是瑕疵**。
            ⚠ 別跟 faceFillMin 混為一談：那條管可印性（臉不填滿畫面時 100mm 印不出眼睛）。
            寫在卡片上，是為了讓將來的人看得到理由——否則它只像個沒必要的限制，會被順手拿掉。 */
-        +(s.requiresAI?('<br>AI 生圖 '+ptAiCostText()+'　臉佔畫面越小，AI 越可能自己補五官＝印出來不是本人；臉太小請先裁切再上傳。'):'')
+        +(s.requiresAI?'<br>用你自己的 AI（ChatGPT 等）產圖，不用金鑰。臉佔畫面越小，AI 越可能自己補五官＝印出來不是本人；臉太小請先裁切再上傳。':'')   /* AIP 刀 4：客戶畫面不寫單價（R9-11 連帶失效） */
         +'</div>'
         +'<div class="pill '+(u.ok?'ok':'no')+'">'
-        +(u.ok?(ptMinTile(s)+' mm 起可印'+(s.id===ptApplied?'　·　已套用':(s.id===ptStyle?'　·　點一下套用':''))):u.why)
+        +(u.ok?(ptMinTile(s)+' mm 起可印'+(s.id===ptApplied?'　·　已套用':(s.requiresAI?'　·　點一下開始':(s.id===ptStyle?'　·　點一下套用':'')))):u.why)
         +'</div></div>';
-    }).join('') : '<div class="statline">這個題材目前沒有'+(ptFixedMode?(ptFixedMode==='quad'?'四料':'雙料'):'')+'款式</div>';
+    }).join('') : '<div class="statline">這個題材目前沒有'+(ptFixedMode?(ptFixedMode==='quad'?'四料':'雙料'):'')+'款式</div>')
+      /* AIP 刀 4（R9-11 Q9）：清單最後＝我的款式（同料數、每個題材都看得到）＋「＋ 自己做一款」（aiflow.js 畫、點了也歸它） */
+      +(window.PhotoTileAiFlow ? PhotoTileAiFlow.extraCardsHtml(slotCount===4?'quad':'dual', ptStyle) : '');
 
-    g.querySelectorAll('.scard').forEach(e=>e.onclick=async ()=>{
+    g.querySelectorAll('.scard[data-s]:not([data-af])').forEach(e=>e.onclick=async ()=>{
       /* 生圖／壓平還在跑：不問、不套用（CSS 已擋 pointer-events，這裡是第二道，鍵盤／程式觸發也擋）。 */
       if(ptAiJob || ptStyleJob) return;
       const s=ptStyleById(e.dataset.s), u=ptUsable(s);
+      /* AIP 刀 4（R9-11 Q2）：AI 款式＝就地打開三步，不跳確認窗、不花錢、不改設定；要放大／放不到寫在三步上面（原型 v4）。 */
+      if(s.requiresAI && u.kind!=='quad' && window.PhotoTileAiFlow){ PhotoTileAiFlow.open(s.id); return; }
       /* Eric 2026-09-03：「需放大」不再只講限制——直接問「要不要放大並套用」，
          確認＝放大→套用（AI 款接著生圖）一氣呵成；取消＝什麼都不動。
          與套用確認合成**同一個窗**（不疊兩層）。quad／金鑰兩種擋法照舊——那兩種不是一鍵能解的。 */
@@ -2514,11 +2543,7 @@ function ptRender(){
         await new Promise(r=>setTimeout(r,0));                                       // 等 params.width 與重繪排完
         const u2=ptUsable(s);
         if(!u2.ok){ ptNotice('「'+s.name+'」放大後仍不能選——'+u2.why); return; }
-        if(ptApply(s)){
-          ptStyle=s.id; ptUserPicked=true; ptRender();
-          if(ptAiPending){ const j=ptAiPending; ptAiPending=null;
-            const st=ptStyleById(j.styleId); if(st) ptAiGenerate(st, j.tones); }
-        }
+        if(ptApply(s)){ ptStyle=s.id; ptUserPicked=true; ptRender(); }
         return;
       }
       if(!u.ok){
@@ -2531,10 +2556,7 @@ function ptRender(){
         const tail = u.kind==='quad'
           ? '這款需要四料照片磚機（FF 家族）。你的機器清單裡目前沒有四料照片磚機，'+nl
             +'所以做不出來——在「選擇 3D 列印機」的照片磚分頁加入 FF600／FF800 就選得到。'
-          : u.kind==='ai'
-            ? '這款要靠 AI 重畫你的照片，需要一把 AI 生圖金鑰（費用算在你自己的 AI 帳號上）。'+nl
-              +'填法：主視窗上方「幫助 → 設定 AI 生圖服務金鑰」，貼上後按「測試連線」確認，回到這裡就會解鎖。'+nl
-              +'不想用 AI 也可以——標「本地」的款式不需要金鑰。'
+          : u.kind==='cant' ? '換大一點的機器，或選別的款式'
             : '把寬度放大到 '+ptMinTile(s)+' mm 以上就可以選。';
         ptNotice('「'+s.name+'」目前不能選——'+u.why+nl+tail);
         return;
@@ -2542,12 +2564,7 @@ function ptRender(){
       /* Eric 2026-09-02：套用前一定要問（誤點會花錢，也會蓋掉手調的料色與色階數）。
          重點一次款式＝「再生成一張」，AI 那條同樣要錢 ⇒ 一樣要問，只是換句話問。 */
       if(!(await ptConfirmApply(s, s.id===ptApplied))) return;
-      if(ptApply(s)){
-        ptStyle=s.id; ptUserPicked=true; ptRender();
-        /* 🔴 一定要在 ptRender() 之後——它會重寫狀態列，先發就看不到任何回饋。 */
-        if(ptAiPending){ const j=ptAiPending; ptAiPending=null;
-          const st=ptStyleById(j.styleId); if(st) ptAiGenerate(st, j.tones); }
-      }
+      if(ptApply(s)){ ptStyle=s.id; ptUserPicked=true; ptRender(); }
     });
   }
 
@@ -2575,11 +2592,9 @@ function ptRender(){
       setTimeout(ptRender,0); };
     fix.appendChild(b);
   }else if(why && !ptBusy){
-    why.textContent = ptStyle ? '' :
-      (ptAiReady() ? '把尺寸放大，或換一個題材。'
-                   /* 2026-09-02：生圖已進產品 ⇒ 缺的是金鑰不是功能，講缺的那件事。 */
-                   : '這個題材目前沒有本地款式可用；AI 款式要先填金鑰（幫助 → 設定 AI 生圖服務金鑰）。');
+    why.textContent = ptStyle ? '' : '把尺寸放大，或換一個題材。';   // AIP 刀 4：AI 款式不再要金鑰
   }
+  if(window.PhotoTileAiFlow) PhotoTileAiFlow.refresh();   // 開發者模式那一行跟著「這台有沒有存金鑰」
 }
 
 document.getElementById('subjectSel').addEventListener('change',e=>{
@@ -2617,6 +2632,25 @@ if(window.PhotoTileMatFlow) PhotoTileMatFlow.mount({
   materialTypes:()=>machineCap&&machineCap.materialTypes, typesReady:()=>!!machineCap||!slicerBridgeReady(),   // T061：照片磚印得出來的料種（App 給）
   acceptTable:calibAcceptRaw,
   applied:ptMatAfterChange, statusLine:ptMatStatusLine, renderCalSteps:calibRenderSteps
+});
+/* AIP 刀 4：複製提示詞流程（aiflow.js）的轉接物件——畫面與規則住那邊；這裡只交「頁面的狀態怎麼讀、收圖之後怎麼做」。 */
+const ptMatInfo=md=>window.PhotoTileMatFlow ? PhotoTileMatFlow.info(md) : null;
+const ptThickAuto=h=>PingPhotoTileSize.thickAutoMm(PT_THICK_DEFAULT[slotCount]||10, h);
+if(window.PhotoTileAiFlow) PhotoTileAiFlow.mount({
+  lib:()=>STYLE_LIB, styleById:ptStyleById, tones:ptTones, minTile:ptMinTile, matInfo:ptMatInfo,
+  levelCap:md=>{ const i=ptMatInfo(md); return i ? i.cap : 8; }, colors:md=>{ const i=ptMatInfo(md); return i ? i.colors : null; },
+  enPalette:hx=>PhotoTileMatFlow.aiPaletteLine({colors:hx}), layerMm:md=>PhotoTileEngine.layerHeightMm(md, params.nozzle),
+  params:()=>params, aspect:()=>imgAspect, locked:()=>sizeAspectLocked, mode:()=>slotCount===4?'quad':'dual',
+  subject:()=>ptSubject, machineCap:()=>machineCap, thickAt:h=>ptThickUserSet ? params.thick : ptThickAuto(h), thickAuto:ptThickAuto,
+  hasImage:()=>!!img, matReady:()=>calibOwnsSlots(), deltaE:()=>lastDeltaE,
+  deWarn:()=>(STYLE_LIB.acceptance&&STYLE_LIB.acceptance.deltaE&&STYLE_LIB.acceptance.deltaE.warn)||12,
+  bridge:slicerBridgeReady, send:sendSlicerMessage, busy:()=>!!ptAiJob||!!ptStyleJob, busyText:t=>ptSourceBusy(t,''),
+  accept:ptAiAccept, restorePhoto:ptAiToPhoto, ensureMode:md=>ptEnsureMode(md,true), select:id=>{ ptStyle=id; ptUserPicked=true; },
+  renderCards:ptRender, resize:why=>applySizeChange('width', params.width, true, why), sizeBar:ptSizeBarSync,
+  setWidth:w=>{ applySizeChange('width', w); setTimeout(ptRender,0); },
+  setLocked:v=>{ const c=document.getElementById('aspectLock'); if(c){ c.checked=v; c.dispatchEvent(new Event('change')); } },
+  focusSize:()=>{ const w=document.getElementById('wIn'); w.scrollIntoView({block:'center'}); w.focus(); w.select(); },
+  devAvail:()=>ptAiAvail, devGenerate:ptAiGenerate, aiCost:ptAiCostText
 });
 ptSyncVisibility(); ptRender();
 renderSlots(); syncOrientUI();
@@ -2928,7 +2962,7 @@ function ptGalCloseDelete(){
   document.addEventListener('drop',function(e){
     if(e.defaultPrevented) return;
     e.preventDefault();
-    var f=(e.dataTransfer && e.dataTransfer.files||[])[0]; if(f) loadFile(f);
+    var f=(e.dataTransfer && e.dataTransfer.files||[])[0]; if(f) ptDropFile(f);
   });
   ptGalOnEmpty();
 })();

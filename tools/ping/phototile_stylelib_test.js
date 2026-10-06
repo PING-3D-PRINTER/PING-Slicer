@@ -7,8 +7,10 @@
  * 2026-10-06（牌 c-1006-AIP-01）：內嵌的 `<script id="ptStyleLib">` 搬成 stylelib.js（由 JSON 產生，
  * 重產＝verify_phototile_stylelib.py --sync）；本支改成用 vm 真的執行 stylelib.js，跟瀏覽器讀到的是同一份。
  *
- * 另驗 constants.toneRules（Eric 2026-09-16 裁「寫進去」）存在且被 index.html 實際接上——
- * 它有兩個消費端（index.html 的 ptAiGenerate、照片磚管線/pipeline.py），少接一邊就會漂回卡通風。
+ * 另驗 constants.toneRules（Eric 2026-09-16 裁「寫進去」）存在且被頁面實際接上——
+ * 它有兩個消費端（頁面、照片磚管線/pipeline.py），少接一邊就會漂回卡通風。
+ * 2026-10-06（AIP 刀 4，牌 c-1006-AIP-02）：頁面這端的組法搬進 aiflow.js 的 buildPrompt（客戶複製的與金鑰直連同一份），
+ * ⇒ 「接上」改成：aiflow.js 讀 constants.toneRules／toneRulesZh，而且 index.html 交給它的款式庫就是宣告的那個識別字。
  */
 const fs = require('fs');
 const path = require('path');
@@ -58,8 +60,11 @@ if (!decl) {
   fails.push('找不到 index.html 裡接 stylelib.js（' + LIB_IDENT + '）的那個 const 宣告');
 } else {
   const ident = decl[1];
-  const re = new RegExp(ident.replace(/\$/g, '\$') + '\.constants\.toneRules');
-  if (!re.test(html)) fails.push('index.html 的生圖路徑沒有把 toneRules 接上去（要用宣告的 ' + ident + '，接了才有效）');
+  const af = fs.readFileSync(path.join(web, 'aiflow.js'), 'utf8');
+  if (!/C\.toneRulesZh : C\.toneRules\)/.test(af) || !/const C = o\.lib\.constants/.test(af))
+    fails.push('aiflow.js 的 buildPrompt 沒有把 toneRules（中／英）接上去');
+  if (!new RegExp('lib:\\(\\)=>' + ident.replace(/\$/g, '\\$') + ',').test(html))
+    fails.push('index.html 交給 aiflow.js 的款式庫不是宣告的 ' + ident + '（接錯識別字＝產品一產生提示詞就 ReferenceError）');
   const wrong = html.match(/\b([A-Za-z_$][\w$]*)\.constants\.toneRules/g) || [];
   const bad = wrong.filter(w => !w.startsWith(ident + '.'));
   if (bad.length) fails.push('有地方用了不存在的識別字取 toneRules：' + [...new Set(bad)].join(',') + '（宣告的是 ' + ident + '）');
