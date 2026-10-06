@@ -106,4 +106,30 @@ const {
   assert.doesNotMatch(html, /size_ratio\.js\?v=20260720b/, "改了 size_ratio.js 要動版本字串（SOP WebView2 §N）");
 }
 
+/* AIP 第二班 Q3：自動厚度提醒的高度保留 0.1 mm，整數不補 .0。 */
+{
+  for (const [heightMm, shown] of [
+    [579.8, "579.8"],
+    [269.8, "269.8"],
+    [299.8, "299.8"],
+    [298.5, "298.5"],
+    [580, "580"],
+    [300, "300"],
+    [579.84, "579.8"],
+    [579.96, "580"]
+  ]) {
+    const note = thickNote({ userSet: false, thickMm: 10, defaultMm: 10, heightMm });
+    assert.ok(note.text.includes(`高 ${shown} mm ÷ 15`), `高度 ${heightMm} 應顯示高 ${shown} mm ÷ 15`);
+  }
+  const fractional = thickNote({ userSet: false, thickMm: 10, defaultMm: 10, heightMm: 579.8 });
+  assert.doesNotMatch(fractional.text, /高 580 mm/, "579.8 不得顯示成高 580 mm");
+  assert.match(fractional.text, /^厚度跟著高度調到 39 mm/, "只改高度顯示，自動厚度仍是 39 mm");
+  const integer = thickNote({ userSet: false, thickMm: 10, defaultMm: 10, heightMm: 580 });
+  assert.doesNotMatch(integer.text, /580\.0/, "整數高度不補 .0");
+  assert.deepEqual(thickNote({ userSet: true, thickMm: 30, defaultMm: 10, heightMm: 579.8 }),
+    { warn: true, text: "比防倒建議的 39 mm 薄（高 ÷ 15）——磚這麼高、這麼薄，印的時候容易倒。", action: "改回 39 mm" });
+  assert.deepEqual(thickNote({ userSet: true, thickMm: 39, defaultMm: 10, heightMm: 579.8 }),
+    { warn: false, text: "厚度 39 mm（你自己設的）", action: "跟著尺寸自動調" });
+}
+
 console.log("photo-tile proportional size tests: PASS");
