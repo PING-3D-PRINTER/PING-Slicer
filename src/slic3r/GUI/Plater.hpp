@@ -347,6 +347,13 @@ public:
     // 所有混色 UI 一律問這一把尺，不要直接問 is_ping_tongjin_selected()——照片磚機也是同進，
     // 但它有自己的逐零件配方，混色曲線對它沒有意義。照片磚判準走 PhotoTileCapability 單一來源。
     bool is_ping_mix_available(bool* is_quad = nullptr) const;
+    // PING(2026-10-07 Eric 令)：目前機型是否 Classic 前代＝機型檔 family 為 "Classic"
+    // （DUAL 300／450／600／800 各三種＋EDU 200／PING 200／270／300+，共 16 個；Marlin 韌體、
+    // 靠 SD 卡列印、沒有網路）。Classic 專屬介面（拿掉上傳列印／連接鈕／設備分頁／壓力補償）
+    // 一律問這一把尺。
+    // ⚠ 不要改用「機型名 DUAL 開頭」（PhotoTileCapability::is_classic）——那把尺只管照片磚，
+    //    會漏掉 EDU 200／PING 200／270／300+。
+    bool is_ping_classic_selected() const;
     // 依目前配方重烘 GCodeViewer 的 per-layer 混色色表（gcode 已載入時）
     void refresh_ping_mix_preview();
     // 混色開關（B 案：＝編輯器面板展開狀態）。關閉時輸出 gcode 完全不動、預覽不染色

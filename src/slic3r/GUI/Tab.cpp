@@ -4600,6 +4600,19 @@ void TabFilament::toggle_options()
         toggle_line("adaptive_pressure_advance_model", has_adaptive_pa && pa);
         toggle_line("adaptive_pressure_advance_bridges", has_adaptive_pa && pa);
 
+        // PING(2026-10-07 Eric 令)：Classic 前代韌體沒有壓力補償＝整組欄位不顯示（只藏介面，
+        // 引擎不動；內建 Classic 線材本來就是關的）。
+        if (wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_classic_selected()) {
+            for (const char* key : {"enable_pressure_advance", "pressure_advance", "adaptive_pressure_advance",
+                                    "adaptive_pressure_advance_overhangs", "adaptive_pressure_advance_model",
+                                    "adaptive_pressure_advance_bridges"})
+                toggle_line(key, false);
+        } else {
+            toggle_line("enable_pressure_advance", true);
+            toggle_line("pressure_advance", true);
+            toggle_line("adaptive_pressure_advance", true);
+        }
+
         bool is_pellet_printer = cfg.opt_bool("pellet_modded_printer");
         toggle_line("pellet_flow_coefficient", is_pellet_printer);
         toggle_line("filament_diameter", !is_pellet_printer);

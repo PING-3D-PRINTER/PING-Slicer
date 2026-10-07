@@ -2400,7 +2400,10 @@ void Sidebar::update_all_preset_comboboxes()
         p_mainframe->set_print_button_to_default(MainFrame::PrintSelectType::ePrintPlate);
     } else {
         //p->btn_connect_printer->Show();
-        p->m_printer_connect->Show();
+        // PING：Classic 前代沒有網路＝不給「連接」鈕（填 IP／主機的視窗）
+        const bool ping_classic = p->plater != nullptr && p->plater->is_ping_classic_selected();
+        p->m_printer_connect->Show(!ping_classic);
+        p->m_panel_printer_title->Layout();
 
         // ORCA: show/hide sync-ams button based on filament sync mode
         auto agent = wxGetApp().getAgent();
@@ -2423,7 +2426,11 @@ void Sidebar::update_all_preset_comboboxes()
             print_btn_type = preset_bundle.is_bbl_vendor() ? MainFrame::PrintSelectType::ePrintPlate : MainFrame::PrintSelectType::eSendGcode;
         }
 
-        p_mainframe->load_printer_url(url, apikey);
+        // PING：Classic 一律「匯出 G-code 檔案」（存到 SD 卡），就算另存的預設裡留著主機位址也不送
+        if (ping_classic)
+            print_btn_type = MainFrame::PrintSelectType::eExportGcode;
+        else
+            p_mainframe->load_printer_url(url, apikey);
 
 
         p_mainframe->set_print_button_to_default(print_btn_type);
@@ -2494,7 +2501,10 @@ void Sidebar::update_all_preset_comboboxes()
     }
 
     // Orca:: show device tab based on vendor type
-    p_mainframe->show_device(preset_bundle.use_bbl_device_tab());
+    // PING：Classic 前代不顯示「設備」分頁、列印鈕不給下拉、校正選單不給壓力補償
+    const bool ping_classic_ui = p->plater != nullptr && p->plater->is_ping_classic_selected();
+    p_mainframe->show_device(preset_bundle.use_bbl_device_tab(), ping_classic_ui);
+    p_mainframe->update_ping_classic_ui(ping_classic_ui);
     p_mainframe->m_tabpanel->SetSelection(p_mainframe->m_tabpanel->GetSelection());
 }
 
@@ -13644,6 +13654,24 @@ bool Plater::is_ping_mix_available(bool* is_quad) const
     if (!is_ping_tongjin_selected(is_quad))
         return false;
     return !photo_tile_capability_of_selected_printer().has_photo_tile_marker;
+}
+
+// PING(2026-10-07 Eric 令「選 Classic 時介面專門為 Classic 設計，網路與遠端監控通通拿掉」)。
+// 判準＝機型檔（machine_model）的 family 欄，不比機型名字串：使用者另存的機器預設仍帶原本的
+// printer_model，所以也會被涵蓋。查不到機型（第三方／自建機）＝不是 Classic＝介面照舊（fail-open）。
+bool Plater::is_ping_classic_selected() const
+{
+    const PresetBundle* bundle = wxGetApp().preset_bundle;
+    if (bundle == nullptr)
+        return false;
+    const std::string pm = bundle->printers.get_edited_preset().config.opt_string("printer_model");
+    if (pm.empty())
+        return false;
+    for (const auto& vendor : bundle->vendors)
+        for (const auto& model : vendor.second.models)
+            if (model.name == pm || model.id == pm)
+                return model.family == "Classic";
+    return false;
 }
 
 void Plater::set_ping_mix_state(const PingMixState& state)
