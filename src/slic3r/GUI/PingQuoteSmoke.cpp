@@ -4,6 +4,8 @@
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
 #include "Plater.hpp"
+#include "GLCanvas3D.hpp"
+#include "Selection.hpp"
 
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/Model.hpp"
@@ -15,6 +17,7 @@
 #include <wx/timer.h>
 
 #include <cstdlib>
+#include <iomanip>
 #include <string>
 #include <vector>
 
@@ -120,6 +123,28 @@ void run_ping_quote_smoke(MainFrame *frame)
                     }
                     plater->changed_object(static_cast<int>(idx));   // 重新貼床＋更新場景
                 }
+            }
+        }
+
+        /* 契約 v1.4 驗收用（選填，PING_QUOTE_SMOKE_PANEL_SIZE=1）：逐件選取，把尺寸面板切到
+           「物件座標」時會顯示的三個數字寫進 log，拿來和 quote.txt 的 size_* 對。
+           面板走的是 Selection 這條路，和報價包自己的取值程式互相獨立——兩邊對得上才算數。 */
+        {
+            const char *panel_env = ::getenv("PING_QUOTE_SMOKE_PANEL_SIZE");
+            GLCanvas3D *canvas    = plater->get_view3D_canvas3D();
+            if (panel_env != nullptr && std::string(panel_env) == "1" && canvas != nullptr) {
+                Selection &sel = canvas->get_selection();
+                for (size_t idx : loaded) {
+                    sel.add_object(static_cast<unsigned int>(idx), true);
+                    if (sel.is_empty())
+                        continue;
+                    const Vec3d ps = sel.get_bounding_box_in_reference_system(ECoordinatesType::Instance).first.size();
+                    const Vec3d ws = sel.get_bounding_box_in_reference_system(ECoordinatesType::World).first.size();
+                    BOOST_LOG_TRIVIAL(warning) << std::fixed << std::setprecision(4) << "PING_QUOTE_SMOKE panel idx=" << idx
+                                               << " object_coords=" << ps.x() << "/" << ps.y() << "/" << ps.z()
+                                               << " world_coords=" << ws.x() << "/" << ws.y() << "/" << ws.z();
+                }
+                sel.remove_all();
             }
         }
 
