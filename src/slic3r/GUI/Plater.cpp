@@ -577,7 +577,9 @@ void Sidebar::priv::layout_printer(bool isBBL, bool isDual)
     }
 
     //btn_connect_printer->Show(!isBBL);
-    m_printer_connect->Show(!isBBL);
+    // PING：Classic 前代沒有網路＝不給「連接」鈕。這裡在 update_all_preset_comboboxes() 之後還會再跑一次
+    // （update_presets → layout_printer），兩處都要問同一把尺，否則鈕會被這裡重新叫出來。
+    m_printer_connect->Show(!isBBL && !(plater != nullptr && plater->is_ping_classic_selected()));
     //btn_sync_printer->Show(isBBL);
     m_printer_bbl_sync->Show(isBBL);
 
