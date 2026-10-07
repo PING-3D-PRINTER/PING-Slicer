@@ -34,7 +34,120 @@
   "defaultThickMm": 10,
   "_defaultThickMm": "厚度＝換色清料空間。Eric 2026-08-15 裁 6 → 10；已同步 index.html:181 與 engine.js:94。",
   "toneRules": "ADDITIONAL MANDATORY RULES (if these conflict with the palette or colour-count instructions above, THE INSTRUCTIONS ABOVE WIN): Gallery-grade silkscreen / vector pop-art poster — adult, graphic, something that looks right framed on a wall. FORBIDDEN: cute, cartoon, mascot, chibi, kawaii, children-book illustration, emoji-like faces, sticker art, rounded friendly shapes. The subject MUST FILL THE FRAME: a head portrait fills at least 85% of the frame width, a full-body figure at least 80% of the frame height — no large empty margins. Eyes and facial features MUST be drawn as definite shapes with clear internal structure, never reduced to dots, tiny circles or thin lines. Colour boundaries must follow the REAL light/shadow edges of the source photo (cheekbone, brow, muzzle, fur mass, ridge line), not decorative invented shapes.",
-  "_toneRules": "Eric 2026-09-16 裁「寫進去」。這套鐵則原本只活在臨時檔 style.txt，**要有人記得疊上去才有效**——四料五張第一輪直接用 promptTemplate 生，四張漂成可愛卡通（最嚴重那張貓臉變成大白圓＋兩顆黑點），疊上鐵則重生後五張全過。🔴 消費端有兩處，改一處就會漂：index.html 的 ptAiGenerate 與 照片磚管線/pipeline.py；兩邊都必須接這一段。刻意寫成「與上面的配色指示衝突時以上面為準」，否則會把雙料款式那句『只用米白與近黑』推翻掉。"
+  "toneRulesZh": "追加的必要規則（如果和上面的配色或顏色數量指示衝突，以上面的指示為準）：畫廊等級的絹印／向量普普藝術（silkscreen／vector pop-art）海報——成熟、有平面設計感，裱框掛在牆上會好看的那種。禁止：可愛風、卡通、吉祥物、Q 版（chibi）、萌系（kawaii）、兒童繪本插畫、像表情符號的臉、貼紙風、圓滾滾討喜的造型。主體一定要填滿畫面：頭像至少佔畫面寬度的 85%，全身像至少佔畫面高度的 80%——不要留大片空白。眼睛和五官一定要畫成有明確內部結構的形狀，絕不能簡化成點、小圓圈或細線。色塊的邊界要沿著原照片真實的明暗交界（顴骨、眉骨、口鼻、毛量、山稜線），不要自己發明裝飾性的形狀。",
+  "_toneRules": "Eric 2026-09-16 裁「寫進去」。這套鐵則原本只活在臨時檔 style.txt，**要有人記得疊上去才有效**——四料五張第一輪直接用 promptTemplate 生，四張漂成可愛卡通（最嚴重那張貓臉變成大白圓＋兩顆黑點），疊上鐵則重生後五張全過。🔴 消費端有兩處，改一處就會漂：index.html 的 ptAiGenerate 與 照片磚管線/pipeline.py；兩邊都必須接這一段。刻意寫成「與上面的配色指示衝突時以上面為準」，否則會把雙料款式那句『只用米白與近黑』推翻掉。",
+  "aiFlow": {
+   "source": {
+    "template": "D:/_sa/aip/proto4_template.html",
+    "sha256": "f658e1f5c41fd695d2851e75e862f69e7c885d9751b2f682bb6d7b0e4f935e92"
+   },
+   "customRules": {
+    "en": "MANDATORY RULES FOR PRINTING (if anything above conflicts with these, THESE WIN): use EXACTLY {tones} flat colours — no gradients, no texture, no halftone dots, no dithering. Nothing anywhere may be narrower than {minPx} pixels. The subject MUST FILL THE FRAME: a head portrait fills at least 85% of the frame width, a full-body figure at least 80% of the frame height. Eyes and facial features MUST be drawn as definite shapes with clear internal structure, never reduced to dots, tiny circles or thin lines.",
+    "zh": "列印必要規則（上面的描述如果和這幾條衝突，以這幾條為準）：剛好用 {tones} 個平色——不要漸層、不要質感、不要網點、不要抖色點。畫面裡任何東西都不可以細於 {minPx} 像素。主體一定要填滿畫面：頭像至少佔畫面寬度的 85%，全身像至少佔畫面高度的 80%。眼睛和五官一定要畫成有明確內部結構的形狀，絕不能簡化成點、小圓圈或細線。"
+   },
+   "replyNames": {
+    "zh_TW": "繁體中文",
+    "zh_CN": "簡體中文",
+    "en": "English",
+    "ja": "Japanese"
+   },
+   "chatPreface": {
+    "zh": "請用我附上的照片，照下面的說明產生一張新的圖。不要先問我問題，直接產圖。\n圖的形狀：{shape}（{size}）；主體要完整留在畫面裡。\n如果要回覆文字，請用{reply}。",
+    "en": "Please create ONE new picture from the photo I attached, following the instructions below. Do not ask me any questions first — just generate the image.\nPicture shape: {shape} ({size}); keep the whole subject inside the frame.\nIf you reply with any text, write it in {reply}."
+   },
+   "printDetail": {
+    "zh": {
+     "thin": "列印細節（這塊磚是站著印的）：左右方向，任何線條、縫隙或形狀都不可以窄於 {x} 像素；上下方向，細的橫條也印得出來。不要有窄於 {x} 像素的零星小點——把它們併進旁邊的顏色。",
+     "band": "列印細節（這塊磚是站著印的）：左右方向，任何線條、縫隙或形狀都不可以窄於 {x} 像素；上下方向，橫條只要有 {z} 像素高就印得出來。不要有窄於 {x} 像素的零星小點——把它們併進旁邊的顏色。"
+    },
+    "en": {
+     "thin": "PRINT DETAIL (the tile is printed standing up): from left to right, no stroke, gap or shape may be narrower than {x} pixels; from top to bottom, even thin horizontal bands print fine. No isolated specks or crumbs narrower than {x} pixels — merge them into the surrounding colour.",
+     "band": "PRINT DETAIL (the tile is printed standing up): from left to right, no stroke, gap or shape may be narrower than {x} pixels; from top to bottom, a horizontal band only needs to be at least {z} pixels tall. No isolated specks or crumbs narrower than {x} pixels — merge them into the surrounding colour."
+    }
+   },
+   "hexJoin": {
+    "zh": "、",
+    "en": ", "
+   },
+   "paletteLineZh": "可列印的顏色（這一條優先於上面提到的任何顏色或配色）：這塊磚只用剛好 {n} 種線材顏色印——{hexes}。只能用這幾個顏色，或其中任兩色之間的混色（兩色之間的一個階）。不要加入任何其他色相。",
+   "retry": [
+    {
+     "key": "color",
+     "label": "顏色不對",
+     "en": "The colours are not right. Redraw the SAME picture — keep every shape exactly where it is — but use ONLY these colours: {hexes} (or a step between two of them), exactly {tones} flat tones. No other hue, no gradients.",
+     "zh": "顏色不對。請重畫同一張圖——每個形狀的位置都不要動——但只能用這幾個顏色：{hexes}（或其中兩色之間的一個階），剛好 {tones} 個平色。不要其他色相、不要漸層。"
+    },
+    {
+     "key": "thin",
+     "label": "太細、看不清楚",
+     "en": "Some parts are too thin or too small to print. Redraw the same picture with bolder, simpler shapes: nothing may be narrower than {minPx} pixels; merge tiny details into larger areas; keep the eyes, nose and outline clearly readable.",
+     "zh": "有些地方太細或太小，印不出來。請用更粗、更簡單的形狀重畫同一張圖：任何東西都不可以細於 {minPx} 像素；小細節併進較大的色塊；眼睛、鼻子和輪廓要清楚可辨。"
+    },
+    {
+     "key": "bg",
+     "label": "背景跟主體黏在一起",
+     "en": "The subject blends into the background. Redraw the same picture so the background is ONE flat tone that is clearly different from every tone on the subject's outline, so the whole silhouette reads as one closed shape.",
+     "zh": "主體和背景黏在一起了。請重畫同一張圖，背景用單一平色，而且要和主體輪廓上的每一個顏色都明顯不同，讓整個剪影看起來是一個封閉的形狀。"
+    },
+    {
+     "key": "like",
+     "label": "不像（五官或輪廓跑掉）",
+     "en": "Keep it faithful to my photo: the same face shape, eye spacing, ear shape and markings. Do not invent features that are not in the photo. Keep the same colours and rules.",
+     "zh": "請忠於我的照片：臉型、眼距、耳朵形狀和斑紋都要一樣。不要畫出照片裡沒有的特徵。顏色和規則維持不變。"
+    },
+    {
+     "key": "again",
+     "label": "就是再產一張",
+     "en": "Please make another version with the same instructions — a fresh take, same colours and the same rules.",
+     "zh": "請用同樣的說明再產一個版本——換個新的畫法，顏色和規則都一樣。"
+    }
+   ],
+   "ratioPhrase": {
+    "key": "shape",
+    "label": "改比例",
+    "en": "Redraw the same picture as a {shape} picture ({size}). Keep the whole subject inside the frame — do not crop the head or ears.",
+    "zh": "請把同一張圖重畫成{shape}（{size}）。主體要完整留在畫面裡——不要切到頭或耳朵。"
+   },
+   "shapes": {
+    "landscape": {
+     "zh": {
+      "txt": "橫式 3:2",
+      "size": "1536 × 1024 像素"
+     },
+     "ui": "橫式 3:2",
+     "px": 1536,
+     "en": {
+      "txt": "landscape 3:2",
+      "size": "1536 × 1024 px"
+     }
+    },
+    "portrait": {
+     "zh": {
+      "txt": "直式 2:3",
+      "size": "1024 × 1536 像素"
+     },
+     "ui": "直式 2:3",
+     "px": 1024,
+     "en": {
+      "txt": "portrait 2:3",
+      "size": "1024 × 1536 px"
+     }
+    },
+    "square": {
+     "zh": {
+      "txt": "正方形 1:1",
+      "size": "1024 × 1024 像素"
+     },
+     "ui": "正方形",
+     "px": 1024,
+     "en": {
+      "txt": "square 1:1",
+      "size": "1024 × 1024 px"
+     }
+    }
+   }
+  },
+  "_aiFlow": "AIP 刀 4（計畫頁 §03；規格 R9-11）：客戶「複製提示詞 → 用自己的 AI 產圖 → 貼回工作室」那條路用的文字。全部由 tools/ping/phototile_aiflow_extract.js 從原型 v4 用程式抽出（sha256 見 source），phototile_aiflow_libsync.py 寫進來；不要手改，改原型再重抽。頁面這端的組法在 aiflow.js（buildPrompt），金鑰直連（開發者模式）也走同一個組法、只少前言。英文的 promptTemplate／toneRules 不在這裡，照舊給 pipeline.py 讀。"
  },
  "policies": {
   "slotSelection": {
@@ -124,6 +237,7 @@
     "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
    },
    "promptTemplate": "Convert this portrait into a high-contrast two-tone stencil poster. EXACTLY 2 flat colors: cream white background and pure black, nothing else. No gradients, no halftone, no texture, no outlines. CRITICAL: draw the EYES boldly — thick black upper-eyelid line, the iris as one solid bold shape, and a WIDE clear cream gap separating each eyebrow from the eye below it so they never touch. Nothing anywhere may be narrower than {minPx} pixels. Simplify hair, beard and clothing into solid black masses with smooth curved edges. Flat cream background. No text. Fill the frame with the face.",
+   "promptTemplateZh": "把這張人像轉成高對比的雙色模板（stencil）海報。剛好 2 個平色：米白色背景和純黑，其他顏色都不要。不要漸層、不要網點、不要質感、不要描邊線。最重要：眼睛要畫得大膽——上眼瞼是一條粗黑線，虹膜是一整塊實心的粗形狀，每一道眉毛和下面的眼睛之間要留一條寬而清楚的米白間隔，兩者絕對不能相連。畫面裡任何東西都不可以細於 {minPx} 像素。頭髮、鬍子和衣服簡化成邊緣平滑彎曲的實心黑塊。背景是平的米白色。不要有文字。臉要填滿畫面。",
    "priority": 1,
    "deltaEBySubject": {
     "portrait_closeup": 5.29
@@ -170,6 +284,7 @@
     "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
    },
    "promptTemplate": "Convert this photo into a bold 3-tone poster: cream white background, one mid tone, and near-black for the subject. No gradients, no fur or fabric texture, no individual hairs, no outlines. The subject is a strong clean silhouette — keep the distinctive outline, pose and any characteristic shapes perfectly readable. Simplify markings into the single mid tone as clean flat shapes. Nothing anywhere may be narrower than {minPx} pixels. Flat background. No text.",
+   "promptTemplateZh": "把這張照片轉成一張大膽的 3 色調海報：米白色背景、一個中間色調、主體用接近黑色。不要漸層、不要毛髮或布料質感、不要一根根的毛、不要描邊線。主體是一個強烈、乾淨的剪影——有特色的輪廓、姿勢和任何獨特的形狀都要清楚可辨。把斑紋簡化成那一個中間色調的乾淨平塊。畫面裡任何東西都不可以細於 {minPx} 像素。背景是單一平色。不要有文字。",
    "priority": 1,
    "deltaEBySubject": {
     "pet_short": 10.07,
@@ -219,6 +334,7 @@
     "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
    },
    "promptTemplate": "Convert this animal photo into a flat {tones}-tone poster using ONLY this warm palette: warm paper white (#F2F0EB), light amber (#E6B072), burnt orange (#C26A1C) and dark brown (#3A2416). No gradients, no texture, no dithering, no outlines. CRITICAL: remove all fur texture and individual hairs — the outline must be one smooth clean silhouette edge, and the coat colour boundaries must be clean flat shapes. Draw the eyes and nose boldly as solid dark shapes clearly separated from the surrounding fur. Background is one single flat tone at the lightest extreme. Nothing anywhere narrower than {minPx} pixels. No text.",
+   "promptTemplateZh": "把這張動物照片轉成 {tones} 色調的平色海報，只能用這組暖色：暖紙白（#F2F0EB）、淺琥珀（#E6B072）、焦橙（#C26A1C）和深棕（#3A2416）。不要漸層、不要質感、不要抖色點、不要描邊線。最重要：去掉所有毛髮質感和一根根的毛——外輪廓要是一條平滑乾淨的剪影邊，毛色的分界要是乾淨的平塊。眼睛和鼻子要畫成大膽的實心深色形狀，和周圍的毛清楚分開。背景是單一平色，用最淺的那一端。畫面裡任何東西都不可以細於 {minPx} 像素。不要有文字。",
    "priority": 1,
    "deltaEBySubject": {
     "pet_long": 5.49
@@ -262,6 +378,7 @@
     "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
    },
    "promptTemplate": "Convert this landscape into a flat {tones}-tone poster using ONE cool ramp. No gradients, no texture, no noise, no dithering, no outlines. CRITICAL: each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. Sky is one flat tone only, no banding. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text.",
+   "promptTemplateZh": "把這張風景照轉成 {tones} 色調的平色海報，用同一組冷色的深淺階。不要漸層、不要質感、不要雜訊、不要抖色點、不要描邊線。最重要：每一道山稜都要是一個實心的平色，和後面那一道山稜用明顯的一階深淺分開——層層的遠近就是這張圖的主角，相鄰的山稜不可以併在一起。天空只能是一個平色，不要有色帶。細如髮絲的東西全部拿掉：不要細桿、電線或樹枝。留下來的東西都不可以細於 {minPx} 像素。不要有文字。",
    "priority": 1,
    "deltaEBySubject": {
     "landscape": 6.55
@@ -308,6 +425,7 @@
     "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
    },
    "promptTemplate": "Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Use bold saturated ink colours that suit this photo — never a grayscale image. A classic reference palette is warm paper white, sky blue, deep navy and near-black, but feel free to choose a different ink family that fits the subject. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. CRITICAL — the silhouette must survive: the background is ONE flat tone that is clearly different from every tone touching the person's outline (hair, skin, clothing), so the head and shoulders read as one closed shape against it. If the hair or clothing is dark, make the BACKGROUND a light or mid ink; if the person is very light, make it a mid or dark ink; never let the person and the background share a tone. Nothing anywhere narrower than {minPx} pixels. No text.",
+   "promptTemplateZh": "把這張人像轉成 1960 年代的絹印普普藝術（silkscreen pop-art）海報，剛好 {tones} 個平色。用適合這張照片、飽和大膽的油墨色——絕對不要做成灰階圖。經典的參考配色是暖紙白、天藍、深海軍藍和近黑，但你可以換成更適合主題的另一組油墨色。色塊邊界要硬、分色清楚，不要漸層、不要質感、不要網點、不要線稿描邊。用線條平滑、像向量圖的大膽形狀，明暗依臉部結構分組。最重要——剪影一定要保得住：背景是一個平色，而且要和碰到人物輪廓（頭髮、皮膚、衣服）的每一個顏色都明顯不同，讓頭和肩膀在背景前看起來是一個封閉的形狀。頭髮或衣服是深色，背景就用淺色或中間色的油墨；人物很淺，背景就用中間色或深色的油墨；人物和背景絕不能共用同一個顏色。畫面裡任何東西都不可以細於 {minPx} 像素。不要有文字。",
    "priority": 2,
    "deltaEBySubject": {
     "portrait_closeup": 7.86
@@ -351,7 +469,8 @@
     "細鬚",
     "背景細節"
    ],
-   "promptTemplate": "Convert this animal photo into a flat {tones}-tone poster with EXACTLY {tones} solid colours: one paper off-white plus three ink tones chosen to suit this animal's coat (light, mid, near-black). CRITICAL — the silhouette must survive: the background is ONE flat tone that is clearly different from every tone touching the animal's outline, so the whole head and body read as one closed shape against it. If the animal is mostly white or very light, make the BACKGROUND a mid or dark ink and keep the off-white for the coat; if the animal is dark, keep the background off-white. Never let coat and background share a tone. No gradients, no texture, no dithering, no outlines. Remove all fur texture and whiskers — the outline must be one smooth clean silhouette edge, and the markings must be clean flat shapes that keep the characteristic ear shape and face pattern readable. Draw the eyes and nose boldly as solid near-black shapes clearly separated from the surrounding coat. Nothing anywhere narrower than {minPx} pixels. No text."
+   "promptTemplate": "Convert this animal photo into a flat {tones}-tone poster with EXACTLY {tones} solid colours: one paper off-white plus three ink tones chosen to suit this animal's coat (light, mid, near-black). CRITICAL — the silhouette must survive: the background is ONE flat tone that is clearly different from every tone touching the animal's outline, so the whole head and body read as one closed shape against it. If the animal is mostly white or very light, make the BACKGROUND a mid or dark ink and keep the off-white for the coat; if the animal is dark, keep the background off-white. Never let coat and background share a tone. No gradients, no texture, no dithering, no outlines. Remove all fur texture and whiskers — the outline must be one smooth clean silhouette edge, and the markings must be clean flat shapes that keep the characteristic ear shape and face pattern readable. Draw the eyes and nose boldly as solid near-black shapes clearly separated from the surrounding coat. Nothing anywhere narrower than {minPx} pixels. No text.",
+   "promptTemplateZh": "把這張動物照片轉成 {tones} 色調的平色海報，剛好 {tones} 個實心顏色：一個紙質米白，加上三個依這隻動物毛色挑的油墨色（淺、中、近黑）。最重要——剪影一定要保得住：背景是一個平色，而且要和碰到動物輪廓的每一個顏色都明顯不同，讓整個頭和身體在背景前看起來是一個封閉的形狀。動物大部分是白色或很淺，背景就用中間色或深色的油墨、米白留給毛色；動物是深色，背景就維持米白。毛色和背景絕不能共用同一個顏色。不要漸層、不要質感、不要抖色點、不要描邊線。去掉所有毛髮質感和鬍鬚——外輪廓要是一條平滑乾淨的剪影邊，斑紋要是乾淨的平塊，而且要保住有特色的耳朵形狀和臉部花紋。眼睛和鼻子要畫成大膽的實心近黑形狀，和周圍的毛清楚分開。畫面裡任何東西都不可以細於 {minPx} 像素。不要有文字。"
   },
   {
    "requiresAI": true,
@@ -389,7 +508,8 @@
     "布料質感",
     "背景細節"
    ],
-   "promptTemplate": "Convert this full-body photo of a person into a flat {tones}-colour poster with EXACTLY {tones} solid colours: one paper off-white plus three ink colours chosen to suit this photo — typically one skin/light tone, one clothing or accent colour, and one near-black. Never a grayscale image. CRITICAL — the silhouette must survive: the background is ONE flat tone clearly different from every tone touching the person's outline, so the pose and body read as one closed shape. If the clothing or skin is very light, make the BACKGROUND a mid or dark ink and keep the off-white for the person; never let the person and the background share a tone. No gradients, no texture, no halftone, no outlines. Simplify clothing into large flat colour blocks and hair into one solid mass. The face may be simplified to a few bold shapes — do not invent fine facial detail. Nothing anywhere narrower than {minPx} pixels. No text."
+   "promptTemplate": "Convert this full-body photo of a person into a flat {tones}-colour poster with EXACTLY {tones} solid colours: one paper off-white plus three ink colours chosen to suit this photo — typically one skin/light tone, one clothing or accent colour, and one near-black. Never a grayscale image. CRITICAL — the silhouette must survive: the background is ONE flat tone clearly different from every tone touching the person's outline, so the pose and body read as one closed shape. If the clothing or skin is very light, make the BACKGROUND a mid or dark ink and keep the off-white for the person; never let the person and the background share a tone. No gradients, no texture, no halftone, no outlines. Simplify clothing into large flat colour blocks and hair into one solid mass. The face may be simplified to a few bold shapes — do not invent fine facial detail. Nothing anywhere narrower than {minPx} pixels. No text.",
+   "promptTemplateZh": "把這張人物全身照轉成 {tones} 色的平色海報，剛好 {tones} 個實心顏色：一個紙質米白，加上三個依這張照片挑的油墨色——通常是一個膚色或淺色、一個衣服或點綴色、一個近黑。絕對不要做成灰階圖。最重要——剪影一定要保得住：背景是一個平色，而且要和碰到人物輪廓的每一個顏色都明顯不同，讓姿勢和身體看起來是一個封閉的形狀。衣服或皮膚很淺的話，背景就用中間色或深色的油墨、米白留給人物；人物和背景絕不能共用同一個顏色。不要漸層、不要質感、不要網點、不要描邊線。衣服簡化成大塊平色，頭髮簡化成一整塊實心。臉可以簡化成幾個大膽的形狀——不要自己編出細緻的五官。畫面裡任何東西都不可以細於 {minPx} 像素。不要有文字。"
   },
   {
    "requiresAI": true,
@@ -428,7 +548,8 @@
     "樹葉細節",
     "天空漸層"
    ],
-   "promptTemplate": "Convert this landscape into a flat {tones}-tone poster using TWO ink families: the sky is ONE flat light tone in its own hue, and the land is a stepped ramp of the remaining tones in a second hue, ending in near-black for the nearest ground. Choose the two hues to suit this photo (for example warm paper sky over cool blue-grey ridges, or pale blue sky over earth tones). CRITICAL: the sky must be clearly lighter than the farthest ridge and the two hues must never share a tone, so the skyline is always readable; each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. No gradients, no texture, no noise, no dithering, no outlines. Sky is one flat tone only, no banding, no clouds. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text."
+   "promptTemplate": "Convert this landscape into a flat {tones}-tone poster using TWO ink families: the sky is ONE flat light tone in its own hue, and the land is a stepped ramp of the remaining tones in a second hue, ending in near-black for the nearest ground. Choose the two hues to suit this photo (for example warm paper sky over cool blue-grey ridges, or pale blue sky over earth tones). CRITICAL: the sky must be clearly lighter than the farthest ridge and the two hues must never share a tone, so the skyline is always readable; each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. No gradients, no texture, no noise, no dithering, no outlines. Sky is one flat tone only, no banding, no clouds. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text.",
+   "promptTemplateZh": "把這張風景照轉成 {tones} 色調的平色海報，用兩組油墨色：天空是一個自成一色的淺平色，地面是用另一個色相、由淺到深的其餘幾階，最近的地面收在近黑。依這張照片挑這兩個色相（例如暖紙色的天空配冷藍灰的山稜，或淡藍的天空配大地色）。最重要：天空一定要明顯比最遠的山稜淺，兩個色相絕不能共用同一個顏色，天際線才永遠看得清楚；每一道山稜都要是一個實心的平色，和後面那一道山稜用明顯的一階深淺分開——層層的遠近就是這張圖的主角，相鄰的山稜不可以併在一起。不要漸層、不要質感、不要雜訊、不要抖色點、不要描邊線。天空只能是一個平色，不要色帶、不要雲。細如髮絲的東西全部拿掉：不要細桿、電線或樹枝。留下來的東西都不可以細於 {minPx} 像素。不要有文字。"
   },
   {
    "id": "local_flat",

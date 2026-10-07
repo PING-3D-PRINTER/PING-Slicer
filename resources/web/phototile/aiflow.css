@@ -1,0 +1,94 @@
+/* 照片磚「複製提示詞 → 用自己的 AI 產圖 → 貼回工作室」（AIP 第二班刀 4；aiflow.js 畫）。長相照原型 v4（Eric 2026-10-03「原型 OK」）。
+   獨立成檔：index.html 離工具讀取上限不遠，也避開材料改名線在改的 matflow.css。🔴 改了本檔要動 index.html 裡的版本字串（WebView 快取）。
+   CIS 0824〈橘色語意收斂〉：橘只標「你在這裡」——目前這一步（上緣細線＋號碼）、目前這張縮圖；主要行動＝炭黑（.btn.primary）、
+   警示＝黃 #946310（訊息框沿用 matflow.css 的 .mfFlash.warn）、完成＝綠。連結沿用 .mfLnk、色塊沿用 .mfSw、確認窗沿用 .cfmBack。 */
+
+/* 款式區標題列：款式 › 名稱［AI］ 用你自己的 AI 產圖…　　　　‹ 款式清單 */
+#styleH2{flex-wrap:wrap; row-gap:4px;}
+#styleH2 .afCrumb{font-size:12px; color:#999; font-weight:400; font-family:"Source Han Sans HW TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
+#styleH2 .afTag{font:600 10.5px/1.4 "Source Han Sans HW TC","Noto Sans TC","Microsoft JhengHei",sans-serif; padding:0 5px; border-radius:3px; border:1px solid #8A8A8A; color:#333;}
+#styleH2 .afRt{margin-left:auto; display:inline-flex; gap:10px; align-items:center; font-family:"Source Han Sans HW TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
+.scard .tag.mine{border:1px solid #8A8A8A; color:#333; background:#F2F2F2; padding:0 4px;}
+.scard.add{border-style:dashed; border-color:#BDBDBD; display:flex; flex-direction:column; justify-content:center;}
+.scard.add .nm{font-size:14px;}
+/* AI 產圖畫面打開時，左邊原圖不要高過 44vh（原型 v4 同值）——三步與檢查才擠得進 1906×1022 一屏 */
+body.afOpen #srcCanvas{max-height:44vh;}
+body.afOpen #dropZone{min-height:240px;}
+
+/* ---- 三步 ---- */
+#afPad .sub{color:#666;}
+.btn.afSm{padding:3px 10px; font-size:13px;}
+.btn.afDanger{background:#D01B1B; border-color:#D01B1B; color:#fff;}
+.btn.afDangerGhost{border-color:#E3A3A3; color:#D01B1B;}
+.afSum{font-size:12.5px; color:#444; margin:-2px 0 6px; line-height:1.7;}
+.afSum .mfSw{width:12px; height:12px;}
+.afLang{display:inline-block; font-size:11.5px; border:1px solid #CFCFCF; border-radius:10px; padding:0 7px; margin-left:4px; color:#444;}
+.afSteps{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:8px;}
+.afStep{padding:6px 9px 8px; border:1px solid var(--gray); border-top:3px solid var(--gray); border-radius:6px; min-width:0;}
+.afStep.cur{border-top-color:var(--orange);}
+.afStep .t{font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:6px; margin-bottom:5px;}
+.afStep .n{flex:none; display:inline-flex; width:19px; height:19px; border-radius:50%; border:1.5px solid #999;
+           font:700 11.5px/1 Inter,Arial,sans-serif; align-items:center; justify-content:center; color:#666;}
+.afStep.cur .n{border-color:var(--orange); color:var(--orange);}
+.afStep.done .n{border-color:#2E7D32; background:#2E7D32; color:#fff;}
+.afStep .d{font-size:12.5px; color:#444; margin-top:5px;}
+.afActs{display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
+ol.afGuide{padding-left:17px; font-size:12.5px; color:#333; margin-top:5px;}
+ol.afGuide li{margin:1px 0;}
+.afFine{margin-top:6px; font-size:11.8px; color:#6A6A6A; line-height:1.5;}
+.afDrop{border:1.5px dashed #C8C8C8; border-radius:6px; padding:6px 8px; display:flex; flex-direction:column; gap:5px;}
+.afDrop.over{border-color:var(--black); background:#F6F6F6;}
+.afDrop .hint{font-size:12px; color:#666;}
+#afPad .mfFlash{margin-top:6px; padding:5px 9px; font-size:12.5px;}
+.afOk{margin-top:5px; font-size:12.5px; color:#2E7D32;}
+.afBanner{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; font-size:12.8px; color:#946310;
+          background:#FFF6DF; border:1px solid #EBD29A; border-radius:6px; padding:5px 9px;}
+pre.afPrompt{margin-top:6px; max-height:170px; overflow:auto; background:#F7F7F7; border:1px solid #E3E3E3; border-radius:5px;
+             padding:6px 8px; font:12px/1.5 Consolas,"Microsoft JhengHei",monospace; white-space:pre-wrap; color:#333;}
+.afDev{margin-top:6px; padding:6px 10px; border:1px dashed #BDBDBD; border-radius:6px; font-size:12.5px; color:#555; display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+.afDev b{color:#333;}
+.afWarnTx{color:#946310;}
+/* 來源標題「來源（AI 產的圖・第 N 張）〔回到原圖〕」：窄欄（1366）時標題截字、按鈕不換行——換行＝標題列變高＝兩張圖頂端不再對齊（0918 版面 A）。
+   AI 圖當來源時「把這張存進『我的圖』」收起：它存的是原照片、不是左邊這張（字面跟效果對不上），也讓出窄欄的位置。 */
+#srcTitle .afSrcT{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;}
+#srcTitle .afBack, #srcTitle .btn.mini{flex:none; white-space:nowrap;}
+#srcTitle .afBack{margin-left:2px; font-family:"Source Han Sans HW TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
+body.ptSrcAi #ptBtnSaveMine{display:none;}
+
+/* ---- 貼回之後 ---- */
+.afHist{display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:0 0 4px;}
+.afHist .lb{font-size:12.5px; color:#666;}
+.afHist .grow{flex:1;}
+.afThumb{border:1px solid #CCC; border-radius:4px; padding:2px; background:#fff; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:1px; font-size:11px; color:#555; font-family:inherit;}
+.afThumb canvas{display:block; width:54px; height:36px;}
+.afThumb.cur{border-color:var(--orange); box-shadow:inset 0 0 0 1px var(--orange); color:var(--black); font-weight:700;}
+.afAgain{display:inline-flex; gap:6px; margin-left:4px;}
+#afPad .afVerdict{margin:0 0 3px; padding:4px 9px; font-size:13px;}
+.afChk{display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:1px 0;}
+.afChk .ic{flex:none; width:18px; height:18px; border-radius:50%; font:700 11px/18px Inter,Arial,sans-serif; text-align:center; color:#fff; margin-top:1px;}
+.afChk.ok .ic{background:#2E7D32;}
+.afChk.warn .ic{background:#946310;}
+.afChk.eye .ic{background:#fff; border:1.5px solid #8A8A8A; color:#555; line-height:15px;}
+.afChk .tx{flex:1; min-width:0;}
+.afChk.warn .tx b{color:#946310;}
+.afChk .afActs{margin-top:2px;}
+#afPad .afRow{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+.afStat:empty{display:none;}
+.afStat{margin-top:4px;}
+.afRetry{margin-top:5px; padding-top:5px; border-top:1px solid var(--gray);}
+.afRetry .t{font-size:13px; font-weight:700; margin-bottom:3px;}
+.afChips{display:flex; gap:6px; flex-wrap:wrap;}
+.afChip{border:1px solid #C9C9C9; background:#fff; border-radius:14px; padding:2px 11px; font-size:12.5px; cursor:pointer; color:var(--black); font-family:inherit;}
+.afChip:hover{border-color:var(--black);}
+
+/* ---- 我的款式：新增／編輯 ---- */
+.afEdit .row > label:first-child{min-width:86px;}
+.afEdit .row.top{align-items:flex-start;}
+.afEdit .row.top > label:first-child{padding-top:5px;}
+.afEdit .fld{flex:1; min-width:200px;}
+.afEdit input[type=text]{padding:4px 8px; border:1px solid #bbb; border-radius:5px; font-size:14px;}
+.afEdit textarea{width:100%; padding:6px 8px; border:1px solid #bbb; border-radius:5px; font-family:inherit; font-size:13px; line-height:1.5; resize:vertical;}
+.afEdit .afTonesLb{font-size:13.5px; margin-left:6px;}
+.afAuto{font-size:12px; color:#555; background:#F7F7F7; border:1px solid #E6E6E6; border-radius:5px; padding:5px 8px; margin:4px 0 6px 96px;}
+.afEdActs{margin-top:8px;}
+.afEdActs .grow{flex:1;}

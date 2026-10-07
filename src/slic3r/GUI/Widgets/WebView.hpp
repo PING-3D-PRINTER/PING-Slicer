@@ -31,6 +31,11 @@ public:
 #endif
     static void LoadUrl(wxWebView * webView, wxString const &url);
 
+    /* AIP 第二班（開發中清單 #22）：這個網址是不是本程式 resources 底下的照片磚工作室頁（file://…/web/phototile/index.html）。
+       信任邊界：只有照片磚頁能叫 C++ 收貼回的 AI 圖、存「我的款式」、讀剪貼簿。比整條路徑、不是子字串（同 IsStepRepairPage 的理由）；
+       WebView2 回報的 file URL 是正規化過的（三斜線、正斜線、%xx），兩邊都先正規化再比。 */
+    static bool IsPhotoTileUrl(wxString const &url);
+
     static bool RunScript(wxWebView * webView, wxString const & msg);
 
     static void RecreateAll();

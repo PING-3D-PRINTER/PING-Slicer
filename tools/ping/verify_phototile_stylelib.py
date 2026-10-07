@@ -1,22 +1,27 @@
 # -*- coding: utf-8 -*-
-"""閘門：照片磚工作室頁內嵌的款式庫，必須與款式庫 JSON 正本語意相同。
+"""閘門：照片磚工作室頁讀的款式庫（stylelib.js），必須與款式庫 JSON 正本語意相同。
 
 為什麼需要這道閘門
 ------------------
 產品用 `file://` 載工作室頁（`src/slic3r/GUI/WebViewDialog.cpp` 的 phototile URL），
-所以頁面**不能 fetch 同目錄的 JSON**（file:// origin 會被 CORS 擋）。
-唯一可行的做法是把款式庫內嵌成 `<script id="ptStyleLib" type="application/json">`。
+所以頁面**不能 fetch 同目錄的 JSON**（file:// origin 會被 CORS 擋）；`<script src>` 不受影響
+（samples.js 同理）⇒ 款式庫由本支從 JSON 產生 `stylelib.js`（`var PT_STYLE_LIB=…;`）。
+2026-10-06 以前是內嵌在 index.html 的 `<script id="ptStyleLib" type="application/json">`，
+AIP 第二班（牌 c-1006-AIP-01）搬出來：index.html 離讀取上限只剩約 90 B，內嵌那一行就佔 23.8 KB。
 
-代價＝同一份資料存在兩處。**改了 JSON 忘了同步內嵌副本，畫面不會報錯、只會安靜地用舊款式庫**
+代價＝同一份資料存在兩處。**改了 JSON 忘了重產 stylelib.js，畫面不會報錯、只會安靜地用舊款式庫**
 ——這正是最難發現的一類 bug。這支就是把那個沉默變成一次 build 前的紅燈。
+（治理端另有一份同內容：根 repo `20260604 ORCA客製/款式庫_照片磚.json`，給照片磚管線 pipeline.py 讀；
+  app repo 碰不到它，同步由改款式庫的那一棒負責。）
 
 用法
 ----
     python tools/ping/verify_phototile_stylelib.py          # 檢查（exit 0 / 1）
-    python tools/ping/verify_phototile_stylelib.py --sync   # 用 JSON 正本覆寫內嵌副本
+    python tools/ping/verify_phototile_stylelib.py --sync   # 用 JSON 正本重產 stylelib.js
 """
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -27,11 +32,22 @@ REPO = Path(__file__).resolve().parents[2]
 WEB = REPO / "resources" / "web" / "phototile"
 INDEX = WEB / "index.html"
 LIBJSON = WEB / "款式庫_照片磚.json"
+LIBJS = WEB / "stylelib.js"
+IDENT = "PT_STYLE_LIB"
 
-BLOCK = re.compile(
-    r'(<script id="ptStyleLib" type="application/json">)(.*?)(</script>)',
-    re.S,
+LIBJS_HEADER = (
+    "/* 自動生成，不要手改。\r\n"
+    "   正本＝resources/web/phototile/款式庫_照片磚.json\r\n"
+    "   重生＝python tools/ping/verify_phototile_stylelib.py --sync\r\n"
+    "   為什麼是 .js：工作室是 file:// 載入，fetch() 同目錄 JSON 被 CORS 擋；<script src> 不受影響（同 samples.js）。 */\r\n"
 )
+DECL = re.compile(r"^var %s=(.*);\s*$" % IDENT, re.M)
+LOADS = re.compile(r'<script src="stylelib\.js(\?v=[\w.-]+)?"></script>')
+
+
+def render_libjs(truth):
+    packed = json.dumps(truth, ensure_ascii=False, separators=(",", ":"))
+    return LIBJS_HEADER + "var %s=%s;\r\n" % (IDENT, packed)
 
 REQUIRED_STYLE_KEYS = {
     "id", "name", "requiresAI", "subjects", "tones", "mode", "slots",
@@ -75,7 +91,7 @@ def check_unit_cost(root):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sync", action="store_true",
-                    help="用 JSON 正本覆寫 index.html 的內嵌副本")
+                    help="用 JSON 正本重產 stylelib.js")
     args = ap.parse_args()
 
     bad = 0
@@ -96,32 +112,38 @@ def main():
     except Exception as e:
         return fail("%s 不是合法 JSON：%s" % (LIBJSON.name, e))
 
-    html = INDEX.read_text(encoding="utf-8")
-    m = BLOCK.search(html)
-    if not m:
-        return fail('index.html 找不到 <script id="ptStyleLib" type="application/json"> 區塊')
-
     if args.sync:
-        packed = json.dumps(truth, ensure_ascii=False, separators=(",", ":"))
-        INDEX.write_text(html[:m.start(2)] + packed + html[m.end(2):],
-                         encoding="utf-8", newline="")
-        print("SYNC  內嵌副本已由 %s 覆寫（%d bytes）" % (LIBJSON.name, len(packed.encode())))
+        data = render_libjs(truth).encode("utf-8")
+        tmp = LIBJS.with_name(LIBJS.name + ".tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, LIBJS)
+        print("SYNC  %s 已由 %s 重產（%d bytes）" % (LIBJS.name, LIBJSON.name, len(data)))
         return 0
 
+    html = INDEX.read_text(encoding="utf-8")
+    if 'id="ptStyleLib"' in html:
+        bad |= fail('index.html 還留著舊的內嵌款式庫 <script id="ptStyleLib">（已改讀 stylelib.js，兩份會漂）')
+    if len(LOADS.findall(html)) != 1:
+        bad |= fail("index.html 要恰好載入一次 stylelib.js（實際 %d 次）" % len(LOADS.findall(html)))
+    if not LIBJS.exists():
+        return fail("找不到 %s（跑 --sync 產生）" % LIBJS.name)
+    m = DECL.search(LIBJS.read_text(encoding="utf-8"))
+    if not m:
+        return fail("%s 找不到 var %s=…; 那一行" % (LIBJS.name, IDENT))
     try:
-        inlined = json.loads(m.group(2))
+        inlined = json.loads(m.group(1))
     except Exception as e:
-        return fail("內嵌區塊不是合法 JSON：%s" % e)
+        return fail("%s 的 %s 不是合法 JSON：%s" % (LIBJS.name, IDENT, e))
 
     # ① 語意相同（不比字面，容許縮排/鍵序不同——比的是資料）
     if inlined != truth:
-        bad |= fail("內嵌副本與 %s 不一致。跑 --sync 同步，或確認哪一邊才是你要的。"
-                    % LIBJSON.name)
+        bad |= fail("%s 與 %s 不一致。跑 --sync 重產，或確認哪一邊才是你要的。"
+                    % (LIBJS.name, LIBJSON.name))
         for k in sorted(set(inlined) | set(truth)):
             if inlined.get(k) != truth.get(k):
                 print("      差異鍵：%s" % k)
     else:
-        print("PASS  內嵌副本與正本語意相同（%d 款式／%d 題材）"
+        print("PASS  stylelib.js 與正本語意相同（%d 款式／%d 題材）"
               % (len(truth["styles"]), len(truth["subjects"])))
 
     # ② 結構完備（頁面邏輯讀得到的鍵一個都不能缺，缺了是畫面壞掉而不是報錯）

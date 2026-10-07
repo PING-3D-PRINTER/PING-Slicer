@@ -78,7 +78,7 @@
     const floor = thickFloorMm(heightMm), auto = thickAutoMm(dflt, heightMm);
     if (!userSet) {
       return auto > dflt
-        ? { warn: false, text: `厚度跟著高度調到 ${auto} mm（高 ${Math.round(heightMm)} mm ÷ 15，免得印的時候倒）`, action: null }
+        ? { warn: false, text: `厚度跟著高度調到 ${auto} mm（高 ${roundMm(heightMm)} mm ÷ 15，免得印的時候倒）`, action: null }
         : { warn: false, text: "", action: null };
     }
     if (thickMm < floor) {

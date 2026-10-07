@@ -110,10 +110,13 @@ ok(/function ptGalRender\(\)\s*\{\s*\n?\s*if\(!ptGalReady\)/.test(html),
    'ptGalRender 保留就緒守衛（renderSlots 在本段執行前就會先呼叫一次）');
 
 // ---- 7. 範例自帶題材（牌 c-0918-PTS-01；Eric 2026-09-18 裁「點範例不要再問主角」）----
-// 題材 id 從 index.html 的款式庫推導（不寫死——同第 3 段的教訓）；分類與題材要對得上，
-// 否則會出現「動物分類的範例被套成人像特寫」這種看起來正常、其實推薦錯款式的狀態。
-const libM = html.match(/<script id="ptStyleLib" type="application\/json">([\s\S]*?)<\/script>/);
-const LIB = libM ? JSON.parse(libM[1]) : null;
+// 題材 id 從頁面讀的款式庫（stylelib.js，2026-10-06 自 index.html 內嵌搬出）推導（不寫死——同第 3 段的教訓）；
+// 分類與題材要對得上，否則會出現「動物分類的範例被套成人像特寫」這種看起來正常、其實推薦錯款式的狀態。
+const libJs = fs.readFileSync(path.join(WEB, 'stylelib.js'), 'utf8');
+const libM = libJs.match(/^var\s+([A-Za-z_$][\w$]*)\s*=/m);
+const libBox = {};
+if (libM) require('vm').runInNewContext(libJs, libBox);
+const LIB = libM ? libBox[libM[1]] : null;
 const SUBJ = LIB ? new Set(LIB.subjects.map(s => s.id)) : new Set();
 ok(SUBJ.size > 0, `款式庫題材 id 讀得到（${[...SUBJ].join('／')}）`);
 const noSubj = man.items.filter(i => !SUBJ.has(i.subject)).map(i => i.file);

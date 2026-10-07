@@ -1,7 +1,9 @@
 // PING 照片磚「每層循環洗料塔」——幾何與每層計畫。說明見 PingCycleTower.hpp 檔頭。
 #include "PingCycleTower.hpp"
 #include "PingColorMix.hpp"
+#include "PingDeltaReach.hpp"
 #include "../Print.hpp"
+#include "../Layer.hpp"
 #include "../Model.hpp"
 #include "../ClipperUtils.hpp"
 #include "../Flow.hpp"
@@ -267,7 +269,29 @@ std::unique_ptr<Tower> create(const Print& print, std::string& why)
     const Point beside_c(coord_t(bb.max.x() + scale_(off)), coord_t((bb.min.y() + bb.max.y()) / 2));
     const Point behind_c(coord_t((bb.min.x() + bb.max.x()) / 2), coord_t(bb.max.y() + scale_(off)));
     auto mm = [](const Point& p) { return Vec2d(unscale<double>(p.x()), unscale<double>(p.y())); };
-    const bool  behind = !fits(mm(beside_c)) && fits(mm(behind_c));
+    // 🆕 AIP 第二班（規格 R9-11 第二輪 Q13 甲，開發中清單 #22）：右邊的塔在**磚頂端那個高度搆不到**也改擺後面。
+    //    delta 越往上噴頭搆得到的圈越小（PingDeltaReach）；上面的 fits 只看盤面外框、沒看高度 ⇒
+    //    FF600 磚高 580 時右邊的塔頂端搆不到，機台要印到頂才報超出範圍停機。
+    //    只比塔身四角（brim 只在第一層）；座標換成本盤的盤面座標（printable_area 是盤內座標、物件是世界座標）。
+    //    認不得機型（find 回 nullptr）＝不檢查；放得下又搆得到的磚一律照舊＝既有 G-code 逐位不變。
+    const PingDeltaReach::Geometry* geo = PingDeltaReach::find(print.config().printer_model.value);
+    double top_z = 0.;
+    for (const PrintObject* obj : print.objects())
+        if (!obj->layers().empty())
+            top_z = std::max(top_z, obj->layers().back()->print_z);
+    const double reach   = geo != nullptr ? PingDeltaReach::reach_at(*geo, top_z) : 0.;
+    const Vec2d  bed_mid = bed.defined ? bed.center() : Vec2d::Zero();
+    const Vec2d  plate_o(print.get_plate_origin().x(), print.get_plate_origin().y());
+    auto reachable = [&](const Point& c) {
+        if (geo == nullptr)
+            return true;
+        const Vec2d p = mm(c) - plate_o - bed_mid;
+        return std::hypot(std::abs(p.x()) + size / 2., std::abs(p.y()) + size / 2.) <= reach + 1e-6;
+    };
+    bool behind = !fits(mm(beside_c)) && fits(mm(behind_c));
+    const bool out_of_reach = !behind && !reachable(beside_c) && fits(mm(behind_c)) && reachable(behind_c);
+    if (out_of_reach)
+        behind = true;
     const Point center = behind ? behind_c : beside_c;
     const Vec2d c_mm   = mm(center);
     if (!fits(c_mm)) {
@@ -278,11 +302,20 @@ std::unique_ptr<Tower> create(const Print& print, std::string& why)
         why = os.str();
         return nullptr;
     }
+    if (!reachable(center)) {
+        std::ostringstream os;
+        os << "PING photo-tile cycle tower is out of the nozzle's reach at the top of the tile (height " << top_z << " mm): "
+           << geo->family << " reaches only " << reach << " mm from the bed centre there, neither beside the tile nor behind it; "
+           << "lower the tile or make it narrower";
+        why = os.str();
+        return nullptr;
+    }
 
     auto tower = std::make_unique<Tower>(st, palette, nozzle, center, size, behind);
     BOOST_LOG_TRIVIAL(info) << "PING photo-tile cycle tower: mode=" << st.mode << " laps=" << owner->config().ping_pt_cycle_laps.value
                             << " size=" << size << " max_flow=" << st.max_flow << " center=(" << c_mm.x() << "," << c_mm.y() << ")"
-                            << (behind ? " [behind the tile: beside did not fit]" : "") << " palette=" << palette.size()
+                            << (out_of_reach ? " [behind the tile: beside out of reach at the top]" : behind ? " [behind the tile: beside did not fit]" : "")
+                            << " palette=" << palette.size()
                             << " pure-E0 tools=" << tower->pure_light_tools().size();
     return tower;
 }

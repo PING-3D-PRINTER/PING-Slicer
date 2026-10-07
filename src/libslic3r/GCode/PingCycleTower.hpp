@@ -158,7 +158,8 @@ public:
     // 本層的進塔計畫：visits 為空＝本層不適用（沒開、或本層沒有 palette 裡的顏色）⇒ 照舊層首一趟整塔。
     SplitPlan                            split_plan(const std::vector<unsigned int>& layer_extruders) const;
 
-    // behind＝塔擺在磚的**後方（+Y）**而不是右邊（+X）。只有右邊放不下時才會是 true（Eric 2026-09-16 裁「乙」），
+    // behind＝塔擺在磚的**後方（+Y）**而不是右邊（+X）。只有右邊放不下（Eric 2026-09-16 裁「乙」）、
+    // 或右邊的塔在磚頂端高度噴頭搆不到（AIP 第二班，規格 R9-11 第二輪 Q13 甲；PingDeltaReach）時才會是 true，
     // 因為照片磚必須沿 X 擺、不得轉 90°（規格 §6 R6-12：校正表是在 X 方向量的）。
     Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point center, float size, bool behind);
 

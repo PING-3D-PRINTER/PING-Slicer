@@ -26,7 +26,12 @@
 #include <wx/url.h>
 
 #include <algorithm>
+#include <iomanip>
+#include <map>
 #include <vector>
+
+#include "libslic3r/BoundingBox.hpp"
+#include "libslic3r/GCode/PingDeltaReach.hpp"   // AIP 第二班：各機尺寸上限送 delta 幾何給工作室頁
 
 #include <slic3r/GUI/Widgets/WebView.hpp>
 
@@ -525,6 +530,19 @@ bool WebViewPanel::IsStepRepairPage() const
     return !expected.IsEmpty() && current.IsSameAs(expected, false);
 }
 
+bool WebViewPanel::IsPhotoTilePage() const
+{
+    /* AIP 第二班（開發中清單 #22）：照片磚頁才能叫 C++ 收貼回的 AI 圖、換回原圖、存「我的款式」（同上：信任邊界）。
+       比對交給 WebView::IsPhotoTileUrl（WebView2 的讀剪貼簿權限也用同一支），不用其他地方那種 Contains。 */
+    if (m_browser == nullptr)
+        return false;
+    const wxString current = m_browser->GetCurrentURL();
+    const bool     ok      = WebView::IsPhotoTileUrl(current);
+    if (!ok)
+        BOOST_LOG_TRIVIAL(warning) << "PhotoTile: not the photo-tile page: " << current.ToUTF8().data();
+    return ok;
+}
+
 /* 【2026-08-15・Eric 裁 A 案；判準已於 2026-09-07 被 #99 Q3 甲取代，見下】
    把「照片磚機有沒有這個模式」告訴工作室頁面，讓四色按鈕在做不到四料時擋得住。
    頁面端先擋，使用者才不會白做一輪（匯出時才擋＝做完之後才擋）。
@@ -634,13 +652,60 @@ void WebViewPanel::SendPhotoTileMachineCapability()
             types_json += (i > 0 ? "," : "") + json_str(types[i]);
     }
     types_json += "]";
+    /* AIP 第二班（開發中清單 #22；規格 R9-11 九題 Q1～Q3、第二輪 Q13 甲）：各機尺寸上限要的資料——每台同進照片磚機的
+       盤面直徑（printable_area）、可印高（printable_height）、這台有的口徑、delta 幾何（PingDeltaReach；表只有 C++ 這一份，
+       洗料塔擺位也讀它）。頁面照它算「寬＝直徑 −50、高＝可印高、很高時寬再收、塔頂端搆不到改擺後面」，不另抄一份表。
+       uiLang＝介面語言（例 zh_TW）：提示詞跟著介面語言走（R9-11 Q7）；放這裡不放網址——工作室不重載時網址不會換。
+       舊頁面不認得這兩個欄位＝照舊運作（additive）。 */
+    std::string models_json = "[";
+    if (PresetBundle* bundle = wxGetApp().preset_bundle) {
+        struct TileModel { std::string mode; double bed_d = 0., max_h = 0.; std::vector<std::string> nozzles; };
+        std::map<std::string, TileModel> models;   // 依 printer_model 去重：一台機型每個口徑各一支 preset
+        for (const Preset& p : bundle->printers) {
+            if (!p.is_system)
+                continue;
+            const PhotoTileCapability cap = photo_tile_capability_of(p);
+            if (!cap.is_photo_tile || cap.printer_model.empty())
+                continue;
+            TileModel& m = models[cap.printer_model];
+            m.mode = cap.mode;
+            if (const ConfigOptionPoints* area = p.config.option<ConfigOptionPoints>("printable_area"); area != nullptr && !area->values.empty()) {
+                const BoundingBoxf bb(area->values);
+                m.bed_d = std::max(bb.size().x(), bb.size().y());
+            }
+            if (const ConfigOptionFloat* h = p.config.option<ConfigOptionFloat>("printable_height"))
+                m.max_h = h->value;
+            std::ostringstream nz;
+            nz << std::fixed << std::setprecision(1) << cap.nozzle_mm;
+            if (cap.nozzle_mm > 0. && std::find(m.nozzles.begin(), m.nozzles.end(), nz.str()) == m.nozzles.end())
+                m.nozzles.push_back(nz.str());
+        }
+        for (auto& [name, m] : models) {
+            std::sort(m.nozzles.begin(), m.nozzles.end());
+            std::ostringstream os;
+            os << (models_json.size() > 1 ? "," : "") << "{\"model\":" << json_str(name) << ",\"mode\":" << json_str(m.mode)
+               << ",\"bedD\":" << m.bed_d << ",\"maxH\":" << m.max_h << ",\"nozzles\":[";
+            for (size_t i = 0; i < m.nozzles.size(); ++i)
+                os << (i > 0 ? "," : "") << json_str(m.nozzles[i]);
+            os << "],\"geo\":";
+            if (const PingDeltaReach::Geometry* geo = PingDeltaReach::find(name))
+                os << "{\"pe\":" << geo->position_endstop << ",\"arm\":" << geo->arm_length << ",\"R\":" << geo->delta_radius << "}";
+            else
+                os << "null";
+            os << "}";
+            models_json += os.str();
+        }
+    }
+    models_json += "]";
     const std::string json = std::string("{\"hasDual\":") + (has_dual ? "true" : "false")
                            + ",\"hasQuad\":" + (has_quad ? "true" : "false")
                            + ",\"current\":" + cur_mode_json
                            + ",\"currentModel\":" + cur_model_json
                            + ",\"currentNozzle\":" + cur_nozzle_json
                            + ",\"filaments\":" + filaments_json
-                           + ",\"materialTypes\":" + types_json + "}";
+                           + ",\"materialTypes\":" + types_json
+                           + ",\"models\":" + models_json
+                           + ",\"uiLang\":" + json_str(into_u8(wxGetApp().current_language_code())) + "}";
     BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：bundle 內可用的照片磚模式 " << json;
     RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setMachineCapability(")
               + from_u8(json) + ");");
