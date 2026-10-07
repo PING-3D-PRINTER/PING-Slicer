@@ -45,6 +45,44 @@ namespace Slic3r { namespace GUI {
 // 小工具
 // ---------------------------------------------------------------------
 
+// 物件本身的長寬高＝「物件座標」下的尺寸（契約 v1.4 §4-3 的 size_x/y/z）：
+// 含縮放、**不含擺放旋轉**，等同尺寸面板把座標切到「物件座標」時顯示的三個數字。
+//
+// 【為什麼不用 instance_bounding_box】那是世界座標的外框——零件為了好印轉一個角度，
+//   長寬高就跟著變（2026-10-07 實例：CureFixture 的 X 從 231.76 變 271.21），
+//   客戶拿報價單對不起自己那顆零件。v1.3 條文要的是那個值，v1.4 改了。
+// 【算法照抄面板】Selection::get_bounding_box_in_reference_system(Instance)：
+//   把實例矩陣的縮放拿掉、剩下的當座標軸，再把世界座標的頂點投影上去取外框。
+//   這裡刻意用同一套數學（含 reset_scaling_factor），鏡射、非等比縮放、
+//   「在世界座標縮放轉過的物件」留下的斜切，結果都與面板一致。
+// 【只算零件本體】修改器、負體積、支撐遮罩不是客戶那顆零件的一部分，不計入。
+static bool quote_object_coords_size(const ModelObject &mo, const ModelInstance &inst, Vec3d &size)
+{
+    const Transform3d        inst_matrix = inst.get_transformation().get_matrix();
+    Geometry::Transformation basis(inst_matrix);
+    basis.reset_scaling_factor();
+    const Transform3d basis_matrix = basis.get_matrix_no_offset();
+    const Vec3d       axes[3]      = {basis_matrix * Vec3d::UnitX(), basis_matrix * Vec3d::UnitY(), basis_matrix * Vec3d::UnitZ()};
+
+    BoundingBoxf3 bb;
+    for (const ModelVolume *v : mo.volumes) {
+        if (v == nullptr || !v->is_model_part())
+            continue;
+        // 外框只由凸包頂點決定；凸包還沒算出來就退回完整網格
+        const auto         &hull = v->get_convex_hull_shared_ptr();
+        const TriangleMesh &mesh = (hull != nullptr && !hull->its.vertices.empty()) ? *hull : v->mesh();
+        const Transform3d   m    = inst_matrix * v->get_matrix();
+        for (const stl_vertex &p : mesh.its.vertices) {
+            const Vec3d w = m * p.cast<double>();
+            bb.merge(Vec3d(w.dot(axes[0]), w.dot(axes[1]), w.dot(axes[2])));
+        }
+    }
+    if (!bb.defined)
+        return false;
+    size = bb.size();
+    return true;
+}
+
 // ISO 8601 含時區，例 2026-08-10T16:30:00+08:00。
 // 手動組時區是因為 strftime 的 %z 在 Windows 給的是 "+0800"（少了冒號），
 // 而契約範例是 "+08:00"。
@@ -263,7 +301,11 @@ PingQuotePackJob::PingQuotePackJob(Plater *plater, PingQuoteOptions opts) : m_pl
             const BoundingBoxf3 bb = mo->instance_bounding_box(ii);
             const Vec3d         sz = bb.defined ? bb.size() : Vec3d(0., 0., 0.);
             auto                q  = [](double v) { return std::to_string(static_cast<long long>(std::llround(v * 10000.))); };
-            const std::string   key = q(sz.x()) + "/" + q(sz.y()) + "/" + q(sz.z());
+            // 契約 v1.4 起輸出的 size_* 是物件座標的尺寸，所以它也要進 key：
+            // 世界外框相同、物件尺寸不同的兩份（例：轉 90° 再把 X/Y 縮放對調）不能併成一列。
+            Vec3d               osz = Vec3d::Zero();
+            quote_object_coords_size(*mo, *mo->instances[ii], osz);
+            const std::string   key = q(sz.x()) + "/" + q(sz.y()) + "/" + q(sz.z()) + "|" + q(osz.x()) + "/" + q(osz.y()) + "/" + q(osz.z());
 
             auto it = std::find_if(buckets.begin(), buckets.end(),
                                    [&key](const std::pair<std::string, size_t> &b) { return b.first == key; });
@@ -449,9 +491,8 @@ void PingQuotePackJob::process(Ctl &ctl)
         out.inst_idx  = item.inst_idx;
         out.instances = item.instances;
 
-        const BoundingBoxf3 bb = mo->instance_bounding_box(static_cast<size_t>(item.inst_idx));
-        if (bb.defined) {
-            const Vec3d sz = bb.size();
+        Vec3d sz = Vec3d::Zero();
+        if (quote_object_coords_size(*mo, *mo->instances[static_cast<size_t>(item.inst_idx)], sz)) {
             out.size_x = sz.x(); out.size_y = sz.y(); out.size_z = sz.z();
             out.has_size = true;
         }
