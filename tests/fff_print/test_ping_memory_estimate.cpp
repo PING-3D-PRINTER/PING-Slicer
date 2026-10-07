@@ -39,6 +39,30 @@ DynamicPrintConfig memory_test_config()
     return config;
 }
 
+// test_data.cpp 的 init_print() 會先呼叫 arrange_objects(model, InfiniteBed{}, …)，在這個程式庫裡一律丟
+// 「Objects could not fit on the bed; bed_idx==-1」（既有測試凡是用到它的都標成隱藏 [.]）。
+// 這裡自己把物件擺在預設 200×200 熱床裡、不經過排列；其餘步驟照 init_print()。
+void init_print_placed(std::initializer_list<Slic3r::Test::TestMesh> meshes, Print &print, Model &model, const DynamicPrintConfig &config_in)
+{
+    DynamicPrintConfig config = DynamicPrintConfig::full_print_config();
+    config.apply(config_in);
+    double x = 50.0;
+    for (const Slic3r::Test::TestMesh test_mesh : meshes) {
+        ModelObject *object = model.add_object();
+        object->name += "object.stl";
+        object->add_volume(Slic3r::Test::mesh(test_mesh));
+        object->add_instance()->set_offset(Vec3d(x, 50.0, 0.0));
+        x += 60.0;
+    }
+    for (ModelObject *object : model.objects) {
+        object->ensure_on_bed();
+        print.auto_assign_extruders(object);
+    }
+    print.apply(model, config);
+    print.validate();
+    print.set_status_silent();
+}
+
 } // namespace
 
 TEST_CASE("Extrusion counts include nested collections and path variants", "[PingMemoryEstimate]")
@@ -166,7 +190,7 @@ TEST_CASE("Print object counts scale with instances of the same model object", "
     Model model;
     Print print;
     const DynamicPrintConfig config = memory_test_config();
-    Slic3r::Test::init_print({Slic3r::Test::TestMesh::cube_20x20x20}, print, model, config);
+    init_print_placed({Slic3r::Test::TestMesh::cube_20x20x20}, print, model, config);
     REQUIRE(model.objects.size() == 1);
     REQUIRE(print.objects().size() == 1);
     REQUIRE(print.objects().front()->instances().size() == 1);
@@ -195,11 +219,13 @@ TEST_CASE("Print object counts scale with instances of the same model object", "
 
 TEST_CASE("Print estimates distinguish object paths from supports", "[PingMemoryEstimate]")
 {
+    Model model;
     Print print;
     DynamicPrintConfig config = memory_test_config();
     SECTION("An unsupported cube has no support paths")
     {
-        Slic3r::Test::init_and_process_print({Slic3r::Test::TestMesh::cube_20x20x20}, print, config);
+        init_print_placed({Slic3r::Test::TestMesh::cube_20x20x20}, print, model, config);
+        print.process();
         const PingMemoryEstimate estimate = ping_estimate_gcode_memory(print);
         REQUIRE(estimate.objects.segments > 0);
         REQUIRE(estimate.supports.entities == 0);
@@ -213,15 +239,18 @@ TEST_CASE("Print estimates distinguish object paths from supports", "[PingMemory
             {"support_type", "normal(auto)"},
             {"support_threshold_angle", 45}
         });
-        Slic3r::Test::init_and_process_print({Slic3r::Test::TestMesh::overhang}, print, config);
+        init_print_placed({Slic3r::Test::TestMesh::overhang}, print, model, config);
+        print.process();
         REQUIRE(ping_estimate_gcode_memory(print).supports.segments > 0);
     }
 }
 
 TEST_CASE("Estimated moves stay within a broad range of generated G1 lines", "[PingMemoryEstimate]")
 {
+    Model model;
     Print print;
-    Slic3r::Test::init_and_process_print({Slic3r::Test::TestMesh::cube_20x20x20}, print, memory_test_config());
+    init_print_placed({Slic3r::Test::TestMesh::cube_20x20x20}, print, model, memory_test_config());
+    print.process();
     const PingMemoryEstimate estimate = ping_estimate_gcode_memory(print);
     std::istringstream gcode(Slic3r::Test::gcode(print));
     uint64_t actual_moves = 0;
