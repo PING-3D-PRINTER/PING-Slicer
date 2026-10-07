@@ -2,6 +2,7 @@
 
 #include "libslic3r/ExtrusionEntity.hpp"
 #include "libslic3r/ExtrusionEntityCollection.hpp"
+#include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "libslic3r/GCode/PingMemoryEstimate.hpp"
 
 #include "test_data.hpp"
@@ -76,7 +77,9 @@ std::string export_gcode_text(Print &print)
         boost::filesystem::temp_directory_path() / boost::filesystem::unique_path("ping_memory_estimate_%%%%-%%%%-%%%%.gcode");
     print.set_status_silent();
     print.process();
-    print.export_gcode(temp.string(), nullptr, nullptr);
+    // Print::export_gcode 會直接寫 result->conflict_result，不能傳 nullptr。
+    GCodeProcessorResult result;
+    print.export_gcode(temp.string(), &result, nullptr);
     std::ifstream in(temp.string());
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     in.close();
