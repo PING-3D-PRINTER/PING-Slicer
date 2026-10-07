@@ -19,6 +19,7 @@
 #include "slic3r/GUI/I18N.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <set>
 #include <iterator>
 #include <set>          // ping_install_photo_tile_printers()：機型去重（不賭傳遞包含）
@@ -5114,6 +5115,138 @@ static std::string ping_js_escape(const std::string& s)
     return out;
 }
 
+/* base64 解碼走這支（AIP 第二班 2026-10-06 真 App 驗收：照片磚頁送一塊 "abc" ⇒ App 當場閃退）。
+   beast 的 base64::decode 只保證寫在 decoded_size(n)＝n/4*3 以內，前提是 n 為 4 的倍數（beast 註明 requires n&3==0）；
+   不是的話會多寫 1～2 byte 到緩衝區外，n < 4 時緩衝區是空的＝寫到空指標。
+   ⇒ 長度不是 4 的倍數就不解、回空的：呼叫端原本的「解不開／不完整」判斷（解出來是空的、長度不符）照原路擋下、照原句回報。
+   回傳 first＝解出的位元組，second＝beast 讀到第幾個字元（呼叫端用它檢查後面只剩 '='）。 */
+static std::pair<std::vector<unsigned char>, size_t> ping_base64_decode(const std::string& encoded)
+{
+    if (encoded.empty() || encoded.size() % 4 != 0)
+        return {};
+    std::vector<unsigned char> out(boost::beast::detail::base64::decoded_size(encoded.size()));
+    const auto r = boost::beast::detail::base64::decode(out.data(), encoded.data(), encoded.size());
+    out.resize(r.first);
+    return {std::move(out), r.second};
+}
+
+/* AIP 第二班（開發中清單 #22）：照片磚頁分塊送來一個檔——「貼回的 AI 圖」與「我的款式」存檔共用這三段。
+   規則照 phototile_matlib_save_* 抄（材料庫那支照出貨的樣子不動）：①連號 ②塊數 ③總長度 ④上限，另加壞 base64 一道；
+   中途壞了只記原因、後面的塊一律不收，到 end 才回報一次——不回報兩次，也絕不半套落檔。
+   what＝訊息裡的主詞（例「貼回的 AI 圖」）、undone＝沒做成的結果（例「這次沒有換圖」）。 */
+static void photo_tile_upload_begin(PhotoTileUpload& up, size_t size, size_t chunks, size_t max_bytes, size_t max_chunks,
+                                    const std::string& what, const std::string& undone)
+{
+    up = PhotoTileUpload();
+    if (size == 0 || size > max_bytes || chunks == 0 || chunks > max_chunks || chunks > size) {        // ④上限
+        const std::string limit = max_bytes >= 1048576 ? std::to_string(max_bytes / 1048576) + " MB" : std::to_string(max_bytes / 1024) + " KB";
+        up.state = 2;
+        up.fail  = what + "的大小或分塊數不合法（上限 " + limit + "），" + undone + "。";
+        BOOST_LOG_TRIVIAL(warning) << "PhotoTile 收件：拒收 size=" << size << ", chunks=" << chunks;
+        return;
+    }
+    up.buffer.reserve(size);
+    up.expected_size   = size;
+    up.expected_chunks = chunks;
+    up.state           = 1;
+}
+
+static void photo_tile_upload_chunk(PhotoTileUpload& up, size_t index, const std::string& encoded,
+                                    const std::string& what, const std::string& undone)
+{
+    if (up.state != 1)
+        return;                                        // 閒置或已作廢：不收（原因等 end 一次回報）
+    const auto fail = [&](const char* why) {
+        up.state = 2;
+        up.fail  = what + why + undone + "。";
+        up.buffer.clear();
+    };
+    if (index != up.next_chunk || encoded.empty()) {   // ①連號
+        fail("的分塊亂序或遺失，");
+        return;
+    }
+    const auto [decoded, consumed] = ping_base64_decode(encoded);
+    size_t pad = 0;                                    // 壞 base64 一律擋（判法同 phototile_matlib_save_chunk）
+    for (size_t k = consumed; k < encoded.size(); ++k) {
+        if (encoded[k] == '=') ++pad; else { pad = 99; break; }
+    }
+    if (encoded.size() % 4 != 0 || pad > 2 || decoded.empty()) {
+        fail("的分塊內容解不開，");
+        return;
+    }
+    if (up.buffer.size() + decoded.size() > up.expected_size) {   // ③總長度
+        fail("的長度超過宣告，");
+        return;
+    }
+    up.buffer.insert(up.buffer.end(), decoded.begin(), decoded.end());
+    ++up.next_chunk;
+}
+
+// 收尾：成功回 true、內容交給 bytes；失敗回 false、why＝要給畫面的那一句。不論成敗，收件狀態一律歸零。
+static bool photo_tile_upload_end(PhotoTileUpload& up, std::vector<unsigned char>& bytes, std::string& why,
+                                  const std::string& what, const std::string& undone)
+{
+    const int    state     = up.state;
+    const bool   count_ok  = up.next_chunk == up.expected_chunks;   // ②塊數
+    const size_t want_size = up.expected_size;
+    why = up.fail;
+    bytes.clear();
+    bytes.swap(up.buffer);
+    up = PhotoTileUpload();
+    if (state == 2)
+        return false;
+    if (state != 1)               why = what + "沒有開頭就結束，" + undone + "。";
+    else if (!count_ok)           why = what + "的分塊數不符，" + undone + "。";
+    else if (bytes.size() != want_size) why = what + "的總長度不符，" + undone + "。";   // ③總長度
+    else                          return true;
+    bytes.clear();
+    return false;
+}
+
+/* 原子寫檔（照 phototile_matlib_save_end 那段抄、多一道讀回比對）：先寫 .tmp → 讀回逐位元組比對 →
+   keep_bak 時把舊檔複製成 .bak（備份失敗只記 log、不擋）→ Slic3r::rename_file 換上。失敗回 false＝原檔未動。
+   ⚠ 系統錯誤訊息只進 log、不進畫面（Windows 給的是本機字碼頁，不是 UTF-8）。 */
+static bool photo_tile_write_file_atomic(const boost::filesystem::path& path, const std::vector<unsigned char>& bytes, bool keep_bak)
+{
+    boost::system::error_code ec;
+    boost::filesystem::create_directories(path.parent_path(), ec);
+    if (ec) {
+        BOOST_LOG_TRIVIAL(warning) << "PhotoTile：建資料夾失敗 " << path.parent_path().string() << " err=" << ec.message();
+        return false;
+    }
+    const boost::filesystem::path tmp_path(path.string() + ".tmp");
+    bool write_ok = false;
+    {
+        boost::nowide::ofstream output(tmp_path.string(), std::ios::binary | std::ios::trunc);
+        output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        output.close();
+        write_ok = output.good();
+    }
+    if (write_ok) {
+        std::vector<unsigned char> back(bytes.size());
+        boost::nowide::ifstream input(tmp_path.string(), std::ios::binary);
+        write_ok = input && input.read(reinterpret_cast<char*>(back.data()), static_cast<std::streamsize>(back.size())) &&
+                   input.peek() == std::char_traits<char>::eof() && back == bytes;
+    }
+    if (!write_ok) {
+        boost::filesystem::remove(tmp_path, ec);
+        BOOST_LOG_TRIVIAL(warning) << "PhotoTile：暫存檔寫入或讀回不符 " << tmp_path.string();
+        return false;
+    }
+    if (keep_bak && boost::filesystem::exists(path, ec)) {
+        boost::filesystem::copy_file(path, boost::filesystem::path(path.string() + ".bak"),
+                                     boost::filesystem::copy_options::overwrite_existing, ec);
+        if (ec)
+            BOOST_LOG_TRIVIAL(warning) << "PhotoTile：備份舊檔失敗 " << path.string() << ".bak err=" << ec.message();
+    }
+    if (const std::error_code rc = Slic3r::rename_file(tmp_path.string(), path.string())) {
+        boost::filesystem::remove(tmp_path, ec);
+        BOOST_LOG_TRIVIAL(warning) << "PhotoTile：換上新檔失敗 " << path.string() << " err=" << rc.message();
+        return false;
+    }
+    return true;
+}
+
 void GUI_App::step_repair_page_result(bool ok, const std::string& message, const std::string& path)
 {
     const std::string js = std::string("window.PINGStepRepair && window.PINGStepRepair.hostResult({ok:")
@@ -5267,12 +5400,10 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     return "";
                 }
 
-                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
-                const auto result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
-                decoded.resize(result.first);
-                const size_t trailing_padding = encoded.size() - result.second;
+                const auto [decoded, consumed] = ping_base64_decode(encoded);
+                const size_t trailing_padding = encoded.size() - consumed;
                 const bool valid_padding = encoded.size() % 4 == 0 && trailing_padding <= 2 &&
-                    std::all_of(encoded.begin() + result.second, encoded.end(), [](char value) { return value == '='; }) &&
+                    std::all_of(encoded.begin() + consumed, encoded.end(), [](char value) { return value == '='; }) &&
                     (trailing_padding == 0 || index + 1 == m_step_repair_export_expected_chunks);
                 if (!valid_padding || decoded.empty() ||
                     m_step_repair_export_buffer.size() + decoded.size() > m_step_repair_export_expected_size) {
@@ -5442,9 +5573,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     return "";
                 }
 
-                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
-                const auto result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
-                decoded.resize(result.first);
+                const std::vector<unsigned char> decoded = ping_base64_decode(encoded).first;
                 if (decoded.empty() || m_photo_tile_export_buffer.size() + decoded.size() > m_photo_tile_export_expected_size) {
                     BOOST_LOG_TRIVIAL(warning) << "Photo tile export chunk could not be decoded";
                     m_photo_tile_export_active = false;
@@ -5958,9 +6087,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     return "";
                 }
 
-                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
-                const auto decode_result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
-                decoded.resize(decode_result.first);
+                const std::vector<unsigned char> decoded = ping_base64_decode(encoded).first;
                 if (decoded.empty() || m_photo_tile_image_buffer.size() + decoded.size() > m_photo_tile_image_expected_size) {
                     BOOST_LOG_TRIVIAL(warning) << "Photo tile image chunk could not be decoded";   // ③總長上限
                     m_photo_tile_image_active = false;
@@ -6114,13 +6241,11 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     fail("材料庫存檔的分塊亂序或遺失，這次沒有存檔。");
                     return "";
                 }
-                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
-                const auto dr = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
-                decoded.resize(dr.first);
+                const auto [decoded, consumed] = ping_base64_decode(encoded);
                 /* 壞 base64 一律擋（同 matlib.js b64ToBytes）：beast 遇到非法字元會「停下來」而不是報錯，
                    不驗就會靜默收下一段較短的資料。合法＝長度是 4 的倍數、停下來之後只剩最多兩個 '='。 */
                 size_t pad = 0;
-                for (size_t k = dr.second; k < encoded.size(); ++k) {
+                for (size_t k = consumed; k < encoded.size(); ++k) {
                     if (encoded[k] == '=') ++pad; else { pad = 99; break; }
                 }
                 if (encoded.size() % 4 != 0 || pad > 2 || decoded.empty()) {
@@ -6216,11 +6341,11 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 const size_t      want    = root.get<size_t>("data.size", 0);
                 const std::string encoded = root.get<std::string>("data.base64", "");
                 std::string       name    = root.get<std::string>("data.name", "");
-                std::vector<unsigned char> bytes(boost::beast::detail::base64::decoded_size(encoded.size()));
-                const auto dr = boost::beast::detail::base64::decode(bytes.data(), encoded.data(), encoded.size());
-                bytes.resize(dr.first);
+                std::vector<unsigned char> bytes;
+                size_t                     consumed = 0;
+                std::tie(bytes, consumed) = ping_base64_decode(encoded);   // 不用結構化繫結：bytes 下面要被 CallAfter 的 lambda 捕捉（C++17 不行）
                 size_t pad = 0;   // 壞 base64 一律擋（判法同 phototile_matlib_save_chunk：beast 遇到非法字元只會停下來、不報錯）
-                for (size_t k = dr.second; k < encoded.size(); ++k) {
+                for (size_t k = consumed; k < encoded.size(); ++k) {
                     if (encoded[k] == '=') ++pad; else { pad = 99; break; }
                 }
                 if (want == 0 || want > max_matlib_bytes || encoded.size() % 4 != 0 || pad > 2 || bytes.size() != want) {
@@ -6265,6 +6390,138 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     BOOST_LOG_TRIVIAL(info) << "PhotoTile 材料庫匯出：" << bytes.size() << " bytes → " << out_path.string();
                     exported(true, out_path.string(), "");
                 });
+            }
+            /* 【AIP 第二班（開發中清單 #22；規格 R9-11；計畫頁 §03 刀 3）】客戶的 AI 產圖改成「複製提示詞 → 用自己的 AI 產圖 → 貼回工作室」。
+               ① phototile_ai_import_begin／chunk／end：貼回的圖（頁面一律先轉 PNG——OpenCV 建置關了 JPEG／WebP 解碼）收進來當 AI 圖，
+                  跟金鑰直連生回來那張走同一條：source＝ai_path＝它、origin 記原照片 ⇒ 壓平（phototile_stylize input:'current'）與
+                  「另存 AI 圖」都照舊吃它，只有一把尺。成功才換來源；失敗不清掉舊圖（不像 phototile_image_* 換照片那條）。
+               ② phototile_source_origin：〔回到原圖〕＝來源換回原照片；這次產的 AI 圖留在頁面的清單上，點一下會重新送進來（走 ①）。
+               ③ phototile_mystyles_load／save_*：「我的款式」存在這台電腦（<data_dir>/phototile/my_styles.json，跟材料庫同一個資料夾）；
+                  宿主不解讀內容，只負責完整地存、完整地讀（.tmp → 讀回比對 → 舊檔留 .bak → 換上）。
+               🔴 這幾支只收照片磚頁送的（同 STEP 修補頁那道信任邊界：會叫 C++ 寫檔、換來源）；既有的 phototile_* 沒有這道，這次不回頭補。 */
+            else if (command_str.compare("phototile_ai_import_begin") == 0 || command_str.compare("phototile_ai_import_chunk") == 0 ||
+                     command_str.compare("phototile_ai_import_end") == 0 || command_str.compare("phototile_source_origin") == 0 ||
+                     command_str.compare("phototile_mystyles_load") == 0 || command_str.compare("phototile_mystyles_save_begin") == 0 ||
+                     command_str.compare("phototile_mystyles_save_chunk") == 0 || command_str.compare("phototile_mystyles_save_end") == 0) {
+                if (!mainframe || !mainframe->m_webview || !mainframe->m_webview->IsPhotoTilePage()) {
+                    BOOST_LOG_TRIVIAL(warning) << "Rejected " << command_str << " outside the photo-tile page";
+                    return "";
+                }
+                constexpr size_t max_import_bytes   = 64 * 1024 * 1024;   // 同 phototile_image_begin
+                constexpr size_t max_import_chunks  = 8192;
+                constexpr size_t max_mystyles_bytes = 524288;             // 同材料庫（matlib.js HOST_MAX_BYTES）
+                constexpr size_t max_mystyles_chunks = 4096;
+                static const std::string import_what = "貼回的 AI 圖", import_undone = "這次沒有換圖";
+                static const std::string mine_what   = "「我的款式」存檔", mine_undone = "這次沒有存檔";
+                const boost::filesystem::path mine_path = boost::filesystem::path(data_dir()) / "phototile" / "my_styles.json";
+                if (command_str.compare("phototile_ai_import_begin") == 0) {
+                    m_photo_tile_import_id = root.get<std::string>("data.id", "");
+                    photo_tile_upload_begin(m_photo_tile_import, root.get<size_t>("data.size", 0), root.get<size_t>("data.chunks", 0),
+                                            max_import_bytes, max_import_chunks, import_what, import_undone);
+                }
+                else if (command_str.compare("phototile_ai_import_chunk") == 0) {
+                    photo_tile_upload_chunk(m_photo_tile_import, root.get<size_t>("data.index", size_t(-1)),
+                                            root.get<std::string>("data.base64", ""), import_what, import_undone);
+                }
+                else if (command_str.compare("phototile_ai_import_end") == 0) {
+                    const std::string id = m_photo_tile_import_id;
+                    m_photo_tile_import_id.clear();
+                    const auto imported = [this, &id](bool ok, const std::string& message) {
+                        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.aiImported && "
+                            "window.PINGPhotoTile.aiImported({id:\"") + ping_js_escape(id) + "\",ok:" + (ok ? "true" : "false") +
+                            ",message:\"" + ping_js_escape(message) + "\"});");
+                    };
+                    std::vector<unsigned char> bytes;
+                    std::string why;
+                    if (!photo_tile_upload_end(m_photo_tile_import, bytes, why, import_what, import_undone)) {
+                        imported(false, why);
+                        return "";
+                    }
+                    static const unsigned char png_sig[8] = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
+                    if (bytes.size() < sizeof(png_sig) || std::memcmp(bytes.data(), png_sig, sizeof(png_sig)) != 0) {
+                        imported(false, "貼回的圖不是 PNG，這次沒有換圖（原本的圖沒動）。");
+                        return "";
+                    }
+                    const boost::filesystem::path ai_path = boost::filesystem::temp_directory_path() /
+                        boost::filesystem::unique_path("PING_photo_tile_ai_%%%%-%%%%-%%%%.png");
+                    if (!photo_tile_write_file_atomic(ai_path, bytes, false)) {
+                        imported(false, "貼回的圖暫存檔寫入失敗，這次沒有換圖（原本的圖沒動）。");
+                        return "";
+                    }
+                    // 同 phototile_ai_generate 成功那段：原照片只在第一次記；暫存檔同那條路不刪（壓平的背景執行緒可能正在讀舊的那張）
+                    if (m_photo_tile_origin_path.empty())
+                        m_photo_tile_origin_path = m_photo_tile_source_path;
+                    m_photo_tile_source_path = ai_path.string();
+                    m_photo_tile_ai_path     = ai_path.string();
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTile 貼回 AI 圖：" << bytes.size() << " bytes，來源已切換為 " << m_photo_tile_source_path;
+                    imported(true, "");
+                }
+                else if (command_str.compare("phototile_source_origin") == 0) {
+                    const auto replied = [this](bool ok, const std::string& message) {
+                        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.sourceOrigin && "
+                            "window.PINGPhotoTile.sourceOrigin({ok:") + (ok ? "true" : "false") + ",message:\"" + ping_js_escape(message) + "\"});");
+                    };
+                    boost::system::error_code ec;
+                    // origin 空＝目前的來源就是原圖（見 m_photo_tile_origin_path 的註解）
+                    const std::string& origin = m_photo_tile_origin_path.empty() ? m_photo_tile_source_path : m_photo_tile_origin_path;
+                    if (origin.empty() || !boost::filesystem::exists(boost::filesystem::path(origin), ec)) {
+                        replied(false, "找不到原本那張照片，請重新選一次照片。");
+                        return "";
+                    }
+                    m_photo_tile_source_path = origin;
+                    m_photo_tile_ai_path.clear();   // AI 圖留在頁面的清單上；點回它＝重新貼回（走 phototile_ai_import_*）
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTile 回到原圖：來源已切換為 " << m_photo_tile_source_path;
+                    replied(true, "");
+                }
+                else if (command_str.compare("phototile_mystyles_load") == 0) {
+                    std::string reply;
+                    boost::system::error_code ec;
+                    if (!boost::filesystem::exists(mine_path, ec)) {
+                        reply = "{ok:true,exists:false}";
+                    } else {
+                        const boost::uintmax_t size = boost::filesystem::file_size(mine_path, ec);
+                        std::vector<unsigned char> bytes(ec || size > max_mystyles_bytes ? 0 : static_cast<size_t>(size));
+                        boost::nowide::ifstream input(mine_path.string(), std::ios::binary);
+                        if (bytes.empty() || !input || !input.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()))) {
+                            BOOST_LOG_TRIVIAL(warning) << "PhotoTile 我的款式：不載入 " << mine_path.string() << " size=" << size;
+                            reply = std::string("{ok:false,message:\"") +
+                                    ping_js_escape("「我的款式」檔案是空的、讀不到、或超過 512 KB，這次沒有載入（原檔未動）。") + "\"}";
+                        } else {
+                            std::string encoded(boost::beast::detail::base64::encoded_size(bytes.size()), '\0');
+                            encoded.resize(boost::beast::detail::base64::encode(&encoded[0], bytes.data(), bytes.size()));
+                            reply = "{ok:true,exists:true,size:" + std::to_string(bytes.size()) + ",base64:\"" + encoded + "\"}";
+                        }
+                    }
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.mystylesLoaded && "
+                                           "window.PINGPhotoTile.mystylesLoaded(" + reply + ");");
+                }
+                else if (command_str.compare("phototile_mystyles_save_begin") == 0) {
+                    photo_tile_upload_begin(m_photo_tile_mystyles, root.get<size_t>("data.size", 0), root.get<size_t>("data.chunks", 0),
+                                            max_mystyles_bytes, max_mystyles_chunks, mine_what, mine_undone);
+                }
+                else if (command_str.compare("phototile_mystyles_save_chunk") == 0) {
+                    photo_tile_upload_chunk(m_photo_tile_mystyles, root.get<size_t>("data.index", size_t(-1)),
+                                            root.get<std::string>("data.base64", ""), mine_what, mine_undone);
+                }
+                else {   // phototile_mystyles_save_end
+                    const auto saved = [this](bool ok, const std::string& message, const std::string& path) {
+                        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.mystylesSaved && "
+                            "window.PINGPhotoTile.mystylesSaved({ok:") + (ok ? "true" : "false") + ",message:\"" +
+                            ping_js_escape(message) + "\",path:\"" + ping_js_escape(path) + "\"});");
+                    };
+                    std::vector<unsigned char> bytes;
+                    std::string why;
+                    if (!photo_tile_upload_end(m_photo_tile_mystyles, bytes, why, mine_what, mine_undone)) {
+                        saved(false, why, "");
+                        return "";
+                    }
+                    if (!photo_tile_write_file_atomic(mine_path, bytes, true)) {
+                        saved(false, "「我的款式」寫入失敗，這次沒有存檔（原檔未動）。", "");
+                        return "";
+                    }
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTile 我的款式：已存 " << bytes.size() << " bytes → " << mine_path.string();
+                    saved(true, "", mine_path.string());
+                }
             }
             else if (command_str.compare("get_recent_projects") == 0) {
                 if (mainframe) {

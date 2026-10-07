@@ -244,6 +244,10 @@ function labToneTable(palette){
    製程改了層高、這張表沒跟上就轉紅。 */
 const PT_LAYER_MM = { dual: { 0.4: 0.2, 0.6: 0.3, 1.0: 0.5 }, quad: { 0.4: 0.25, 0.6: 0.35, 1.0: 0.45 } };
 function layerHeightMm(mode, nozzle){ return PT_LAYER_MM[mode === 'quad' ? 'quad' : 'dual'][nozzle]; }
+/* 第四棒 Q1（Eric 2026-10-06 20:39「照建議」）：首層高＝同一批製程檔的 initial_layer_print_height（工作室算「磚最高多高才切得出來」用；
+   首層＋整數層不能超過機型可印高，否則切片擋「最後一層超出了最大構建高度」）。同一支測試第 7 節讀製程檔比對。 */
+const PT_FIRST_LAYER_MM = { dual: { 0.4: 0.25, 0.6: 0.35, 1.0: 0.55 }, quad: { 0.4: 0.3, 0.6: 0.4, 1.0: 0.5 } };
+function firstLayerMm(mode, nozzle){ return PT_FIRST_LAYER_MM[mode === 'quad' ? 'quad' : 'dual'][nozzle]; }
 /* mm → 格數一律無條件進位（最小寬／高是硬約束，round 會放行 0.78 mm 的段；2026-08-22）。
    減 1e-9：0.3/0.05 這種剛好整除的值浮點會差一點點，別讓它多進一格。 */
 const mmCells = (mm, cell) => Math.max(1, Math.ceil(mm / cell - 1e-9));
@@ -1613,7 +1617,8 @@ return { generate, cancel, suggestSlots, gridDims, sha256Hex, dualLadder, ERR,
          /* 1001 #50 丁：模擬圖與 3MF 同一支濾除（頁面 filterVerticalLabels 改呼叫這支） */
          filterLabels,
          /* 1003 AIP 刀 1：照片磚製程層高（上下濾除＝一層；第二班的提示詞「上下最少一層」也讀這一份） */
-         layerHeightMm, layerTable: () => JSON.parse(JSON.stringify(PT_LAYER_MM)),
+         layerHeightMm, firstLayerMm, layerTable: () => JSON.parse(JSON.stringify(PT_LAYER_MM)),
+         firstLayerTable: () => JSON.parse(JSON.stringify(PT_FIRST_LAYER_MM)),
          version: ENGINE_VERSION,
          metadataSchema: METADATA_SCHEMA,
          limitsDefault: { gridMax: GRID_MAX, maxDecodedPixels: 0 },
