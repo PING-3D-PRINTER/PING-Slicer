@@ -4266,6 +4266,8 @@ struct Plater::priv
     bool m_is_slicing {false};
     bool auto_reslice_pending {false};
     bool auto_reslice_after_cancel {false};
+    // PING（開發中清單 #62）：「預估記憶體不足」窗開著（使用者還沒決定）——這段期間不自動重切、也不再開第二個窗。
+    bool ping_asking_memory_shortage {false};
     bool m_is_publishing {false};
     int m_is_RightClickInLeftUI{-1};
     int m_cur_slice_plate;
@@ -7726,6 +7728,10 @@ void Plater::priv::trigger_auto_reslice_now()
     if (this->background_process.running() || this->m_is_slicing)
         return;
 
+    // PING（開發中清單 #62）：「預估記憶體不足」窗開著時不自動重切——使用者還沒決定要不要繼續。
+    if (this->ping_asking_memory_shortage)
+        return;
+
     PartPlate* plate = this->partplate_list.get_curr_plate();
     if (plate == nullptr || !plate->has_printable_instances())
         return;
@@ -10102,11 +10108,16 @@ bool Plater::priv::ping_confirm_filament_temperature(bool all_plates)
 void Plater::priv::ping_ask_memory_shortage(const PingMemoryEstimate &estimate, const Print *print)
 {
     // 這個窗是切片結束事件收尾之後才排進來的；輪到時如果已經換了列印板、或又開始切了，就不問。
+    // 切片途中選到別的列印板時，背景的 Print 還是原來那一板——這時續切會切到別板，所以要連「現在選的板」一起比。
     const auto still_asking = [this, print]() {
-        return background_process.fff_print() == print && !background_process.running() && !m_is_slicing;
+        PartPlate *plate = background_process.get_current_plate();
+        return background_process.fff_print() == print && !background_process.running() && !m_is_slicing &&
+               plate != nullptr && plate->get_index() == partplate_list.get_curr_plate_index();
     };
-    if (!still_asking())
+    if (ping_asking_memory_shortage || !still_asking()) {
+        BOOST_LOG_TRIVIAL(info) << "PING memory precheck: dialog skipped (already asking, plate changed or slicing restarted)";
         return;
+    }
 
     // 1 GB＝2^30 B，跟 Windows 工作管理員顯示的單位一致。
     const auto gb = [](uint64_t bytes) {
@@ -10132,7 +10143,9 @@ void Plater::priv::ping_ask_memory_shortage(const PingMemoryEstimate &estimate, 
     dlg.SetButtonLabel(wxID_YES, _L("Slice anyway"));
     dlg.SetButtonLabel(wxID_NO, _L("Go back and adjust"), true); // 焦點放安全選項
     dlg.SetEscapeId(wxID_NO);                                      // Esc 也算〔回去調整〕；✕ 回 wxID_CANCEL，同樣不是 YES
+    ping_asking_memory_shortage = true; // 開著的期間擋自動重切（trigger_auto_reslice_now）
     const bool slice_anyway = dlg.ShowModal() == wxID_YES;
+    ping_asking_memory_shortage = false;
     BOOST_LOG_TRIVIAL(warning) << "PING memory precheck: user chose " << (slice_anyway ? "slice anyway" : "go back and adjust")
                                << ", " << estimate.to_log_string();
     if (!still_asking())
@@ -10145,13 +10158,10 @@ void Plater::priv::ping_ask_memory_shortage(const PingMemoryEstimate &estimate, 
         return;
     }
 
-    // 接著做完這一次：已經做完的切片步驟不重做，process() 走到估算那一步時只記 log、不再擋。
-    Print *fff_print = background_process.fff_print();
-    fff_print->ping_skip_memory_precheck_once();
+    // 接著做完這一次：已經做完的切片步驟不重做；process() 走到估算那一步、估出同一個值時只記 log、不再擋。
+    // 接受的是這個估算值本身，所以中途取消、改了設定再切（估算值不同）會照常再問。
+    background_process.fff_print()->ping_accept_memory_estimate(estimate.estimated_moves);
     q->reslice();
-    // 沒真的開始切（例如被編輯中的 gizmo 擋住）就把放行收回，免得留到之後不相干的某一次切片才生效。
-    if (!background_process.running())
-        fff_print->ping_skip_memory_precheck_once(false);
 }
 
 //BBS: GUI refactor: slice plate
