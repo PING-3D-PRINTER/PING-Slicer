@@ -6,7 +6,12 @@
 
 #include "test_data.hpp"
 
+#include <boost/filesystem.hpp>
+#include <boost/nowide/cstdio.hpp>
+
+#include <fstream>
 #include <initializer_list>
+#include <iterator>
 #include <limits>
 #include <sstream>
 #include <string>
@@ -61,6 +66,22 @@ void init_print_placed(std::initializer_list<Slic3r::Test::TestMesh> meshes, Pri
     print.apply(model, config);
     print.validate();
     print.set_status_silent();
+}
+
+// test_data.cpp 的 gcode() 用沒有資料夾的相對檔名匯出；GCode::do_export 會對空的上層路徑呼叫
+// create_directory("") 而丟例外。這裡改寫到系統暫存夾的絕對路徑。
+std::string export_gcode_text(Print &print)
+{
+    const boost::filesystem::path temp =
+        boost::filesystem::temp_directory_path() / boost::filesystem::unique_path("ping_memory_estimate_%%%%-%%%%-%%%%.gcode");
+    print.set_status_silent();
+    print.process();
+    print.export_gcode(temp.string(), nullptr, nullptr);
+    std::ifstream in(temp.string());
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    in.close();
+    boost::nowide::remove(temp.string().c_str());
+    return text;
 }
 
 } // namespace
@@ -252,7 +273,7 @@ TEST_CASE("Estimated moves stay within a broad range of generated G1 lines", "[P
     init_print_placed({Slic3r::Test::TestMesh::cube_20x20x20}, print, model, memory_test_config());
     print.process();
     const PingMemoryEstimate estimate = ping_estimate_gcode_memory(print);
-    std::istringstream gcode(Slic3r::Test::gcode(print));
+    std::istringstream gcode(export_gcode_text(print));
     uint64_t actual_moves = 0;
     std::string line;
     while (std::getline(gcode, line)) {
