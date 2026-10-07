@@ -4602,7 +4602,11 @@ void TabFilament::toggle_options()
 
         // PING(2026-10-07 Eric 令)：Classic 前代韌體沒有壓力補償＝整組欄位不顯示（只藏介面，
         // 引擎不動；內建 Classic 線材本來就是關的）。
-        if (wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_classic_selected()) {
+        const bool ping_classic = wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_classic_selected();
+        // 群組標題跟著改：Classic 時裡面只剩流量比，標題不再掛「壓力補償」（Eric 2026-10-08 裁「照建議」）
+        if (ConfigOptionsGroupShp og = m_active_page->get_optgroup(L("Flow ratio and Pressure Advance")); og)
+            og->set_name(ping_classic ? _L("Flow ratio") : _L("Flow ratio and Pressure Advance"));
+        if (ping_classic) {
             for (const char* key : {"enable_pressure_advance", "pressure_advance", "adaptive_pressure_advance",
                                     "adaptive_pressure_advance_overhangs", "adaptive_pressure_advance_model",
                                     "adaptive_pressure_advance_bridges"})
