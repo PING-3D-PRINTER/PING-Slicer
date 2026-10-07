@@ -60,7 +60,7 @@ struct PingQuoteObject
     int                      instances = 1;        // 本盤上同一物件的份數（見下方註）
 
     bool   has_size = false;
-    double size_x = 0., size_y = 0., size_z = 0.;  // 含縮放與旋轉後的實際外框（mm）
+    double size_x = 0., size_y = 0., size_z = 0.;  // 物件座標下的長寬高：含縮放、不含擺放旋轉（mm，契約 v1.4）
 
     bool   has_weight = false;
     double weight_g = 0.;                          // 所有線材總重，含支撐與該件的換料塔

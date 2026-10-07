@@ -5,6 +5,10 @@
 #include "MainFrame.hpp"
 #include "Plater.hpp"
 
+#include "libslic3r/Geometry.hpp"
+#include "libslic3r/Model.hpp"
+
+#include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/log/trivial.hpp>
 
@@ -85,6 +89,38 @@ void run_ping_quote_smoke(MainFrame *frame)
         if (loaded.empty()) {
             finish_smoke(frame, false, "載入模型後盤上沒有東西");
             return;
+        }
+
+        /* 契約 v1.4 驗收用（選填）：把載入的每個物件轉一個角度／等比例縮放後再產包，
+           用來驗「size_* 不隨擺放旋轉改變、縮放 50% 就減半」。
+             PING_QUOTE_SMOKE_ROTATE = "30,45,10"   繞 X、Y、Z 的角度（度）
+             PING_QUOTE_SMOKE_SCALE  = "50"         等比例縮放（%）
+           沒設就完全不動模型。 */
+        {
+            const char *rot_env = ::getenv("PING_QUOTE_SMOKE_ROTATE");
+            const char *scl_env = ::getenv("PING_QUOTE_SMOKE_SCALE");
+            if ((rot_env != nullptr && *rot_env != 0) || (scl_env != nullptr && *scl_env != 0)) {
+                Vec3d rot = Vec3d::Zero();
+                if (rot_env != nullptr && *rot_env != 0) {
+                    std::vector<std::string> parts;
+                    boost::split(parts, std::string(rot_env), boost::is_any_of(","));
+                    for (size_t i = 0; i < parts.size() && i < 3; ++i)
+                        rot(i) = Geometry::deg2rad(::atof(parts[i].c_str()));
+                }
+                const double scl = (scl_env != nullptr && *scl_env != 0) ? ::atof(scl_env) / 100. : 1.;
+                for (size_t idx : loaded) {
+                    if (idx >= plater->model().objects.size())
+                        continue;
+                    ModelObject *mo = plater->model().objects[idx];
+                    for (ModelInstance *mi : mo->instances) {
+                        if (rot_env != nullptr && *rot_env != 0)
+                            mi->set_rotation(rot);
+                        if (scl > 0. && scl != 1.)
+                            mi->set_scaling_factor(mi->get_scaling_factor() * scl);
+                    }
+                    plater->changed_object(static_cast<int>(idx));   // 重新貼床＋更新場景
+                }
+            }
         }
 
         BOOST_LOG_TRIVIAL(warning) << "PING_QUOTE_SMOKE: loaded " << loaded.size() << " model(s), generating...";
