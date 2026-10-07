@@ -38,6 +38,8 @@ class SupportLayer;
 class TreeSupportData;
 class TreeSupport;
 class ExtrusionLayers;
+// PING（開發中清單 #62）：定義在 GCode/PingMemoryEstimate.hpp
+struct PingMemoryEstimate;
 
 #define MAX_OUTER_NOZZLE_DIAMETER   4
 // BBS: move from PrintObjectSlice.cpp
@@ -1108,6 +1110,12 @@ public:
 
     std::tuple<float, float> object_skirt_offset(double margin_height = 0) const;
 
+    // PING（開發中清單 #62）：process() 在衝突檢查與產 G-code 之前先估記憶體，不夠就丟 PingMemoryShortageError。
+    // 只有圖形介面的背景切片會開；命令列、報價包、校正都不開，行為不變。
+    void ping_set_memory_precheck(bool enabled) { m_ping_memory_precheck = enabled; }
+    // 使用者在「預估記憶體不足」窗按了〔仍要切片〕：下一次 process() 照樣估、照樣記 log，但不擋。用過即清。
+    void ping_skip_memory_precheck_once(bool skip = true) { m_ping_memory_precheck_skip_once = skip; }
+
 protected:
     // Invalidates the step, and its depending steps in Print.
     bool                invalidate_step(PrintStep step);
@@ -1177,6 +1185,12 @@ private:
     Calib_Params m_calib_params;
 
     bool m_need_check_multi_filaments_compatibility{true};
+
+    // PING（開發中清單 #62）：見上方 ping_set_memory_precheck()／ping_skip_memory_precheck_once()。
+    bool m_ping_memory_precheck { false };
+    bool m_ping_memory_precheck_skip_once { false };
+    // 估算要讀 brim 與換料塔的切片結果。
+    friend PingMemoryEstimate ping_estimate_gcode_memory(const Print &print);
 
     // To allow GCode to set the Print's GCodeExport step status.
     friend class GCode;

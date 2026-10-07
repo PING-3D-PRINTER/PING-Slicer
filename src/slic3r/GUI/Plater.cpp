@@ -57,6 +57,7 @@
 #include "libslic3r/Format/bbs_3mf.hpp"
 #include "libslic3r/GCode/ThumbnailData.hpp"
 #include "libslic3r/GCode/PingCycleTower.hpp"   // collect_photo_parts（三處共用的照片磚名冊收集）
+#include "libslic3r/GCode/PingMemoryEstimate.hpp" // 產 G-code 前先估記憶體（開發中清單 #62）
 #include "libslic3r/Model.hpp"
 #include "libslic3r/SLA/Hollowing.hpp"
 #include "libslic3r/SLA/SupportPoint.hpp"
@@ -4628,6 +4629,8 @@ struct Plater::priv
     void on_action_slice_all(SimpleEvent&);
     // PING(異常單 #33)：一噴頭多料機兩支料目標溫度不一致 → 切片前確認。回傳 false＝使用者取消
     bool ping_confirm_filament_temperature(bool all_plates);
+    // PING（開發中清單 #62）：切片算完估出記憶體不夠 → 問使用者〔仍要切片〕或〔回去調整〕
+    void ping_ask_memory_shortage(const PingMemoryEstimate &estimate, const Print *print);
     void on_action_publish(wxCommandEvent &evt);
     void on_action_print_plate(SimpleEvent&);
     void on_action_print_all(SimpleEvent&);
@@ -9754,6 +9757,22 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
     this->background_process.reset_export();
     // This bool stops showing export finished notification even when process_completed_with_error is false
     bool has_error = false;
+    // PING（開發中清單 #62）：切片算完、產 G-code 前估出記憶體不夠。不當成錯誤通知；
+    // 等這個函式把狀態收完，再跳窗問使用者（ping_ask_memory_shortage）。
+    std::unique_ptr<PingMemoryEstimate> ping_memory_shortage;
+    if (evt.error()) {
+        try {
+            evt.rethrow_exception();
+        } catch (const PingMemoryShortageError &ex) {
+            ping_memory_shortage = std::make_unique<PingMemoryEstimate>(ex.estimate());
+        } catch (...) {
+        }
+    }
+    if (ping_memory_shortage) {
+        notification_manager->set_slicing_progress_hidden();
+        has_error   = true;
+        is_finished = true;
+    } else
     if (evt.error()) {
         auto message = evt.format_error_message();
         if (evt.critical_error()) {
@@ -9933,6 +9952,11 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
         schedule_auto_reslice_if_needed();
     }
 
+    if (ping_memory_shortage) {
+        const Print *print = background_process.fff_print();
+        q->CallAfter([this, estimate = *ping_memory_shortage, print]() { ping_ask_memory_shortage(estimate, print); });
+    }
+
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(", exit.");
 }
 
@@ -10070,6 +10094,64 @@ bool Plater::priv::ping_confirm_filament_temperature(bool all_plates)
     dlg.SetButtonLabel(wxID_YES, wxString::FromUTF8("仍要切片"));
     dlg.SetButtonLabel(wxID_NO, wxString::FromUTF8("取消"), true); // 焦點放安全選項
     return dlg.ShowModal() == wxID_YES;
+}
+
+// PING（開發中清單 #62）：切片算完、產 G-code 前估出記憶體不夠（Print::process 丟 PingMemoryShortageError）。
+// 不夠也讓使用者自己決定要不要繼續——估算一定有誤差，硬擋的話估錯一次就完全切不了。
+// 鈕序與預設焦點同上面「線材目標溫度不一致」那個窗：左〔仍要切片〕、右是安全選項。
+void Plater::priv::ping_ask_memory_shortage(const PingMemoryEstimate &estimate, const Print *print)
+{
+    // 這個窗是切片結束事件收尾之後才排進來的；輪到時如果已經換了列印板、或又開始切了，就不問。
+    const auto still_asking = [this, print]() {
+        return background_process.fff_print() == print && !background_process.running() && !m_is_slicing;
+    };
+    if (!still_asking())
+        return;
+
+    // 1 GB＝2^30 B，跟 Windows 工作管理員顯示的單位一致。
+    const auto gb = [](uint64_t bytes) {
+        const double v = double(bytes) / double(1ull << 30);
+        return v >= 9.95 ? wxString::Format("%.0f", v) : wxString::Format("%.1f", v);
+    };
+    wxString msg = format_wxstr(_L("With the current settings, generating the G-code and the preview is estimated to need about %1% GB "
+                                   "more memory, but only about %2% GB is available on this computer. "
+                                   "Slicing will probably fail if you continue."),
+                                gb(estimate.needed_bytes), gb(estimate.available.available_bytes));
+    msg += "\n\n";
+    msg += _L("Change one or more of these, then slice again:");
+    msg += "\n";
+    msg += _L("- Process > Strength > Sparse infill pattern: use a straight-line pattern such as Grid");
+    msg += "\n";
+    msg += _L("- Process > Strength > Sparse infill density: lower it");
+    msg += "\n";
+    msg += _L("- Process > Quality > Layer height: increase it");
+    msg += "\n";
+    msg += _L("- Scale the model down, or split it into several parts");
+
+    MessageDialog dlg(q, msg, _L("Estimated memory shortage"), wxICON_WARNING | wxYES_NO | wxCENTRE);
+    dlg.SetButtonLabel(wxID_YES, _L("Slice anyway"));
+    dlg.SetButtonLabel(wxID_NO, _L("Go back and adjust"), true); // 焦點放安全選項
+    dlg.SetEscapeId(wxID_NO);                                      // Esc 也算〔回去調整〕；✕ 回 wxID_CANCEL，同樣不是 YES
+    const bool slice_anyway = dlg.ShowModal() == wxID_YES;
+    BOOST_LOG_TRIVIAL(warning) << "PING memory precheck: user chose " << (slice_anyway ? "slice anyway" : "go back and adjust")
+                               << ", " << estimate.to_log_string();
+    if (!still_asking())
+        return;
+
+    if (!slice_anyway) {
+        // 回準備頁讓使用者改設定。模型、設定與已經算好的切片結果都沒動，改了設定只重算受影響的部分。
+        main_frame->select_tab(size_t(MainFrame::tp3DEditor));
+        q->select_view_3D("3D");
+        return;
+    }
+
+    // 接著做完這一次：已經做完的切片步驟不重做，process() 走到估算那一步時只記 log、不再擋。
+    Print *fff_print = background_process.fff_print();
+    fff_print->ping_skip_memory_precheck_once();
+    q->reslice();
+    // 沒真的開始切（例如被編輯中的 gizmo 擋住）就把放行收回，免得留到之後不相干的某一次切片才生效。
+    if (!background_process.running())
+        fff_print->ping_skip_memory_precheck_once(false);
 }
 
 //BBS: GUI refactor: slice plate
