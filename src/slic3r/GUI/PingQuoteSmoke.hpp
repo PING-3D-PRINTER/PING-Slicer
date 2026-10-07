@@ -16,6 +16,11 @@
 //   $env:PING_QUOTE_SMOKE       = "C:\out\smoke.pingquote"   # 輸出路徑（必填）
 //   $env:PING_QUOTE_SMOKE_MODEL = "a.stl;b.stl"              # 要載入的模型，分號分隔（必填）
 //   $env:PING_QUOTE_SMOKE_DELAY_MS = "8000"                  # 選填，等 app 初始化完再跑
+//   # 以下三個是契約 v1.4「尺寸給物件座標」的驗收用，選填，沒設就完全不動模型：
+//   $env:PING_QUOTE_SMOKE_ROTATE     = "30,45,10"            # 每個物件繞 X、Y、Z 轉幾度再產包
+//   $env:PING_QUOTE_SMOKE_SCALE      = "50"                  # 等比例縮放（%）
+//   $env:PING_QUOTE_SMOKE_PANEL_SIZE = "1"                   # 把尺寸面板在物件座標／世界座標會顯示的值寫進 log
+//                                                            # （log 行＝`PING_QUOTE_SMOKE panel idx=…`，拿來對 quote.txt 的 size_*）
 //   ping-slicer.exe --datadir <獨立 data root>
 //
 // 跑完會把結果寫進 log 並自己關閉。**一般啟動完全不受影響**（沒設環境變數就什麼都不做）。
