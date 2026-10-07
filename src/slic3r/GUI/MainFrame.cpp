@@ -1280,7 +1280,7 @@ void MainFrame::show_option(bool show)
             m_slice_btn->Show();
             m_print_btn->Show();
             m_slice_option_btn->Show();
-            m_print_option_btn->Show();
+            m_print_option_btn->Show(!m_ping_classic); // PING：Classic 只有「匯出 G-code 檔案」一個選項，不給下拉
             Layout();
         }
     }
@@ -1500,7 +1500,7 @@ void MainFrame::init_tabpanel() {
 }
 
 // SoftFever
-void MainFrame::show_device(bool bBBLPrinter) {
+void MainFrame::show_device(bool bBBLPrinter, bool hide_device_tab) {
     auto idx = -1;
     if (bBBLPrinter) {
         if (m_tabpanel->FindPage(m_monitor) != wxNOT_FOUND) {
@@ -1546,9 +1546,18 @@ void MainFrame::show_device(bool bBBLPrinter) {
 #endif // _MSW_DARK_MODE
 
     } else {
-        if (m_tabpanel->FindPage(m_printer_view) != wxNOT_FOUND) {
+        if (!hide_device_tab && m_tabpanel->FindPage(m_printer_view) != wxNOT_FOUND) {
             fit_tab_labels(); // ORCA on printer change - same button layout
             return;
+        }
+        // PING(2026-10-07 Eric 令)：Classic 前代沒有網路＝整個「設備」分頁拿掉（不是留一頁「尚未連線」）。
+        // 切回其他機型時走下面原本的 InsertPage 補回來。分頁索引只有 tpHome／tp3DEditor／tpPreview
+        // 被別處拿來比對，拿掉第 4 頁不影響它們。
+        if (hide_device_tab && (idx = m_tabpanel->FindPage(m_printer_view)) != wxNOT_FOUND) {
+            if (m_tabpanel->GetSelection() == idx)
+                m_tabpanel->SetSelection(tp3DEditor);
+            m_printer_view->Show(false);
+            m_tabpanel->RemovePage(idx);
         }
         if ((idx = m_tabpanel->FindPage(m_calibration)) != wxNOT_FOUND) {
             m_calibration->Show(false);
@@ -1561,6 +1570,10 @@ void MainFrame::show_device(bool bBBLPrinter) {
         if ((idx = m_tabpanel->FindPage(m_monitor)) != wxNOT_FOUND) {
             m_monitor->Show(false);
             m_tabpanel->RemovePage(idx);
+        }
+        if (hide_device_tab) {
+            fit_tab_labels();
+            return;
         }
         if (m_printer_view == nullptr) {
             m_printer_view = new PrinterWebView(m_tabpanel);
@@ -1576,6 +1589,35 @@ void MainFrame::show_device(bool bBBLPrinter) {
                                std::string("tab_monitor_active"));
     }
     fit_tab_labels(); // ORCA on printer change
+}
+
+// PING(2026-10-07 Eric 令)：Classic 前代（Marlin、SD 卡、沒有網路）專屬介面。
+// 這裡管 MainFrame 自己擁有的兩樣：①列印鈕旁的下拉箭頭（Classic 只剩「匯出 G-code 檔案」
+// 一個選項，留箭頭＝點開只有一項）②校正選單的「壓力補償」（Classic 韌體沒有這功能）。
+// 連接鈕在 Sidebar、設備分頁在 show_device()、線材頁欄位在 TabFilament::toggle_options()。
+void MainFrame::update_ping_classic_ui(bool classic)
+{
+    m_ping_classic = classic;
+
+    if (m_print_option_btn != nullptr) {
+        const bool show = m_side_tools_shown && !classic;
+        if (m_print_option_btn->IsShown() != show) {
+            m_print_option_btn->Show(show);
+            Layout();
+            fit_tab_labels();
+        }
+    }
+
+    if (m_ping_pa_calib_menu != nullptr && m_ping_pa_calib_item != nullptr) {
+        if (classic && !m_ping_pa_calib_removed) {
+            m_ping_pa_calib_menu->Remove(m_ping_pa_calib_item);
+            m_ping_pa_calib_removed = true;
+        } else if (!classic && m_ping_pa_calib_removed) {
+            const size_t pos = std::min(m_ping_pa_calib_pos, m_ping_pa_calib_menu->GetMenuItemCount());
+            m_ping_pa_calib_menu->Insert(pos, m_ping_pa_calib_item);
+            m_ping_pa_calib_removed = false;
+        }
+    }
 }
 
 void MainFrame::fit_tab_labels()
@@ -2272,7 +2314,11 @@ wxBoxSizer* MainFrame::create_side_tools()
                     p->Dismiss();
                     });
 
-                p->append_button(send_gcode_btn);
+                // PING：Classic 前代沒有網路＝不給「列印」（上傳／上傳並列印），只留匯出
+                if (m_ping_classic)
+                    send_gcode_btn->Hide();
+                else
+                    p->append_button(send_gcode_btn);
                 p->append_button(export_gcode_btn);
             }
             else {
@@ -3631,6 +3677,10 @@ void MainFrame::init_menubar_as_editor()
         [this]() {return m_plater->is_view3D_shown();; }, this);
 
     // Pressure Advance
+    // PING：記住這一項與它的位置——Classic 機型時整項拿掉（update_ping_classic_ui）
+    m_ping_pa_calib_menu = m_topbar->GetCalibMenu();
+    m_ping_pa_calib_pos  = m_ping_pa_calib_menu->GetMenuItemCount();
+    m_ping_pa_calib_item =
     append_menu_item(m_topbar->GetCalibMenu(), wxID_ANY, _L("Pressure advance"), _L("Pressure advance"),
         [this](wxCommandEvent&) {
             if (!m_pa_calib_dlg)
@@ -3749,6 +3799,10 @@ void MainFrame::init_menubar_as_editor()
         [this]() {return m_plater->is_view3D_shown();; }, this);
 
     // Pressure Advance
+    // PING：同上（選單列版）
+    m_ping_pa_calib_menu = calib_menu;
+    m_ping_pa_calib_pos  = m_ping_pa_calib_menu->GetMenuItemCount();
+    m_ping_pa_calib_item =
     append_menu_item(calib_menu, wxID_ANY, _L("Pressure advance"), _L("Pressure advance"),
         [this](wxCommandEvent&) {
             if (!m_pa_calib_dlg)

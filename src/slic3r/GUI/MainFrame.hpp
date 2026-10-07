@@ -309,6 +309,9 @@ public:
     // PING(2026-09-07 Eric 裁・回報中心 #99)：照片磚入口從首頁搬到上方列，只在同進機顯示。
     // 由 update_ping_mix_side_button() 末尾一併呼叫（兩顆鈕的觸發時機完全相同：換機型／上方列顯示切換）。
     void        update_ping_phototile_side_button();
+    // PING(2026-10-07 Eric 令)：Classic 前代專屬介面——列印鈕旁的下拉箭頭與校正選單的
+    // 「壓力補償」跟著機型顯示／隱藏。由 Sidebar::update_all_preset_comboboxes() 在機型變動時呼叫。
+    void        update_ping_classic_ui(bool classic);
     void        on_select_default_preset(SimpleEvent& evt);
 
     bool        is_loaded() const { return m_loaded; }
@@ -372,10 +375,17 @@ public:
     void RunScript(wxString js);
 
     //SoftFever
-    void show_device(bool bBBLPrinter);
+    // hide_device_tab＝PING Classic 前代（沒有網路）：非 BBL 機型也不放「設備」分頁
+    void show_device(bool bBBLPrinter, bool hide_device_tab = false);
     void fit_tab_labels(); // ORCA
 
     PA_Calibration_Dlg* m_pa_calib_dlg{ nullptr };
+    // PING Classic 專屬介面（見 update_ping_classic_ui）
+    bool        m_ping_classic{ false };
+    wxMenu*     m_ping_pa_calib_menu{ nullptr };
+    wxMenuItem* m_ping_pa_calib_item{ nullptr };
+    size_t      m_ping_pa_calib_pos{ 0 };
+    bool        m_ping_pa_calib_removed{ false };
     Temp_Calibration_Dlg* m_temp_calib_dlg{ nullptr };
     MaxVolumetricSpeed_Test_Dlg* m_vol_test_dlg { nullptr };
     VFA_Test_Dlg* m_vfa_test_dlg { nullptr };
