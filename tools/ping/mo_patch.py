@@ -272,6 +272,21 @@ NEW_ENTRIES = {
     # PING(2026-09-29・牌 c-0929-HOME-01)：首頁內嵌網頁使用中失效時的一行提示（開發中清單 #34，Eric 裁 D2 A＝只提示、讓使用者按「重新載入」）。
     #   src/slic3r/GUI/WebViewDialog.cpp（show_failed_notice）；按鈕沿用既有「Reload」＝「重新載入」。
     "The page has stopped working.": "頁面已失效",
+    # PING(2026-10-07・牌 c-1007-CRS-06)：產 G-code 前先估記憶體（開發中清單 #62；Eric 2026-10-07 六題「照建議」）。
+    #   設定名稱照現行繁中介面（列印參數／結構／稀疏填充圖案／稀疏填充密度／品質／層高／網格），改介面用詞時這裡要跟著改。
+    #   src/slic3r/GUI/Plater.cpp（ping_ask_memory_shortage：標題、內文、兩顆鈕）
+    "Estimated memory shortage": "預估記憶體不足",
+    "With the current settings, generating the G-code and the preview is estimated to need about %1% GB more memory, but only about %2% GB is available on this computer. Slicing will probably fail if you continue.": "照目前的設定，接下來產生 G-code 與預覽預估還要約 %1% GB 記憶體，這台電腦現在能用的約 %2% GB。繼續下去很可能中途失敗。",
+    "Change one or more of these, then slice again:": "調整後再切片（可以只改一項）：",
+    "- Process > Strength > Sparse infill pattern: use a straight-line pattern such as Grid": "- 列印參數 → 結構 → 稀疏填充圖案：改成「網格」這類直線圖案",
+    "- Process > Strength > Sparse infill density: lower it": "- 列印參數 → 結構 → 稀疏填充密度：調低",
+    "- Process > Quality > Layer height: increase it": "- 列印參數 → 品質 → 層高：調高",
+    "- Scale the model down, or split it into several parts": "- 把模型縮小，或拆成幾件分開切",
+    "Slice anyway": "仍要切片",
+    "Go back and adjust": "回去調整",
+    #   src/slic3r/GUI/BackgroundSlicingProcess.cpp（format_error_message 的 std::bad_alloc）。
+    #   取代「A error occurred. Maybe memory of system is not enough or it's a bug of the program」（舊條目留在 .mo 當死條目）。
+    "Out of memory. Slicing was not completed.\nTry one of these, then slice again: under Process > Strength, set Sparse infill pattern to Grid or lower Sparse infill density; under Process > Quality, increase Layer height; or scale the model down.\n(%1%)": "記憶體不足，這次切片沒有完成。\n可以到「列印參數 → 結構」把稀疏填充圖案改成「網格」或調低稀疏填充密度，到「列印參數 → 品質」調高層高，或把模型縮小後再切。\n（%1%）",
 }
 
 

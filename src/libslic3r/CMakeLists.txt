@@ -229,6 +229,8 @@ set(lisbslic3r_sources
     GCode/PingCycleTower.hpp
     GCode/PingDeltaReach.cpp
     GCode/PingDeltaReach.hpp
+    GCode/PingMemoryEstimate.cpp
+    GCode/PingMemoryEstimate.hpp
     # PING 照片磚本地風格化（甲案，c-0822-PT-06）：把 dev 端 pipeline.py 的
     # bilateral→mean-shift→k-means→medianBlur 搬進產品。相依 OpenCV core+imgproc+imgcodecs，
     # 本檔下方 find_package(OpenCV REQUIRED core)／link opencv_world 早已存在＝零新相依。

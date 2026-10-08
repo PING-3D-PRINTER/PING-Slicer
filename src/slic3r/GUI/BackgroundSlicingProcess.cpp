@@ -82,9 +82,12 @@ std::pair<std::string, std::vector<size_t>> SlicingProcessCompletedEvent::format
 	try {
 		this->rethrow_exception();
     } catch (const std::bad_alloc &ex) {
-        wxString errmsg = GUI::from_u8(boost::format(_utf8(L("A error occurred. Maybe memory of system is not enough or it's a bug "
-			                  "of the program"))).str());
-        error = std::string(errmsg.ToUTF8()) + "\n" + std::string(ex.what());
+        // PING（開發中清單 #62）：切片途中就不夠、或使用者在「預估記憶體不足」窗按了〔仍要切片〕之後真的不夠，
+        // 看到的就是這個框——直接講原因與調法（原本是「發生錯誤。可能系統記憶體不足或者程式存在錯誤」）。
+        error = GUI::format(_u8L("Out of memory. Slicing was not completed.\n"
+                                 "Try one of these, then slice again: under Process > Strength, set Sparse infill pattern to Grid "
+                                 "or lower Sparse infill density; under Process > Quality, increase Layer height; or scale the model down.\n"
+                                 "(%1%)"), ex.what());
     } catch (const HardCrash &ex) {
         error = GUI::format(_u8L("A fatal error occurred: \"%1%\""), ex.what()) + "\n" +
                             _u8L("Please save project and restart the program.");
@@ -460,7 +463,13 @@ void BackgroundSlicingProcess::process_fff()
 		m_gcode_result->reset();
 
 		BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" %1%: gcode_result reseted, will start print::process")%__LINE__;
-		m_print->process();
+		{
+			// PING（開發中清單 #62）：只有這裡（圖形介面的背景切片）開「產 G-code 前先估記憶體」；離開就關，
+			// 同一個 Print 被別處拿去 process() 時行為不變。
+			m_fff_print->ping_set_memory_precheck(true);
+			ScopeGuard ping_precheck_off([this]() { m_fff_print->ping_set_memory_precheck(false); });
+			m_print->process();
+		}
 		BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" %1%: after print::process, send slicing complete event to gui...")%__LINE__;
         if (m_current_plate->get_real_filament_map_mode(preset_bundle.project_config) < FilamentMapMode::fmmManual) {
             std::vector<int> f_maps = m_fff_print->get_filament_maps();
