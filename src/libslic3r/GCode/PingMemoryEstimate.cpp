@@ -19,10 +19,14 @@
 namespace Slic3r {
 
 // 每筆 G-code 移動在「產 G-code＋載入預覽」整趟佔用的記憶體（B）。來源＝網格填充完整跑完 6 次的累積峰值除以 G1 筆數，取最大值進位。
+// 2026-10-08 再量兩次（從估算那一刻到整趟峰值）：網格大件每筆 662 B、gyroid 中件 551 B ⇒ 690 對 gyroid 偏高估，不調。
 static constexpr uint64_t PING_BYTES_PER_MOVE = 690;
-// 每個列印單位（loop／multi-path／path）除了擠出線段之外多帶的移動筆數：空跑、回抽、回補。暫定值，待實跑校準。
+// 每個列印單位（loop／multi-path／path）除了擠出線段之外多帶的移動筆數：空跑、回抽、回補。
+// 2026-10-08 實跑四次對 G-code 的 G1 行數（小件兩次、網格大件、gyroid 中件）：預估／實際＝0.95、0.95、1.09、1.01。
+// 列印單位數與 path 數幾乎成比例，下面兩個常數分不開，合起來是「每個列印單位多 3 筆」；各件實測要 1.7～3.5 筆，
+// 會靠近記憶體門檻的大件落在 1.7～1.8 ⇒ 現值對大件偏高估（方向保守），不調。
 static constexpr double PING_EXTRA_MOVES_PER_ENTITY = 2.0;
-// 每段 path 多帶的移動筆數：速度行（G1 F）。暫定值，待實跑校準。
+// 每段 path 多帶的移動筆數：速度行（G1 F）。校準見上一段。
 static constexpr double PING_EXTRA_MOVES_PER_PATH = 1.0;
 // 預估需要量超過可用量的這個百分比就算不夠。
 static constexpr uint64_t PING_SHORTAGE_PERCENT = 85;
