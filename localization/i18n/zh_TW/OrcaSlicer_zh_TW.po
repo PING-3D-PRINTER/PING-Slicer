@@ -21669,3 +21669,45 @@ msgstr "連線金鑰不對或已失效。請到印表機網頁 ⚙ 設定按〔�
 
 msgid "This printer needs a connection key. On the printer's web page, open ⚙ Settings and press Copy, then paste it into the Connection key field of the Physical Printer window."
 msgstr "這台印表機需要連線金鑰。請到印表機網頁 ⚙ 設定按〔複製〕，貼到「實體列印設備」視窗的「連線金鑰」欄。"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "- Process > Quality > Layer height: increase it"
+msgstr "- 列印參數 → 品質 → 層高：調高"
+
+msgid "- Process > Strength > Sparse infill density: lower it"
+msgstr "- 列印參數 → 結構 → 稀疏填充密度：調低"
+
+msgid "- Process > Strength > Sparse infill pattern: use a straight-line pattern such as Grid"
+msgstr "- 列印參數 → 結構 → 稀疏填充圖案：改成「網格」這類直線圖案"
+
+msgid "- Scale the model down, or split it into several parts"
+msgstr "- 把模型縮小，或拆成幾件分開切"
+
+msgid "Change one or more of these, then slice again:"
+msgstr "調整後再切片（可以只改一項）："
+
+msgid "Estimated memory shortage"
+msgstr "預估記憶體不足"
+
+msgid "Go back and adjust"
+msgstr "回去調整"
+
+msgid ""
+"Out of memory. Slicing was not completed.\n"
+"Try one of these, then slice again: under Process > Strength, set Sparse infill pattern to Grid or lower Sparse infill density; under Process > Quality, increase Layer height; or scale the model down.\n"
+"(%1%)"
+msgstr ""
+"記憶體不足，這次切片沒有完成。\n"
+"可以到「列印參數 → 結構」把稀疏填充圖案改成「網格」或調低稀疏填充密度，到「列印參數 → 品質」調高層高，或把模型縮小後再切。\n"
+"（%1%）"
+
+msgid "Slice anyway"
+msgstr "仍要切片"
+
+msgid "With the current settings, generating the G-code and the preview is estimated to need about %1% GB more memory, but only about %2% GB is available on this computer. Slicing will probably fail if you continue."
+msgstr "照目前的設定，接下來產生 G-code 與預覽預估還要約 %1% GB 記憶體，這台電腦現在能用的約 %2% GB。繼續下去很可能中途失敗。"

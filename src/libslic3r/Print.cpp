@@ -37,6 +37,7 @@
 #include "nlohmann/json.hpp"
 
 #include "GCode/ConflictChecker.hpp"
+#include "GCode/PingMemoryEstimate.hpp"
 #include "ParameterUtils.hpp"
 
 #include <codecvt>
@@ -2436,6 +2437,20 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
             if (obj->set_started(posSimplifySupportPath))
                 obj->set_done(posSimplifySupportPath);
         }
+    }
+
+    // PING（開發中清單 #62）：路徑到這裡都定案了（上面剛簡化完）。大件會把記憶體吃光的兩步——衝突檢查、
+    // 產 G-code 與預覽——都在後面，所以在這裡先估；估出來不夠就停，由介面問使用者要不要繼續。
+    if (m_ping_memory_precheck) {
+        const uint64_t accepted_moves = m_ping_memory_precheck_accepted_moves;
+        m_ping_memory_precheck_accepted_moves = 0;
+        const PingMemoryEstimate estimate = ping_estimate_gcode_memory(*this);
+        // 使用者接受的是「這一份切片結果」的估算；中途取消又改了設定的話，估算值會不同，照常再問。
+        const bool skip = accepted_moves != 0 && accepted_moves == estimate.estimated_moves;
+        BOOST_LOG_TRIVIAL(info) << "PING memory precheck: " << estimate.to_log_string()
+                                << (skip ? ", user chose to slice anyway" : "");
+        if (estimate.short_of_memory() && !skip)
+            throw PingMemoryShortageError(estimate);
     }
 
     // BBS
