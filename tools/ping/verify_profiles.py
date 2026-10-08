@@ -1298,6 +1298,23 @@ else:
     if not _gm or "M6050" not in _gm.group(1):
         err("[跨層護欄・Classic M6050 換刀抑制] GCode.cpp custom_gcode_changes_tool 未認 M6050 ⇒ 模板後會補裸 Tn")
 
+# ★ 跨層護欄・Classic 雙料預覽統計認 M6050（2026-10-08 回報：DUAL 600 預覽全算第 1 槽）：
+#   Classic 雙料不輸出 T0/T1，換料只靠 change_filament_gcode 的 M6050 S1/S0 P0；GCodeProcessor 若不認
+#   M6050，預覽顏色／各槽用量／換料次數／成本會整份停在擠出機 0。G-code 文字護欄抓不到這類錯，
+#   這裡鎖住 C++ 端：已註冊 "M6050" 且處理函式存在、會呼叫 process_filament_change。
+#   實切驗收（CLI 切 DUAL 樣本，檔尾 `; filament used [mm]` 第 2 槽 > 0、換料次數 == 檔頭
+#   `; total filament change`）見 SOP_無頭切片與gcode分析.md。
+_gpcpp = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(PINGDIR))), "src", "libslic3r", "GCode", "GCodeProcessor.cpp")
+if not os.path.isfile(_gpcpp):
+    err(f"[跨層護欄] 找不到 {_gpcpp}（路徑推導失效，護欄形同虛設）")
+else:
+    _gpsrc = io.open(_gpcpp, encoding="utf-8", errors="ignore").read()
+    if not re.search(r'\{\s*"M6050"\s*,[^}]*process_M6050', _gpsrc):
+        err("[跨層護欄・Classic 預覽認 M6050] GCodeProcessor.cpp 未註冊 M6050 ⇒ 雙料預覽全算第 1 槽")
+    _gpm = re.search(r"void\s+GCodeProcessor::process_M6050\s*\([^)]*\)\s*\{(.{0,900}?)\n\}", _gpsrc, re.S)
+    if not _gpm or "process_filament_change" not in _gpm.group(1):
+        err("[跨層護欄・Classic 預覽認 M6050] process_M6050 缺失或未呼叫 process_filament_change")
+
 # ★ 跨層護欄（Eric 2026-07-26 兩爆之後補）：C++ 的「組合製程→線材連動」表必須跟得上 profile。
 #   `Tab.cpp` 的 ping_apply_combo_filaments() 用**硬寫的線材名**呼叫 find_preset()，
 #   而 find_preset() **不走 renamed_from 回溯**（那是 find_preset2）⇒ 名字對不上就是靜默失效：
