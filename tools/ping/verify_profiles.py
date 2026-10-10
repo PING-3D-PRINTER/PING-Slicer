@@ -2282,8 +2282,12 @@ if _savename_census == 0:
 #   🔴 為什麼要釘：`PING PA-CF` 原本**沒有** compatible_printers ＝全機通用，這條規則是把它收窄；
 #      收窄是靠產生器 post-pass 做的，沒有這個閘門，任何人改動 4d-1b 或 base 範本都會靜默復原，
 #      而畫面上只會表現成「雙料機又看得到碳纖料了」——沒有人會注意到。
-#   Classic 前代（DUAL * 單料頭）走自己那支 `PING PA-CF - Classic`，不在本檢查射程內。
+#   🔴 2026-10-10（牌 c-1010-ACF-04）：**Classic 前代也進射程**。原本這裡寫著「不在本檢查射程內」，
+#      T080 就從這個洞漏過去——`PING PA-CF - Classic` 被母檔的 F 系清單滲進相容機型（一台 DUAL 都沒有），
+#      12 台 Classic 機的預勾被 4d-2 整批拿掉、Classic 機一支 CF 都選不到，而本檢查全綠。
+#      ⇒ 兩個家族各有各的機型全集，少一台多一台都要紅。
 _CF_FILS = ("PING PA-CF", "ABS-CF")
+_CF_FILS_CLASSIC = ("PING PA-CF - Classic",)
 #   🆕 Eric 2026-10-10「三題照建議」：再釘一條型別——下拉的 "CF/GF" 類是用 filament_type 結尾
 #   "-CF"／"-GF" 判定的（PresetComboBoxes.cpp），型別一旦被改回 "PA" 這支就會靜默掉回 PA 類，
 #   而畫面上只看得出「分類又變了」。Classic 版一起釘（它不收窄相容機型，但型別要一致）。
@@ -2294,24 +2298,35 @@ def _cf_is_single_head(_n):
     return (not _n.startswith("DUAL")) and (_n.startswith("FP300") or "單料頭" in _n)
 
 
-_cf_want = sorted(_n for _n, (_k, _d) in presets.items()
+def _cf_is_classic_single_head(_n):
+    return _n.startswith("DUAL") and "單料頭" in _n
+
+
+def _cf_machine_set(_pred):
+    return sorted(_n for _n, (_k, _d) in presets.items()
                   if _k == "machine" and not _n.startswith("fdm_")
-                  and _n.endswith(" nozzle") and _cf_is_single_head(_n))
-if not _cf_want:
-    err("[CF單噴頭] 找不到任何單料頭機 preset ⇒ 判定失效")
-for _cf in _CF_FILS:
-    if _cf not in presets:
-        err(f"[CF單噴頭] 線材 {_cf!r} 不存在")
-        continue
-    _got = presets[_cf][1].get("compatible_printers")
-    if not isinstance(_got, list):
-        err(f"[CF單噴頭] {_cf}: compatible_printers 缺或型別不是 list（{type(_got).__name__}）"
-            f" ⇒ 全機通用，碳纖料會出現在雙噴頭機上")
-    elif sorted(_got) != _cf_want:
-        _extra = sorted(set(_got) - set(_cf_want))
-        _miss = sorted(set(_cf_want) - set(_got))
-        err(f"[CF單噴頭] {_cf}: compatible_printers 不等於單料頭全集"
-            f"（多 {len(_extra)}: {_extra[:3]}；少 {len(_miss)}: {_miss[:3]}）")
+                  and _n.endswith(" nozzle") and _pred(_n))
+
+
+_cf_want = _cf_machine_set(_cf_is_single_head)
+_cf_want_classic = _cf_machine_set(_cf_is_classic_single_head)
+_CF_FAMILIES = (("F 系", _CF_FILS, _cf_want), ("Classic", _CF_FILS_CLASSIC, _cf_want_classic))
+for _fam, _fils, _want in _CF_FAMILIES:
+    if not _want:
+        err(f"[CF單噴頭] 找不到任何{_fam}單料頭機 preset ⇒ 判定失效")
+    for _cf in _fils:
+        if _cf not in presets:
+            err(f"[CF單噴頭] 線材 {_cf!r} 不存在")
+            continue
+        _got = presets[_cf][1].get("compatible_printers")
+        if not isinstance(_got, list):
+            err(f"[CF單噴頭] {_cf}: compatible_printers 缺或型別不是 list（{type(_got).__name__}）"
+                f" ⇒ 全機通用，碳纖料會出現在雙噴頭機上")
+        elif sorted(_got) != _want:
+            _extra = sorted(set(_got) - set(_want))
+            _miss = sorted(set(_want) - set(_got))
+            err(f"[CF單噴頭] {_cf}: compatible_printers 不等於{_fam}單料頭全集"
+                f"（多 {len(_extra)}: {_extra[:3]}；少 {len(_miss)}: {_miss[:3]}）")
 for _cfn, _cfwant in _CF_TYPE_WANT.items():
     if _cfn not in presets:
         err(f"[CF單噴頭] 線材 {_cfn!r} 不存在（期望型別 {_cfwant}）")
@@ -2321,29 +2336,37 @@ for _cfn, _cfwant in _CF_TYPE_WANT.items():
     if _cfty0 != _cfwant:
         err(f"[CF單噴頭] {_cfn}: filament_type={_cfty0!r} ≠ {_cfwant!r}"
             f" ⇒ 下拉不會把它收進 CF/GF 類（判定＝型別結尾 -CF／-GF）")
-_cf_census = {"單料頭": 0, "其餘": 0}
+_cf_census = {"單料頭": 0, "Classic 單料頭": 0, "其餘": 0}
 for _n, (_k, _d) in presets.items():
     if _k != "machine_model":          # 🔴 預勾在機型層（machine_model_list），不在口徑 preset
         continue
     _mats = set(str(_d.get("default_materials") or "").split(";"))
     _has = [_f for _f in _CF_FILS if _f in _mats]
+    _hasc = [_f for _f in _CF_FILS_CLASSIC if _f in _mats]
     if _cf_is_single_head(_n):
-        if len(_has) != len(_CF_FILS):
-            err(f"[CF單噴頭] 機型 {_n}: 預勾少了 {sorted(set(_CF_FILS) - set(_has))}")
-        else:
-            _cf_census["單料頭"] += 1
-    elif _has:
-        err(f"[CF單噴頭] 機型 {_n}: 不是單噴頭機卻預勾了 {_has}")
+        _want_here, _ban_here, _bucket = _CF_FILS, _CF_FILS_CLASSIC, "單料頭"
+    elif _cf_is_classic_single_head(_n):
+        _want_here, _ban_here, _bucket = _CF_FILS_CLASSIC, _CF_FILS, "Classic 單料頭"
     else:
-        _cf_census["其餘"] += 1
+        _want_here, _ban_here, _bucket = (), _CF_FILS + _CF_FILS_CLASSIC, "其餘"
+    _missing = sorted(set(_want_here) - _mats)
+    _banned = sorted(set(_ban_here) & _mats)
+    if _missing:
+        err(f"[CF單噴頭] 機型 {_n}: 預勾少了 {_missing}")
+    if _banned:
+        err(f"[CF單噴頭] 機型 {_n}: 不該預勾卻有 {_banned}")
+    if not _missing and not _banned:
+        _cf_census[_bucket] += 1
 
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 print(f"另存預設名：{_savename_census} 支機型各自唯一（model+variant，零撞系統名）")
 print(f"支撐首層擴展：支撐 0 ×{_exp_census['支撐0']}｜筏層 6 ×{_exp_census['筏層6']}")
 print(f"FF族線寬＝口徑（0915·#152）：{_ff_census[1]} 支製程／{_ff_census[0]} 個鍵合格")
 print(f"支撐Z間距：易拆 0 ×{_Z_CENSUS['易拆0']}｜一般 0.2 ×{_Z_CENSUS['一般0.2']}")
-print(f"CF 只在單噴頭：線材 {len(_CF_FILS)} 支 × {len(_cf_want)} 台口徑 preset"
-      f"｜機型預勾 單料頭 {_cf_census['單料頭']} 台／其餘 {_cf_census['其餘']} 台皆無")
+print(f"CF 只在單噴頭：F 系 {len(_CF_FILS)} 支 × {len(_cf_want)} 台口徑 preset"
+      f"｜Classic {len(_CF_FILS_CLASSIC)} 支 × {len(_cf_want_classic)} 台"
+      f"｜機型預勾 單料頭 {_cf_census['單料頭']} 台／Classic 單料頭 {_cf_census['Classic 單料頭']} 台"
+      f"／其餘 {_cf_census['其餘']} 台皆無")
 if errors:
     print(f"\n[FAIL] {len(errors)} 個問題：")
     for e in errors:
