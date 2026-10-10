@@ -1484,6 +1484,16 @@ NON_BRAND_FILAMENTS = {"ABS-CF"}
 # ★ CF（加纖）類線材只在單噴頭機出現（Eric 2026-10-10 裁：「CF 類別只有在單噴頭才會出現」）。
 #   實作在 4d-1b 的 post-pass（吃本輪 machine_list ＝ regen-durable），不寫死在 base 範本。
 CF_FILAMENTS = ("PING PA-CF", "ABS-CF")
+# 🆕 Eric 2026-10-10「三題照建議」Q2／Q3：CF 類線材的 filament_type 要是引擎原生的加纖型別，
+#   這樣下拉的 "CF/GF" 類才收得到它（分類判定＝型別結尾 -CF／-GF，見 PresetComboBoxes.cpp）。
+#   `PING PA-CF` 原本是 "PA" ⇒ 改 "PA-CF"（MaterialType 原生值；高低溫分組兩者同在 high_temp，
+#   多料相容判斷不受影響）。Classic 版一起改＝同一支材料的變體，分類語意要一致；
+#   ⚠ 只改型別，**不動 Classic 版的相容機型**（Classic 機照樣選得到它）。
+CF_FILAMENT_TYPES = {
+    "PING PA-CF":           "PA-CF",
+    "PING PA-CF - Classic": "PA-CF",
+    "ABS-CF":               "ABS-CF",
+}
 ABSCF_FILAMENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base", "abscf", "filament")
 
 def abscf_fast_overrides():
@@ -3597,12 +3607,25 @@ def main(src_base):
     _cf_machines = sorted(x["name"] for x in pj["machine_list"]
                           if not x["name"].startswith("DUAL")
                           and (x["name"].startswith("FP300") or "單料頭" in x["name"]))
+    # Classic 版只改型別、不收窄相容機型（Classic 機照樣選得到）⇒ 單獨一輪，不進 CF_FILAMENTS。
+    for _ccn, _cct in CF_FILAMENT_TYPES.items():
+        if _ccn in CF_FILAMENTS:
+            continue
+        _ccp = os.path.join(PINGDIR, "filament", "%s.json" % _ccn)
+        if not os.path.isfile(_ccp):
+            print("  ⚠ CF 型別：找不到", _ccn); continue
+        _ccd = json.load(io.open(_ccp, encoding="utf-8"))
+        _ccd["filament_type"] = [_cct]
+        jdump(_ccp, _ccd)
+        print("  CF 型別（不動相容機型）：%s → %s" % (_ccn, _cct))
     for _cfn in CF_FILAMENTS:
         _cfp = os.path.join(PINGDIR, "filament", "%s.json" % _cfn)
         if not os.path.isfile(_cfp):
             print("  ⚠ CF 只在單噴頭：找不到", _cfn); continue
         _cfd = json.load(io.open(_cfp, encoding="utf-8"))
         _cfd["compatible_printers"] = list(_cf_machines)
+        if _cfn in CF_FILAMENT_TYPES:
+            _cfd["filament_type"] = [CF_FILAMENT_TYPES[_cfn]]
         jdump(_cfp, _cfd)
         print("  CF 只在單噴頭：%s → %d 台" % (_cfn, len(_cf_machines)))
     have = {x["name"] for x in pj["filament_list"]}

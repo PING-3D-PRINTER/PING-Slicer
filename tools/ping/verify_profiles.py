@@ -2284,6 +2284,10 @@ if _savename_census == 0:
 #      而畫面上只會表現成「雙料機又看得到碳纖料了」——沒有人會注意到。
 #   Classic 前代（DUAL * 單料頭）走自己那支 `PING PA-CF - Classic`，不在本檢查射程內。
 _CF_FILS = ("PING PA-CF", "ABS-CF")
+#   🆕 Eric 2026-10-10「三題照建議」：再釘一條型別——下拉的 "CF/GF" 類是用 filament_type 結尾
+#   "-CF"／"-GF" 判定的（PresetComboBoxes.cpp），型別一旦被改回 "PA" 這支就會靜默掉回 PA 類，
+#   而畫面上只看得出「分類又變了」。Classic 版一起釘（它不收窄相容機型，但型別要一致）。
+_CF_TYPE_WANT = {"PING PA-CF": "PA-CF", "PING PA-CF - Classic": "PA-CF", "ABS-CF": "ABS-CF"}
 
 
 def _cf_is_single_head(_n):
@@ -2308,6 +2312,15 @@ for _cf in _CF_FILS:
         _miss = sorted(set(_cf_want) - set(_got))
         err(f"[CF單噴頭] {_cf}: compatible_printers 不等於單料頭全集"
             f"（多 {len(_extra)}: {_extra[:3]}；少 {len(_miss)}: {_miss[:3]}）")
+for _cfn, _cfwant in _CF_TYPE_WANT.items():
+    if _cfn not in presets:
+        err(f"[CF單噴頭] 線材 {_cfn!r} 不存在（期望型別 {_cfwant}）")
+        continue
+    _cfty = presets[_cfn][1].get("filament_type")
+    _cfty0 = _cfty[0] if isinstance(_cfty, list) and _cfty else _cfty
+    if _cfty0 != _cfwant:
+        err(f"[CF單噴頭] {_cfn}: filament_type={_cfty0!r} ≠ {_cfwant!r}"
+            f" ⇒ 下拉不會把它收進 CF/GF 類（判定＝型別結尾 -CF／-GF）")
 _cf_census = {"單料頭": 0, "其餘": 0}
 for _n, (_k, _d) in presets.items():
     if _k != "machine_model":          # 🔴 預勾在機型層（machine_model_list），不在口徑 preset
