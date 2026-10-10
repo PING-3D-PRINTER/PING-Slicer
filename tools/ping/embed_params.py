@@ -1465,6 +1465,37 @@ def pacf_overrides():
 #   ③支撐臨界角維持全庫 35（Eric 實測用 30＝更保守，屬 Q1 甲「支撐回全庫」的範圍，未帶）。
 PACF_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default"}
 
+# ★ 高速製程「0.2mm 高速」（Eric 2026-10-08：把 FD600 Pro 單料頭 ABS-CF 兔子試印那組參數建進庫；牌 c-1008-ACF-01）
+#   範圍＝FD600 Pro 單料頭 0.4 一台一口徑；只套「速度／加速度／填充圖案」，不動支撐、牆數、填充密度（件相關）。
+#   值＝FLSUN 參考值（見 Klipper 05市場研究/FLSUN實跑對照_20260929/09_*／10_*）夾在機台 5000 加速度內；
+#   實際速度由線材 `ABS-CF` 的流量上限 12 mm³/s 蓋住（內牆／填充約 168 mm/s）。D2710F 實印兔子 46.04 分（現行 84.6 分）。
+#   🔴 沒校過 PA（0.08 庫值）；流量上限 12 是保守估值。
+ABSCF_FAST_MODELS = ("FD600 Pro 單料頭",)
+ABSCF_FAST_NZ = "0.4"
+ABSCF_FAST_LH = "0.2"
+ABSCF_FAST_TAG = "高速"
+# 不掛 PING 品牌前綴的自家線材（預勾 post-pass 只認 "PING " 開頭，這裡明列才會被預勾；Eric 2026-10-08）
+NON_BRAND_FILAMENTS = {"ABS-CF"}
+ABSCF_FILAMENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base", "abscf", "filament")
+
+def abscf_fast_overrides():
+    return {
+        "outer_wall_speed":            "120",
+        "inner_wall_speed":            "230",
+        "sparse_infill_speed":         "280",
+        "internal_solid_infill_speed": "250",
+        "top_surface_speed":           "150",
+        "gap_infill_speed":            "100",
+        "support_speed":               "150",
+        "support_interface_speed":     "80",
+        "travel_speed":                "400",
+        "default_acceleration":        "5000",
+        "outer_wall_acceleration":     "3000",
+        "inner_wall_acceleration":     "5000",
+        "top_surface_acceleration":    "3000",
+        "sparse_infill_pattern":       "grid",
+    }
+
 # ★ 易拆樹狀製程（Eric 2026-09-19 兩輪 grill 裁；牌 c-0919-ETR-01）
 #   Q1 乙：易拆（PLA+SUP）全部雙料本體機 × 全口徑＝21 支（FD300／FD300 Pro／FD300 關門 × 0.25/0.4/0.6、
 #          FD450／600／800 Pro × 0.25/0.4/0.6/1.0）；水溶／筏層樹狀版與 FF 3in1 不做。
@@ -2122,7 +2153,7 @@ def apply_default_materials(pj):
     #    instantiation=false、使用者選不到，不進預勾清單。
     fil_compat = {}
     for e in pj["filament_list"]:
-        if not e["name"].startswith("PING "):
+        if not (e["name"].startswith("PING ") or e["name"] in NON_BRAND_FILAMENTS):
             continue
         d = _load(e["sub_path"])
         if not d or d.get("instantiation") != "true":
@@ -2331,6 +2362,7 @@ def main(src_base):
     pva_twins = []      # PLA+PVA 專屬製程（同上，emit 接在棧板之後＝棧板 id 亦零位移）
     pacf_twins = []     # PA-CF 專屬製程（Eric 0826；emit 在 4a-7＝全庫最尾＝既有 id 零位移）
     easy_tree_twins = []  # 易拆樹狀（Eric 0919；emit 在 4a-9＝接 4a-8 之後的真正全庫最尾）
+    abscf_fast_twins = []  # 0.2mm 高速（Eric 1008；emit 在 4a-10＝接 4a-9 之後的真正全庫最尾）
 
     for dirname, base, kind in FAMS:
         cfgs = parse_dir(src_base, dirname)
@@ -2460,6 +2492,15 @@ def main(src_base):
                         pft["name"] = "%smm PA-CF 樹狀 @%s (%s)" % (lh, model, nz)
                         pacf_twins.append(pft)
 
+                    # 0.2mm 高速（Eric 2026-10-08）：只掛 FD600 Pro 單料頭 0.4／層高 0.2。
+                    # 新品無舊名 ⇒ 拿掉複製來的 renamed_from（同易拆樹狀的做法，避免 rename map 撞號）。
+                    if (model in ABSCF_FAST_MODELS and not is_dual_machine
+                            and nz == ABSCF_FAST_NZ and lh == ABSCF_FAST_LH):
+                        af = dict(proc); af.update(abscf_fast_overrides())
+                        af["name"] = "%smm %s @%s (%s)" % (lh, ABSCF_FAST_TAG, model, nz)
+                        af.pop("renamed_from", None)
+                        abscf_fast_twins.append(af)
+
             # machine_model（每個 printer_model 一檔）；nozzle_diameter 併入範本收編口徑（如 FF800 0.4）
             mm_nzs = sorted(set(nzs) | set(EXTRA_MODEL_NOZZLES.get(model, [])), key=float)
             mm = {"type":"machine_model","name":model,
@@ -2582,6 +2623,17 @@ def main(src_base):
         proc_list.append({"name": et["name"], "sub_path": "process/%s.json" % et["name"]})
     if easy_tree_twins:
         print("  易拆樹狀製程：%d 支（主段 PINGP%03d 止）" % (len(easy_tree_twins), gp - 1))
+
+    # 4a-10. 0.2mm 高速製程統一 emit（Eric 2026-10-08，牌 c-1008-ACF-01）。
+    #        接在 4a-9 之後＝**真正的全庫最尾** ⇒ 既有 preset setting_id 全零位移。⚠ 下一個新增製程族排在本段之後。
+    for af in abscf_fast_twins:
+        if _ext_proc(af["name"]): af["setting_id"] = _ext_take_p()
+        elif _nz_proc(af["name"]): af["setting_id"] = _nz_take_p()
+        else: af["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % af["name"]), af)
+        proc_list.append({"name": af["name"], "sub_path": "process/%s.json" % af["name"]})
+    if abscf_fast_twins:
+        print("  0.2mm 高速製程：%d 支（主段 PINGP%03d 止）" % (len(abscf_fast_twins), gp - 1))
 
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
@@ -3520,8 +3572,14 @@ def main(src_base):
     pj["filament_list"] = [x for x in pj["filament_list"]
                            if x["name"] not in FF_FIL_RENAME and x["name"] not in ABS_MERGED_AWAY
                            and x["name"] not in THREE_IN1_MERGED_AWAY]
+    # ABS-CF 線材範本（Eric 2026-10-08：加纖獨立成類、名稱不掛 PING 品牌；牌 c-1008-ACF-01）
+    abscf_fil = []
+    for _fn in sorted(os.listdir(ABSCF_FILAMENT_DIR)):
+        _d = json.load(io.open(os.path.join(ABSCF_FILAMENT_DIR, _fn), encoding="utf-8"))
+        jdump(os.path.join(PINGDIR, "filament", "%s.json" % _d["name"]), _d)
+        abscf_fil.append({"name": _d["name"], "sub_path": "filament/%s.json" % _d["name"]})
     have = {x["name"] for x in pj["filament_list"]}
-    pj["filament_list"] += [x for x in (fil_new + ff_fil + classic_fil) if x["name"] not in have]
+    pj["filament_list"] += [x for x in (fil_new + ff_fil + classic_fil + abscf_fil) if x["name"] not in have]
     # PING_ONLY 精簡：移除 FF 專用高流量線材（對單機客戶版無意義）——清 list ＋ 刪檔
     if PING_ONLY:
         pj["filament_list"] = [x for x in pj["filament_list"] if "@FF" not in x["name"]]

@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.27",
+    "version": "01.00.01.28",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -1685,6 +1685,10 @@
         {
             "name": "0.5mm 易拆樹狀 @FD800 Pro (1.0)",
             "sub_path": "process/0.5mm 易拆樹狀 @FD800 Pro (1.0).json"
+        },
+        {
+            "name": "0.2mm 高速 @FD600 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm 高速 @FD600 Pro 單料頭 (0.4).json"
         }
     ],
     "filament_list": [
@@ -1847,6 +1851,10 @@
         {
             "name": "PING SupCast",
             "sub_path": "filament/PING SupCast.json"
+        },
+        {
+            "name": "ABS-CF",
+            "sub_path": "filament/ABS-CF.json"
         }
     ],
     "machine_list": [

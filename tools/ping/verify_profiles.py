@@ -208,6 +208,10 @@ def classic_model_for_machine(name):
     return None
 
 
+# 不掛 PING 品牌前綴的自家線材＋高速製程（Eric 2026-10-08，牌 c-1008-ACF-01；與 embed_params.py 同名同值各一份）
+_NON_BRAND_FIL = {"ABS-CF"}
+_FAST_PROC_TOKEN = "mm 高速 @"          # 0.2mm 高速 @FD600 Pro 單料頭 (0.4)
+
 def err(msg):
     errors.append(msg)
 
@@ -580,7 +584,11 @@ for name, (kind, d) in presets.items():
             # 內外牆加速度 0729（Eric「表面品質與穩定性」）：全機型 1500；Classic 維持 Marlin 隔離 0
             _wall_acc = "0" if _cls_proc else "1500"
             for key in ("outer_wall_acceleration", "inner_wall_acceleration"):
-                if d.get(key) != _wall_acc:
+                if _FAST_PROC_TOKEN in name:
+                    # 高速製程刻意放寬（Eric 1008）：只要求不超過機台加速度上限 5000
+                    if not (d.get(key, "").isdigit() and 0 < int(d.get(key)) <= 5000):
+                        err(f"[高速製程加速度須 ≤5000] {name}: {key}={d.get(key)!r}")
+                elif d.get(key) != _wall_acc:
                     err(f"[內外牆加速度 {_wall_acc}] {name}: {key}={d.get(key)!r}")
             # 牆體列印方向固定逆時針（Eric 2026-07-30 裁）：全庫 ccw，跳過引擎的
             # reorient_perimeters（PerimeterGenerator.cpp:1424）⇒ 層間迴路方向恆一致
@@ -738,8 +746,9 @@ for name, (kind, d) in presets.items():
                 err(f"[冷卻降速 0910] {name}: {d.get('slow_down_for_layer_cooling')!r}, expected {_cd_want!r}")
             if d.get("slow_down_min_speed") != _cd_spd:
                 err(f"[降速最小速度 0910] {name}: {d.get('slow_down_min_speed')!r}, expected {_cd_spd!r}")
-            if d.get("slow_down_layer_time") != ["10"]:
-                err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
+            _sd_want = ["4"] if name in _NON_BRAND_FIL else ["10"]    # ABS-CF 刻意 4 秒（Eric 1008；ABS 不靠層冷卻）
+            if d.get("slow_down_layer_time") != _sd_want:
+                err(f"[降速層時間非 {_sd_want[0]}] {name}: {d.get('slow_down_layer_time')!r}")
             # 🆕 G1（Eric 2026-08-13 裁・連動規格批1）：配料屬性必須**顯式**帶兩鍵。
             # 為什麼：「選材料→製程自動收斂」的家族軸讀 filament_is_support／filament_soluble
             #   （有支撐材⇒易拆；水溶⇒易拆水溶）。缺鍵時引擎吃 C++ 預設 false／繼承鏈的 0，
@@ -1158,7 +1167,7 @@ _CLASSIC_MODEL_RE = re.compile(r"^(EDU|DUAL|PING 2|PING 3)")
 _ping_fils = {n: (d.get("compatible_printers") if isinstance(d.get("compatible_printers"), list)
                   and d.get("compatible_printers") else None)
               for n, (k, d) in presets.items()
-              if k == "filament" and n.startswith("PING ") and d.get("instantiation") == "true"}
+              if k == "filament" and (n.startswith("PING ") or n in _NON_BRAND_FIL) and d.get("instantiation") == "true"}
 
 # ★ 照片磚機的線材收斂（Eric 2026-08-22 裁「甲」）——本節是 0807 rule ② 的必要例外。
 #   起因：0807 rule ② 要求「每台機型必須涵蓋所有與它相容的 PING 線材」，而通用料的
