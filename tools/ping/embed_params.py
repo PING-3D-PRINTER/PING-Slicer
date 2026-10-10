@@ -1494,6 +1494,10 @@ CF_FILAMENT_TYPES = {
     "PING PA-CF - Classic": "PA-CF",
     "ABS-CF":               "ABS-CF",
 }
+# 🆕 Eric 2026-10-10 追裁（牌 c-1010-ACF-04）：Classic 前代比照「CF 類只在單噴頭」——
+#   `PING PA-CF - Classic` 只給 **Classic 單料頭**（`DUAL * 單料頭`）全口徑；DUAL 雙料本體機與
+#   同進機選不到它。語意與 F 系那條一致（CF 只進單料頭），清單同樣動態取自本輪 machine_list。
+CF_FILAMENTS_CLASSIC = ("PING PA-CF - Classic",)
 ABSCF_FILAMENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base", "abscf", "filament")
 
 def abscf_fast_overrides():
@@ -1743,6 +1747,16 @@ def _classic_filament(base_name, name, setting_id, temperature, bed_temperature,
     # 母檔的舊名相容標記不得帶進衍生支（0728 基礎支改名首驗抓到：Classic 210/EDU 跟著母檔
     # 帶 renamed_from "PING PLA" ＝兩支搶同一舊名、引擎解析任挑一支＝地雷；verify 有唯一性護欄）
     d.pop("renamed_from", None)
+    # 🔴 2026-10-10（牌 c-1010-ACF-04）：**母檔的相容機型不得帶進 Classic 衍生支**。
+    #   實錄＝T080 的回歸：4d-1b 把母檔 `PING PA-CF` 收窄成「F 系單料頭 24 支」之後，本函式照抄，
+    #   `PING PA-CF - Classic` 跟著拿到那份一台 DUAL 都沒有的清單 ⇒ 4d-2 預勾把它從 **12 台 Classic 機
+    #   全部**拿掉 ⇒ Classic 機一支 CF 都選不到（T079 原本 12 台都有），而且畫面上只少一個分類、沒有提示。
+    #   根因就是上面那條註解講的「讀的是磁碟上的母檔＝非冪等來源」：母檔被收窄一次就滲進來一次。
+    #   ⇒ Classic 支的相容機型一律由 4d-1b 的 post-pass 自己決定（`CF_FILAMENTS_CLASSIC`），不繼承。
+    #   ⚠ 只 pop `compatible_printers`：`compatible_printers_condition`（Classic 機的
+    #   `printer_notes=~CLASSIC` 閘門）是後面「線材條件式」那一段統一寫的，動它只會讓 8 支
+    #   Classic 線材的鍵序無謂變動。
+    d.pop("compatible_printers", None)
     d.update({"type":"filament", "name":name, "alias":name, "from":"system", "instantiation":"true",
               "setting_id":setting_id, "filament_id":setting_id})
     # 回抽只由 Classic machine preset 控制。不可讓材料層覆蓋，也不可送 Klipper 指令。
@@ -3607,27 +3621,25 @@ def main(src_base):
     _cf_machines = sorted(x["name"] for x in pj["machine_list"]
                           if not x["name"].startswith("DUAL")
                           and (x["name"].startswith("FP300") or "單料頭" in x["name"]))
-    # Classic 版只改型別、不收窄相容機型（Classic 機照樣選得到）⇒ 單獨一輪，不進 CF_FILAMENTS。
-    for _ccn, _cct in CF_FILAMENT_TYPES.items():
-        if _ccn in CF_FILAMENTS:
-            continue
-        _ccp = os.path.join(PINGDIR, "filament", "%s.json" % _ccn)
-        if not os.path.isfile(_ccp):
-            print("  ⚠ CF 型別：找不到", _ccn); continue
-        _ccd = json.load(io.open(_ccp, encoding="utf-8"))
-        _ccd["filament_type"] = [_cct]
-        jdump(_ccp, _ccd)
-        print("  CF 型別（不動相容機型）：%s → %s" % (_ccn, _cct))
-    for _cfn in CF_FILAMENTS:
+    # Classic 前代比照辦理（Eric 2026-10-10 追裁，牌 c-1010-ACF-04）：Classic 單料頭全口徑。
+    _cf_classic_machines = sorted(x["name"] for x in pj["machine_list"]
+                                  if x["name"].startswith("DUAL") and "單料頭" in x["name"])
+
+    def _cf_bind(_cfn, _machines, _tag):
         _cfp = os.path.join(PINGDIR, "filament", "%s.json" % _cfn)
         if not os.path.isfile(_cfp):
-            print("  ⚠ CF 只在單噴頭：找不到", _cfn); continue
+            print("  ⚠ CF 只在單噴頭：找不到", _cfn); return
         _cfd = json.load(io.open(_cfp, encoding="utf-8"))
-        _cfd["compatible_printers"] = list(_cf_machines)
+        _cfd["compatible_printers"] = list(_machines)
         if _cfn in CF_FILAMENT_TYPES:
             _cfd["filament_type"] = [CF_FILAMENT_TYPES[_cfn]]
         jdump(_cfp, _cfd)
-        print("  CF 只在單噴頭：%s → %d 台" % (_cfn, len(_cf_machines)))
+        print("  CF 只在單噴頭（%s）：%s → %d 台" % (_tag, _cfn, len(_machines)))
+
+    for _cfn in CF_FILAMENTS:
+        _cf_bind(_cfn, _cf_machines, "F 系")
+    for _cfn in CF_FILAMENTS_CLASSIC:
+        _cf_bind(_cfn, _cf_classic_machines, "Classic")
     have = {x["name"] for x in pj["filament_list"]}
     pj["filament_list"] += [x for x in (fil_new + ff_fil + classic_fil + abscf_fil) if x["name"] not in have]
     # PING_ONLY 精簡：移除 FF 專用高流量線材（對單機客戶版無意義）——清 list ＋ 刪檔
