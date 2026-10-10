@@ -248,8 +248,16 @@ UpdateVersionDialog::UpdateVersionDialog(wxWindow *parent)
 
 
 
-    auto sm    = create_scaled_bitmap("OrcaSlicer", nullptr, 70);
-    m_brand = new wxStaticBitmap(this, wxID_ANY, sm, wxDefaultPosition, wxSize(FromDIP(70), FromDIP(70)));
+    /* PING(2026-10-10 牌 c-1010-UPD-01)：這裡載入的 resources/images/OrcaSlicer.svg 是 PING 的
+       **橫式商標**（523.6x136.4，比例 3.84:1），不是方形 app icon。create_scaled_bitmap 的第三個
+       參數是**高度**，寬度按比例自動算 ⇒ 原本給 70 會產出 269x70 的圖，卻被塞進 70x70 的容器，
+       左右各裁掉約 37%，連最左邊的橘色三角徽都被切掉（Eric 2026-10-10 在實機看到後指出）。
+       改成高 36、容器寬 139（ceil(36*3.8374)）＝完整顯示且比例正確。
+       ⚠ 要換尺寸時兩個數字要一起改，容器寬必須 >= 高 * 3.8374，否則又會裁切。
+       CIS 禁止拉伸／壓縮 Logo 比例；商標與 app icon 不可共用同一個檔（同一個檔也曾讓 flatpak
+       的方形圖示驗證失敗、build 紅了兩個多月）。 */
+    auto sm    = create_scaled_bitmap("OrcaSlicer", nullptr, 36);
+    m_brand = new wxStaticBitmap(this, wxID_ANY, sm, wxDefaultPosition, wxSize(FromDIP(139), FromDIP(36)));
 
 
 

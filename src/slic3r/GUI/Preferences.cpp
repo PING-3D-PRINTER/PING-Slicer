@@ -1536,6 +1536,10 @@ void PreferencesDialog::create_items()
     //// ONLINE > Update & sync
     g_sizer->Add(create_item_title(_L("Update & sync")), 1, wxEXPAND);
 
+    // PING(2026-10-10)：啟動時檢查更新的開關（預設開，見 AppConfig::set_defaults）
+    auto item_startup_check    = create_item_checkbox(_L("Check for updates on startup"), "", "ping_check_update_on_startup");
+    g_sizer->Add(item_startup_check);
+
     auto item_stable_updates   = create_item_checkbox(_L("Check for stable updates only"), "", "check_stable_update_only");
     g_sizer->Add(item_stable_updates);
 
