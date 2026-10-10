@@ -21711,3 +21711,12 @@ msgstr "仍要切片"
 
 msgid "With the current settings, generating the G-code and the preview is estimated to need about %1% GB more memory, but only about %2% GB is available on this computer. Slicing will probably fail if you continue."
 msgstr "照目前的設定，接下來產生 G-code 與預覽預估還要約 %1% GB 記憶體，這台電腦現在能用的約 %2% GB。繼續下去很可能中途失敗。"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "Check for updates on startup"
+msgstr "啟動時檢查更新"

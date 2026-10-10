@@ -15,6 +15,8 @@ MAGIC_LE = 0x950412DE
 
 # 新增字串：msgid（必須與 C++ L() 字串 byte-for-byte 一致）→ 繁中翻譯
 NEW_ENTRIES = {
+    # PING（2026-10-10・牌 c-1010-UPD-01）：偏好設定「Update & sync」區新增的啟動檢查開關。
+    "Check for updates on startup": "啟動時檢查更新",
     # PING（2026-10-04・牌 c-1004-KEY-01，Klipper #493 第一步）：「實體列印設備」放出連線金鑰欄＋
     #   測試／上傳失敗講人話（Eric 裁 Q1 甲）。欄名舊 msgid「API Key / Password」與 OctoPrint 那三句
     #   留在 .mo 當死條目，不移除。⚙ 是 C++ 原始碼裡的 UTF-8 字元（MSVC /utf-8），msgid 照抄。

@@ -7482,8 +7482,31 @@ void maybe_attach_updater_signature(Http& http, const std::string& canonical_que
 
 void GUI_App::check_new_version_sf(bool show_tips, int by_user)
 {
-    return; // PING: 停用線上更新——本 fork 無自有更新伺服器，避免 startup(GUI_App L1089) 與手動選單(MainFrame) 打原 Orca SourceForge 通道、給同事無效/誤導的更新提示
     AppConfig* app_config = wxGetApp().app_config;
+
+    /* PING(2026-10-10)：恢復線上更新檢查（Eric 2026-10-10 裁；計畫＝計畫_開啟時提示新版本_20261010.html）。
+       2026-06-08 起這裡原本第一行就 return——當時本 fork 沒有自己的更新伺服器，怕打到原 Orca 通道
+       給出誤導的提示。現在 feed 改成本 repo 的 version.json（見 AppConfig.cpp 的 VERSION_CHECK_URL）。
+       ⚠ 只做「告知＋開官網下載頁」，不自動下載、不自動安裝——沒有程式碼簽章，自動下載會被
+       SmartScreen 擋；要升級成自動更新得先有簽章與回滾，那是另一件事。 */
+
+    // 廠內測試版不檢查更新：測試版版號停在出貨基底（版次另存 PING_TEST_BUILD），
+    // 會把出貨版誤判成「新版」而一直催同事去裝、把測試環境洗掉。
+    if (*PING_TEST_BUILD) {
+        if (by_user != 0) { // 手動按選單才給回饋；啟動時靜默，不吵人
+            MessageDialog dlg(mainframe,
+                              wxString::FromUTF8("目前是廠內測試版 ") + wxString::FromUTF8(PING_TEST_BUILD) +
+                                  wxString::FromUTF8("，依規定不檢查更新。\n\n要取得正式版請到官網下載頁。"),
+                              wxString::FromUTF8("檢查更新"), wxOK);
+            dlg.ShowModal();
+        }
+        return;
+    }
+
+    // 啟動時的自動檢查可由使用者在偏好設定關掉（資安敏感環境）；手動按選單不受此限。
+    if (by_user == 0 && !app_config->get_bool("ping_check_update_on_startup"))
+        return;
+
     bool       check_stable_only = app_config->get_bool("check_stable_update_only");
     auto version_check_url = app_config->version_check_url();
 
