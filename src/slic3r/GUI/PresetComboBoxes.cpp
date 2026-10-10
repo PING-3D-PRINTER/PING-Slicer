@@ -1209,6 +1209,18 @@ void PlaterPresetComboBox::update()
                     // PING(2026-07-19 Eric)：分類「顯示」TPU→TPE——PING 軟料產品線叫 TPE（TPU 屬 TPE 家族）。
                     // 內部 filament_type 保留 TPU 不動＝引擎 TPU 判斷（首層/ToolOrdering/WipeTower）不受影響。
                     if (preset_filament_cats[name] == "TPU") preset_filament_cats[name] = "TPE";
+                    // PING(2026-10-10 Eric「三題照建議」)：加纖料（碳纖 CF／玻纖 GF）全部收進一個 "CF/GF" 類。
+                    // 判定＝filament_type 結尾 "-CF"／"-GF"（引擎 MaterialType 原生就有 34 種這類型別：
+                    // ABS-CF／PA-CF／PETG-CF／PLA-CF／PA6-GF…）⇒ 以後進任何加纖料自動歸類、不維護清單，
+                    // 同 0718 那條「不另外維護清單，新線材依欄位自動歸類」的設計。
+                    // 類別名用 CF/GF 而不是 CF：玻纖不是碳纖，掛在 CF 底下不精確（Eric 2026-10-10 裁）。
+                    // ⚠ 支撐材（SUP）判定在前、優先：加纖支撐材仍歸 SUP，不被這條搶走。
+                    {
+                        const std::string cat = preset_filament_cats[name];   // 取值複製，不持有 map 內的參考
+                        if (cat.size() > 3 && (cat.compare(cat.size() - 3, 3, "-CF") == 0
+                                               || cat.compare(cat.size() - 3, 3, "-GF") == 0))
+                            preset_filament_cats[name] = "CF/GF";
+                    }
                 }
             //}
         }
