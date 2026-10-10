@@ -10,7 +10,7 @@
         "PING"
     ],
     "filament_type": [
-        "PA"
+        "PA-CF"
     ],
     "nozzle_temperature": [
         "245"
@@ -84,7 +84,6 @@
     "filament_deretraction_speed": [
         "40"
     ],
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes!~/.*CLASSIC.*/",
     "enable_pressure_advance": [
         "1"
     ],
@@ -93,5 +92,31 @@
     ],
     "slow_down_min_speed": [
         "25"
+    ],
+    "compatible_printers": [
+        "FD300 Pro 單料頭 0.25 nozzle",
+        "FD300 Pro 單料頭 0.4 nozzle",
+        "FD300 Pro 單料頭 0.6 nozzle",
+        "FD300 單料頭 0.25 nozzle",
+        "FD300 單料頭 0.4 nozzle",
+        "FD300 單料頭 0.6 nozzle",
+        "FD450 Pro 單料頭 0.2 nozzle",
+        "FD450 Pro 單料頭 0.4 nozzle",
+        "FD450 Pro 單料頭 0.6 nozzle",
+        "FD450 Pro 單料頭 1.0 nozzle",
+        "FD600 Pro 單料頭 0.2 nozzle",
+        "FD600 Pro 單料頭 0.4 nozzle",
+        "FD600 Pro 單料頭 0.6 nozzle",
+        "FD600 Pro 單料頭 1.0 nozzle",
+        "FD800 Pro 單料頭 0.2 nozzle",
+        "FD800 Pro 單料頭 0.4 nozzle",
+        "FD800 Pro 單料頭 0.6 nozzle",
+        "FD800 Pro 單料頭 1.0 nozzle",
+        "FP300 0.2 nozzle",
+        "FP300 0.4 nozzle",
+        "FP300 0.6 nozzle",
+        "FP300 關門 0.2 nozzle",
+        "FP300 關門 0.4 nozzle",
+        "FP300 關門 0.6 nozzle"
     ]
 }

@@ -1470,12 +1470,30 @@ PACF_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default"}
 #   值＝FLSUN 參考值（見 Klipper 05市場研究/FLSUN實跑對照_20260929/09_*／10_*）夾在機台 5000 加速度內；
 #   實際速度由線材 `ABS-CF` 的流量上限 12 mm³/s 蓋住（內牆／填充約 168 mm/s）。D2710F 實印兔子 46.04 分（現行 84.6 分）。
 #   🔴 沒校過 PA（0.08 庫值）；流量上限 12 是保守估值。
-ABSCF_FAST_MODELS = ("FD600 Pro 單料頭",)
+# 🆕 Eric 2026-10-10 Q3「一起擴，同事在測試比較方便」：由 FD600 Pro 單料頭一台擴到
+#    **全部 7 台 F 系列單料頭機**（與 CF_FILAMENTS 的可見範圍對齊）。七台都已有
+#    `0.2mm @<機型> (0.4)` 可派生；七台機型檔的 machine_max_acceleration 都是 5000 ⇒ 不超限。
+#    ⚠ 速度值只在 FD600 Pro 單料頭（D2710F）實印驗過，其餘六台未驗——同事測完回報再調。
+ABSCF_FAST_MODELS = ("FP300", "FP300 關門", "FD300 單料頭", "FD300 Pro 單料頭",
+                     "FD450 Pro 單料頭", "FD600 Pro 單料頭", "FD800 Pro 單料頭")
 ABSCF_FAST_NZ = "0.4"
 ABSCF_FAST_LH = "0.2"
 ABSCF_FAST_TAG = "高速"
 # 不掛 PING 品牌前綴的自家線材（預勾 post-pass 只認 "PING " 開頭，這裡明列才會被預勾；Eric 2026-10-08）
 NON_BRAND_FILAMENTS = {"ABS-CF"}
+# ★ CF（加纖）類線材只在單噴頭機出現（Eric 2026-10-10 裁：「CF 類別只有在單噴頭才會出現」）。
+#   實作在 4d-1b 的 post-pass（吃本輪 machine_list ＝ regen-durable），不寫死在 base 範本。
+CF_FILAMENTS = ("PING PA-CF", "ABS-CF")
+# 🆕 Eric 2026-10-10「三題照建議」Q2／Q3：CF 類線材的 filament_type 要是引擎原生的加纖型別，
+#   這樣下拉的 "CF/GF" 類才收得到它（分類判定＝型別結尾 -CF／-GF，見 PresetComboBoxes.cpp）。
+#   `PING PA-CF` 原本是 "PA" ⇒ 改 "PA-CF"（MaterialType 原生值；高低溫分組兩者同在 high_temp，
+#   多料相容判斷不受影響）。Classic 版一起改＝同一支材料的變體，分類語意要一致；
+#   ⚠ 只改型別，**不動 Classic 版的相容機型**（Classic 機照樣選得到它）。
+CF_FILAMENT_TYPES = {
+    "PING PA-CF":           "PA-CF",
+    "PING PA-CF - Classic": "PA-CF",
+    "ABS-CF":               "ABS-CF",
+}
 ABSCF_FILAMENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base", "abscf", "filament")
 
 def abscf_fast_overrides():
@@ -3578,6 +3596,38 @@ def main(src_base):
         _d = json.load(io.open(os.path.join(ABSCF_FILAMENT_DIR, _fn), encoding="utf-8"))
         jdump(os.path.join(PINGDIR, "filament", "%s.json" % _d["name"]), _d)
         abscf_fil.append({"name": _d["name"], "sub_path": "filament/%s.json" % _d["name"]})
+    # 4d-1b. ★ CF 類線材只在單噴頭機出現（Eric 2026-10-10 裁：「CF 類別只有在單噴頭才會出現」）
+    #   範圍（Q1 照建議）＝F 系列單料頭機 7 型全口徑共 24 支 preset：FP300／FP300 關門／
+    #   FD300 單料頭／FD300 Pro 單料頭／FD450・600・800 Pro 單料頭；**不含**雙料本體機、
+    #   同進機、3in1、四料本體機。Classic 前代（DUAL * 單料頭）這一輪不動——Classic 走自己
+    #   那支 `PING PA-CF - Classic`，要不要比照收窄另外裁。
+    #   🔴 這是**收窄**既有線材：`PING PA-CF` 原本沒有 compatible_printers ＝全機通用，
+    #   雙料機本來選得到它；收窄後 4d-2 的預勾會自動把它從那些機的 default_materials 拿掉。
+    #   清單動態取自本輪 machine_list ＝ regen-durable；verify 檢查 14 釘住這條。
+    _cf_machines = sorted(x["name"] for x in pj["machine_list"]
+                          if not x["name"].startswith("DUAL")
+                          and (x["name"].startswith("FP300") or "單料頭" in x["name"]))
+    # Classic 版只改型別、不收窄相容機型（Classic 機照樣選得到）⇒ 單獨一輪，不進 CF_FILAMENTS。
+    for _ccn, _cct in CF_FILAMENT_TYPES.items():
+        if _ccn in CF_FILAMENTS:
+            continue
+        _ccp = os.path.join(PINGDIR, "filament", "%s.json" % _ccn)
+        if not os.path.isfile(_ccp):
+            print("  ⚠ CF 型別：找不到", _ccn); continue
+        _ccd = json.load(io.open(_ccp, encoding="utf-8"))
+        _ccd["filament_type"] = [_cct]
+        jdump(_ccp, _ccd)
+        print("  CF 型別（不動相容機型）：%s → %s" % (_ccn, _cct))
+    for _cfn in CF_FILAMENTS:
+        _cfp = os.path.join(PINGDIR, "filament", "%s.json" % _cfn)
+        if not os.path.isfile(_cfp):
+            print("  ⚠ CF 只在單噴頭：找不到", _cfn); continue
+        _cfd = json.load(io.open(_cfp, encoding="utf-8"))
+        _cfd["compatible_printers"] = list(_cf_machines)
+        if _cfn in CF_FILAMENT_TYPES:
+            _cfd["filament_type"] = [CF_FILAMENT_TYPES[_cfn]]
+        jdump(_cfp, _cfd)
+        print("  CF 只在單噴頭：%s → %d 台" % (_cfn, len(_cf_machines)))
     have = {x["name"] for x in pj["filament_list"]}
     pj["filament_list"] += [x for x in (fil_new + ff_fil + classic_fil + abscf_fil) if x["name"] not in have]
     # PING_ONLY 精簡：移除 FF 專用高流量線材（對單機客戶版無意義）——清 list ＋ 刪檔

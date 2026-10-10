@@ -111,8 +111,5 @@
     "slow_down_min_speed": [
         "25"
     ],
-    "compatible_printers": [
-        "FD600 Pro 單料頭 0.4 nozzle"
-    ],
     "filament_notes": "試印參數（2026-10-08 FD600 Pro/D2710F 兔子實印）：噴溫260／床100／流量上限12／PA 0.08／風扇30；PA 與流量上限尚未校準，需硬化鋼噴嘴"
 }

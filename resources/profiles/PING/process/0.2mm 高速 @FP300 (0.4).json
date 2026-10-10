@@ -292,12 +292,12 @@
     "support_base_pattern": "rectilinear",
     "tree_support_wall_count": "0",
     "type": "process",
-    "name": "0.2mm 高速 @FD600 Pro 單料頭 (0.4)",
+    "name": "0.2mm 高速 @FP300 (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP304",
+    "setting_id": "PINGP300",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
-        "FD600 Pro 單料頭 0.4 nozzle"
+        "FP300 0.4 nozzle"
     ]
 }

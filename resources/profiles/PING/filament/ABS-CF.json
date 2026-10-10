@@ -111,8 +111,31 @@
     "slow_down_min_speed": [
         "25"
     ],
+    "filament_notes": "試印參數（2026-10-08 FD600 Pro/D2710F 兔子實印）：噴溫260／床100／流量上限12／PA 0.08／風扇30；PA 與流量上限尚未校準，需硬化鋼噴嘴",
     "compatible_printers": [
-        "FD600 Pro 單料頭 0.4 nozzle"
-    ],
-    "filament_notes": "試印參數（2026-10-08 FD600 Pro/D2710F 兔子實印）：噴溫260／床100／流量上限12／PA 0.08／風扇30；PA 與流量上限尚未校準，需硬化鋼噴嘴"
+        "FD300 Pro 單料頭 0.25 nozzle",
+        "FD300 Pro 單料頭 0.4 nozzle",
+        "FD300 Pro 單料頭 0.6 nozzle",
+        "FD300 單料頭 0.25 nozzle",
+        "FD300 單料頭 0.4 nozzle",
+        "FD300 單料頭 0.6 nozzle",
+        "FD450 Pro 單料頭 0.2 nozzle",
+        "FD450 Pro 單料頭 0.4 nozzle",
+        "FD450 Pro 單料頭 0.6 nozzle",
+        "FD450 Pro 單料頭 1.0 nozzle",
+        "FD600 Pro 單料頭 0.2 nozzle",
+        "FD600 Pro 單料頭 0.4 nozzle",
+        "FD600 Pro 單料頭 0.6 nozzle",
+        "FD600 Pro 單料頭 1.0 nozzle",
+        "FD800 Pro 單料頭 0.2 nozzle",
+        "FD800 Pro 單料頭 0.4 nozzle",
+        "FD800 Pro 單料頭 0.6 nozzle",
+        "FD800 Pro 單料頭 1.0 nozzle",
+        "FP300 0.2 nozzle",
+        "FP300 0.4 nozzle",
+        "FP300 0.6 nozzle",
+        "FP300 關門 0.2 nozzle",
+        "FP300 關門 0.4 nozzle",
+        "FP300 關門 0.6 nozzle"
+    ]
 }
