@@ -1,34 +1,34 @@
 {
     "type": "filament",
-    "name": "PING PA-CF",
+    "name": "ABS-CF",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "GPINGPACF",
-    "filament_id": "GPINGPACF",
-    "inherits": "fdm_filament_pa",
+    "setting_id": "GABSCF",
+    "filament_id": "GABSCF",
+    "inherits": "fdm_filament_abs",
     "filament_vendor": [
-        "PING"
+        "Generic"
     ],
     "filament_type": [
-        "PA"
+        "ABS-CF"
     ],
     "nozzle_temperature": [
-        "245"
+        "260"
     ],
     "nozzle_temperature_initial_layer": [
-        "245"
+        "260"
     ],
     "hot_plate_temp": [
-        "60"
+        "100"
     ],
     "hot_plate_temp_initial_layer": [
-        "60"
+        "100"
     ],
     "cool_plate_temp": [
-        "60"
+        "100"
     ],
     "cool_plate_temp_initial_layer": [
-        "60"
+        "100"
     ],
     "fan_max_speed": [
         "30"
@@ -36,8 +36,11 @@
     "fan_min_speed": [
         "30"
     ],
+    "overhang_fan_speed": [
+        "30"
+    ],
     "filament_retraction_length": [
-        "3"
+        "2"
     ],
     "filament_minimal_purge_on_wipe_tower": [
         "30"
@@ -49,7 +52,7 @@
         "1"
     ],
     "slow_down_layer_time": [
-        "10"
+        "4"
     ],
     "filament_retraction_minimum_travel": [
         "3"
@@ -69,6 +72,24 @@
     "overhang_fan_threshold": [
         "25%"
     ],
+    "filament_flow_ratio": [
+        "0.98"
+    ],
+    "filament_max_volumetric_speed": [
+        "12"
+    ],
+    "pressure_advance": [
+        "0.08"
+    ],
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "filament_cost": [
+        "1500"
+    ],
+    "filament_density": [
+        "1.1"
+    ],
     "default_filament_colour": [
         "#EA4E16"
     ],
@@ -79,44 +100,16 @@
         "0"
     ],
     "filament_retraction_speed": [
-        "40"
+        "30"
     ],
     "filament_deretraction_speed": [
-        "40"
+        "30"
     ],
-    "enable_pressure_advance": [
-        "1"
-    ],
-    "pressure_advance": [
-        "0.4"
+    "filament_shrink": [
+        "100%"
     ],
     "slow_down_min_speed": [
         "25"
     ],
-    "compatible_printers": [
-        "FD300 Pro 單料頭 0.25 nozzle",
-        "FD300 Pro 單料頭 0.4 nozzle",
-        "FD300 Pro 單料頭 0.6 nozzle",
-        "FD300 單料頭 0.25 nozzle",
-        "FD300 單料頭 0.4 nozzle",
-        "FD300 單料頭 0.6 nozzle",
-        "FD450 Pro 單料頭 0.2 nozzle",
-        "FD450 Pro 單料頭 0.4 nozzle",
-        "FD450 Pro 單料頭 0.6 nozzle",
-        "FD450 Pro 單料頭 1.0 nozzle",
-        "FD600 Pro 單料頭 0.2 nozzle",
-        "FD600 Pro 單料頭 0.4 nozzle",
-        "FD600 Pro 單料頭 0.6 nozzle",
-        "FD600 Pro 單料頭 1.0 nozzle",
-        "FD800 Pro 單料頭 0.2 nozzle",
-        "FD800 Pro 單料頭 0.4 nozzle",
-        "FD800 Pro 單料頭 0.6 nozzle",
-        "FD800 Pro 單料頭 1.0 nozzle",
-        "FP300 0.2 nozzle",
-        "FP300 0.4 nozzle",
-        "FP300 0.6 nozzle",
-        "FP300 關門 0.2 nozzle",
-        "FP300 關門 0.4 nozzle",
-        "FP300 關門 0.6 nozzle"
-    ]
+    "filament_notes": "試印參數（2026-10-08 FD600 Pro/D2710F 兔子實印）：噴溫260／床100／流量上限12／PA 0.08／風扇30；PA 與流量上限尚未校準，需硬化鋼噴嘴"
 }
