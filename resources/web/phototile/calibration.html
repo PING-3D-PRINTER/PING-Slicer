@@ -352,6 +352,8 @@ function proj(h,u,v){
 
 /* ===== 狀態 ===== */
 let bmp=null, corners=[], cells=[], selIdx=-1, dragging=-1, dragCorner=-1, wbGain=[1,1,1];
+/* 實際用到的白平衡方式（白紙／純 A 格／沒做）。匯出要記真正用的那一種，見 applyWB 與匯出段。 */
+let wbWhyLast='';
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d',{willReadFrequently:true});
 let off=null, octx=null, PIX=null;                    // 原尺寸離屏畫布＋像素快取，取色一律從這裡讀
 /* PIX＝整張圖的像素一次讀進來。原本每點呼叫一次 getImageData（48 格×49 點＝2352 次）
@@ -514,6 +516,7 @@ function applyWB(){
     }
   }
   if(!wbWhy) wbWhy='沒有做白平衡'+(usePaper&&paper&&!paper.ok?`：${paper.why}`:'');
+  wbWhyLast=wbWhy;
 
   cells.forEach(c=>{ c.rgb=c.raw.map((v,k)=>Math.max(0,Math.min(255,Math.round(v*wbGain[k])))); c.hex=hex(...c.rgb); });
 
@@ -617,8 +620,19 @@ function diagnose(){
     return;
   }
   if(worst>LIGHT_TH)
-    setMsg(`格線對準 ✓。但<b>打光不均</b>：同一支純<b>${who}</b>料的幾個格子彼此差了 ΔE <b>${worst.toFixed(1)}</b>。`
-      +`建議換散射光源重拍，否則整份校正值會帶著這個偏差。`,'warn');
+    /* 🔴 2026-10-10：原本這裡一律寫「打光不均・建議換散射光源重拍」。實測發現那個歸因常常是錯的——
+       混色機上每一格都帶著前一格的殘料，而各帶的純色格在**列印順序**上的前一格並不相同
+       （每帶最後一格接的是 86% 的另一支料；第一格接的是洗料塔外圈＝該層最淺色）⇒ 同一支料的
+       純色格本來就會差，重拍不會變。實例：2026-10-10 四料 48 格，純橘兩個「格1」位置彼此很近，
+       而「格8」那個明顯偏亮（前一格是 86% 白）；純灰白三格全落在格8，各自偏向自己的鄰色。
+       誤報的代價是把人導去換燈重拍，而真正該改的是校正片排列或取色位置。兩種都講，並給判別依據。 */
+    setMsg(`格線對準 ✓。但<b>同一支純${who}料的幾個格子彼此差了 ΔE <b>${worst.toFixed(1)}</b></b>`
+      +`——量到的值會帶著這個偏差。<b>兩種可能，先分清楚再動手</b>：`
+      +`<br>①<b>打光</b>：光打不勻，或深色格的擠出紋在反光（格內單一色中位數 ΔE ${med.toFixed(1)}`
+      +` 偏大、或片子四周的白紙本身就有明暗差）⇒ 換散射光重拍有用。`
+      +`<br>②<b>殘料</b>：混色機每一格都帶著前一格的殘料，而各帶的純色格在列印順序上的前一格不同`
+      +`（最後一格接的是 86% 的另一支料）⇒ 這是實際印出來的差，<b>重拍不會變</b>。`
+      +`<br><b>判別</b>：看偏掉的那幾格是不是都偏向自己的鄰色——偏向鄰色＝殘料。`,'warn');
   else
     setMsg(`格線對準 ✓（同料純色格最大 ΔE ${worst.toFixed(1)}）；格內單一色 ✓（中位數 ${med.toFixed(1)}）。`,'info');
 }
@@ -788,7 +802,11 @@ document.getElementById('btnExport').onclick=()=>{
     料數:SLOT_N,
     對位自檢:SLOT_N===4?'有（同料 3 純色格互比）':'無（雙料每支料只有 1 個純色格）',
     料:SLOTS.slice(0,SLOT_N).map((s,i)=>({槽:LETTER[i],色:s.hex,名:s.name})),
-    白平衡:document.getElementById('wb').checked?{已套用:true,增益:wbGain}:{已套用:false},
+    /* 🔴 2026-10-10：原本只看備援選項 `#wb`（純 A 格），用白紙校過色偏時照樣寫 `已套用:false`，
+       讀這份表的人會以為沒校過。改成記真正用到的那一種（白紙／純 A 格／沒做）。 */
+    白平衡:(wbWhyLast && wbWhyLast.indexOf('沒有做白平衡')!==0)
+             ? {已套用:true, 方式:wbWhyLast.replace(/<[^>]+>/g,''), 增益:wbGain}
+             : {已套用:false, 原因:(wbWhyLast||'').replace(/<[^>]+>/g,'')},
     /* 配方鍵要跟引擎實際會吐的指令逐字相同，否則量了套不回去：
        四料＝M6052 A/B/C/D 佔比；雙料＝M6051 S（料1 佔比／100，兩位小數，同 build3mf 的命名式）。 */
     量測:cells.map(c=>({格:LAYOUT==='vstrip'?`C${c.r+1}`:(SLOT_N===4?`R${c.r+1}C${c.c+1}`:`C${c.c+1}`),
