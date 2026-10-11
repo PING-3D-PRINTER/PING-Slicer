@@ -820,8 +820,11 @@ for name, (kind, d) in presets.items():
                 #      起因＝廠內 FF600 E Pro Max（.29）測四料「會磨到材料」：每次回抽完多推 0.6 mm 回去，
                 #      在混色頭上就是反覆把料往前頂。已排除韌體端——.29 唯讀實查
                 #      firmware_retraction.unretract_extra_length = 0.0 ⇒ 0.6 只來自線材層這裡。
-                #      ⛔ PT_FIL_PLA 的 0.2 是 Eric 0910 自己裁的、本次未提 ⇒ 不動。
-                _want_extra = "0.2" if name == PT_FIL_PLA_V else ("0" if is_hf else "nil")
+                # 🆕🔴 **2026-10-11 Eric 改裁：四料照片磚那支的 0.2 也歸 0**（牌 `c-1011-PTR-01`；原話
+                #      「不要多推 0.2」）⇒ 0910 的「改成 0.2 **看看**」是試行、到此結束，`PING PLA(照片磚)`
+                #      與整族同為 0，**特例判定整個移除**。上面那句「PT_FIL_PLA 的 0.2 不動」已被本裁取代。
+                #      ⛔ FD300／FD高流量 兩支照片磚支仍是 `nil`（吃機器層 0），本裁沒動它們。
+                _want_extra = "0" if is_hf else "nil"
                 if _v("filament_retract_restart_extra") != _want_extra:
                     err(f"[額外回填 0819] {name}: {_v('filament_retract_restart_extra')!r}, expected {_want_extra!r}")
                 # 🆕 Eric 2026-08-19 令：回抽速度／裝填速度全庫 30/30
@@ -1214,9 +1217,12 @@ _phototile_machines = {n for n, (k, d) in presets.items()
 #   這組值 2026-07~08 曾被線材層靜默蓋掉 20 天沒人發現。政策改了，**護欄要跟著改而不是拿掉**。
 #   🔴 `retract_length_toolchange` 必須維持 0：照片磚的 Tn 是後處理要換成 M6051/M6052 的混色指令，不是真的換料頭。
 #   🆕 2026-09-19：抬升 0.1→0.4（Eric 改裁，牌 c-0919-ZH-01；起因＝0919 實印空跑只抬 0.1 mm 掠過磚頂、磚與塔倒）。
+#   🆕🔴 **2026-10-11：回抽長度 1.3→0.8**（Eric 改裁，牌 `c-1011-PTR-01`；原話「回抽應該是 0.8」，
+#        範圍＝19 台照片磚機一律）。**這一格是這個數字的唯一守門**——照片磚系線材照 0819 一律 `nil`，
+#        所以機器層被改錯不會有別的檢查叫。正本＝embed_params.py 的 `PT_RETRACTION`。
 _PT_MACHINE_POLICY = {
     "use_firmware_retraction": "1",
-    "retraction_length": ["1.3", "1.3"],
+    "retraction_length": ["0.8", "0.8"],
     "z_hop": ["0.4"],
     "retract_length_toolchange": ["0", "0"],
 }

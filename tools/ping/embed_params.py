@@ -2268,6 +2268,7 @@ def apply_printer_family_gates(mac_list, mm_list):
     # ⚠ **這是明文推翻既有定案**：零回抽來自 2026-07 的 %APPDATA% 實印驗證檔；變更權在 Eric（新的實印證據）。
     # 值的來源＝**不另訂數字**，直接用同進家族既有的韌體回抽組（retraction_length 1.3／use_firmware_retraction 1），
     #   只有抬升照 Eric 指定改 0.1（一般同進機是 0.4；他說「不用太高」）。
+    #   ⚠ 這句的「1.3」已於 2026-10-11 被改成 0.8（見下方該裁），留著是演進軌跡、不是現行值。
     # 🔴 **`retract_length_toolchange` 刻意維持 0**：照片磚的 Tn 會被後處理換成 M6051/M6052 混色指令，不是真的換料頭。
     # 🔴 **`wipe`／`wipe_on_loops`／`seam_gap` 一律不動**：那是 0718 的接縫定案，與回抽是兩件事。
     # 線材層仍是 `nil`（吃機器層）＝ 0819 那條護欄的形狀不變，只是機器層的值從 0 換成 1.3。
@@ -2275,9 +2276,18 @@ def apply_printer_family_gates(mac_list, mm_list):
     #   起因＝0919 `.186` 年輕女照片磚實印（100×150×10 mm、FD300 同進照片磚 0.4）：真空跑 8,093 次以 250 mm/s、只抬 0.1 mm
     #   掠過磚頂（其中 2,193 次帶磚薄方向 Y 分量），洗料塔 4,592 次同樣只抬 0.1 ⇒ 磚與塔都倒（Eric：成品不錯，只是沒黏緊）。
     #   頂面只要有 >0.1 mm 的料瘤就會被撞。0.4＝一般同進機既有值；19 台照片磚機（0.4／0.6／1.0 口徑）一律 0.4。
+    # 🆕🔴 **2026-10-11 Eric 改裁：回抽長度 1.3 → 0.8**（牌 `c-1011-PTR-01`；原話「回抽應該是 0.8」）。
+    #   範圍＝**19 台照片磚機一律 0.8**（Eric 當題選「19 台照片磚機一律」，不是只改 FD300 那兩台）；
+    #   照 0919 z_hop 的先例——照片磚機器層是一組一致的政策，不按口徑或雙料／四料分歧。
+    #   🔑 **為什麼落在機器層而不是線材層**：照片磚系線材的 `filament_retraction_length` 照 0819 一律 `nil`，
+    #      線材層一旦帶非 `nil` 值就會**靜默蓋掉**機器層（0730 掃壞 20 天沒人發現、0910 試用包又咬一次）
+    #      ⇒ 這個數字只有改在這裡才算改到。
+    #   🔵 **與 0915「FF 專屬四支線材 3 → 0.8」同一個數字但是兩件事**：那一裁明文「照片磚除外」、動的是
+    #      線材層；本裁動機器層，兩者合起來才讓整條同進線的回抽都是 0.8。
+    #   ⛔ 本裁**只動回抽長度**：`use_firmware_retraction`／`z_hop` 0.4／`retract_length_toolchange` 0 都不動。
     PT_RETRACTION = {
         "use_firmware_retraction": "1",
-        "retraction_length": ["1.3", "1.3"],
+        "retraction_length": ["0.8", "0.8"],
         "z_hop": ["0.4"],
     }
     PT_COND = "printer_notes!~/.*PHOTOTILE.*/"
@@ -2970,18 +2980,19 @@ def main(src_base):
         #   ⛔ 不含照片磚支（由 is_pt 先擋成 nil）。守衛＝verify_profiles.py 同名判定。
         _is_ff_only = ("四料同進" in bn) or ("(3in1)" in bn)
         is_pt = bn in (PT_FIL_PLA, PT_FIL_PLA_FD, PT_FIL_PLA_FDHF)   # ④ 照片磚系＝回抽長度 nil（吃機器層）
-        # 🔴 四料照片磚額外回填 0.6 → 0.2（Eric 2026-09-10：「額外裝填 0.6 會擠出蠻多的，幫我把照片磚的額外擠出量改成 0.2 看看」）。
-        #    ⛔ **只降四料照片磚那一支**：`PING PLA(照片磚 FD300)` 現行是 `nil`（＝吃機器層 0），設 0.2 是**增加**、方向相反；
-        #       `PING PLA(照片磚 FD高流量)` 也是 0.6，Eric 只在四料上看到問題、一路把四料與雙料分開裁，不擅自擴大。
-        if bn == PT_FIL_PLA:
-            fd["filament_retract_restart_extra"] = ["0.2"]
-        else:
-            # 🔴 2026-09-15 Eric 裁「整個高流量族 8 支」：0.6 → 0。起因＝廠內 FF600 E Pro Max（.29）
-            #    測四料時「會磨到材料」；每次回抽完多推 0.6 mm 回去，在混色頭上就是反覆把料往前頂。
-            #    已排除韌體端：.29 唯讀實查 firmware_retraction.unretract_extra_length = 0.0 ⇒ 0.6 只來自這裡。
-            #    ⚠ 寫明「0」而不是「nil」：機器層本來就是 0，兩者等效，但明寫讓「這一族是刻意歸零」看得見
-            #      （nil 讀起來像忘了設）。⛔ 上面那支 PT_FIL_PLA 的 0.2 是 Eric 0910 自己裁的，不動。
-            fd["filament_retract_restart_extra"] = ["0"] if is_hf else ["nil"]
+        # 🔴 2026-09-15 Eric 裁「整個高流量族 8 支」：0.6 → 0。起因＝廠內 FF600 E Pro Max（.29）
+        #    測四料時「會磨到材料」；每次回抽完多推 0.6 mm 回去，在混色頭上就是反覆把料往前頂。
+        #    已排除韌體端：.29 唯讀實查 firmware_retraction.unretract_extra_length = 0.0 ⇒ 0.6 只來自這裡。
+        #    ⚠ 寫明「0」而不是「nil」：機器層本來就是 0，兩者等效，但明寫讓「這一族是刻意歸零」看得見
+        #      （nil 讀起來像忘了設）。
+        # 🆕🔴 **2026-10-11 Eric 改裁：四料照片磚那支的 0.2 也歸 0**（牌 `c-1011-PTR-01`；原話「不要多推 0.2」）
+        #    ⇒ 0910 那一裁（「幫我把照片磚的額外擠出量改成 0.2 **看看**」＝明寫是試行）**到此結束**，
+        #      `PING PLA(照片磚)` 從此與整族同為 0，**特例分支整個移除**（不是改成 0 還留著 if）。
+        #    ⛔ `PING PLA(照片磚 FD300)`／`(照片磚 FD高流量)` 本來就是 `nil`（吃機器層 0），**本裁不動它們**——
+        #       Eric 10-11 印的是 FD300 那支，它從頭到尾沒多推過 0.2（`.186` 列印中唯讀實查
+        #       firmware_retraction.unretract_extra_length = 0.0、gcode 設定區 retract_restart_extra = 0 一致）。
+        #       ⚠ 那天 handoff 誤記成「正在印的 gcode 是 extra 0.2／PA 0.4」，實際那是**四料**支的值。
+        fd["filament_retract_restart_extra"] = ["0"] if is_hf else ["nil"]
         # 🆕 Eric 2026-08-26 裁（Q4 甲）：PA-CF 回抽 3/40/40——**只改線材層**。
         #    機器層一字不動、韌體回抽維持開：韌體回抽開啟時線材 start gcode 的
         #    SET_RETRACTION 會把 3/40/40 推給 Klipper ⇒ 行為等同他關掉韌體回抽自己下 E 值，
