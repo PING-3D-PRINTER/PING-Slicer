@@ -1051,6 +1051,7 @@ class Print;
         void process_T(const GCodeReader::GCodeLine& line);
         void process_T(const std::string_view command);
         void process_M1020(const GCodeReader::GCodeLine &line);
+        void process_M6050(const GCodeReader::GCodeLine &line);
 
         void process_M622(const GCodeReader::GCodeLine &line);
         void process_M623(const GCodeReader::GCodeLine &line);
