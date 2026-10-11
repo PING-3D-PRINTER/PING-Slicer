@@ -1983,7 +1983,10 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         # 沿用來源：normalize_unified_values ⑤爬坡品質/⑥支撐臨界角 35、normalize_support_geometry
         #（支撐幾何）、normalize_support_recipe（普通支撐配方）、normalize_tree_support（樹狀配方）。
         # 行為變更（本裁的實質內容，驗收看這幾項）：
-        #   懸空降速 關→**開**（爬坡品質 50/50/25/10）、橋接流量 1→**0.95**、
+        #   懸空降速 關→**開**（爬坡品質 50/50/25/10）←🔴 **這一項只是 0725 當時的行為、已過期**：
+        #     2026-08-16 Eric 裁「A+C」起**全庫關閉、最慢階 25**（現值＝開關 `0`、50/50/25/**25**；
+        #     依據與理由見本檔 927 行 `enable_overhang_speed` 上方註解）⇒ 不要據本行以為 Classic 的懸空降速是開的。
+        #   橋接流量 1→**0.95**、
         #   支撐臨界角 30→**35**、樹狀改保守配方（分支直徑 口徑×12 上限 10／距離 口徑×6／
         #   角度 30／auto_brim 關／brim 10／牆圈 1）、organic 防呆 2→2.6・60→40。
         # ⚠ 口徑安全：CLASSIC_SPECS 每台的 nozzle 皆等於 src_nozzle（0.4→0.4、0.6→0.6），
