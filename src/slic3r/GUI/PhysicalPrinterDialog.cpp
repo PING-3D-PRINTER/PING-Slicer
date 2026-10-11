@@ -459,16 +459,23 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
 
     m_optgroup->activate();
 
-    Field* printhost_field = m_optgroup->get_field("print_host");
+    // PING(2026-10-11 票 #59)：原本這裡寫 dynamic_cast<wxTextCtrl*>(printhost_field->getWindow())，
+    // 但 print_host 的欄位視窗是 TextInput（複合元件，真正的輸入框在它裡面）⇒ 那個 cast 永遠回 nullptr、
+    // 整段 Bind 從未掛上，「去前後空白」是死碼（IP 貼進去前後帶空白不會被清）。
+    // 改從 TextCtrl::text_ctrl() 拿裡面那個 wxTextCtrl——同下方連線金鑰欄與本檔 update_*() 的既有寫法。
+    TextCtrl* printhost_field = dynamic_cast<TextCtrl*>(m_optgroup->get_field("print_host"));
     if (printhost_field)
     {
-        wxTextCtrl* temp = dynamic_cast<wxTextCtrl*>(printhost_field->getWindow());
+        wxTextCtrl* temp = printhost_field->text_ctrl();
         if (temp)
             temp->Bind(wxEVT_TEXT, ([printhost_field, temp](wxEvent& e)
             {
 #ifndef __WXGTK__
                 e.Skip();
-                temp->GetToolTip()->Enable(true);
+                // 這段甦醒前沒跑過：提示字掛在外層 TextInput 上、靠 DoSetToolTipText 轉發給內層輸入框，
+                // 提示字為空時不會建出 wxToolTip 物件 ⇒ 要擋 nullptr，否則主機欄每打一個字就讀空指標。
+                if (temp->GetToolTip())
+                    temp->GetToolTip()->Enable(true);
 #endif // __WXGTK__
                 // Remove all leading and trailing spaces from the input
                 std::string trimed_str, str = trimed_str = temp->GetValue().ToStdString();
@@ -476,9 +483,7 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
                 if (trimed_str != str)
                     temp->SetValue(trimed_str);
 
-                TextCtrl* field = dynamic_cast<TextCtrl*>(printhost_field);
-                if (field)
-                    field->propagate_value();
+                printhost_field->propagate_value();
             }), temp->GetId());
     }
 
