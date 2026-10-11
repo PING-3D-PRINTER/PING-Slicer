@@ -1730,6 +1730,7 @@ void GCodeProcessor::register_commands()
         {"M566", [this](const GCodeReader::GCodeLine& line) { process_M566(line); }}, // Set allowable instantaneous speed change
         {"M702", [this](const GCodeReader::GCodeLine& line) { process_M702(line); }}, // Unload the current filament into the MK3 MMU2 unit at the end of print.
         {"M1020", [this](const GCodeReader::GCodeLine& line) { process_M1020(line); }}, // Select Tool
+        {"M6050", [this](const GCodeReader::GCodeLine& line) { process_M6050(line); }}, // PING Classic dual: "M6050 S1 P0"=T0, "M6050 S0 P0"=T1
 
 // ORCA: Add Pressure Advance visualization support
         {"M900", [this](const GCodeReader::GCodeLine& line) { process_M900(line); }}, // Marlin: Set pressure advance
@@ -5331,6 +5332,29 @@ void GCodeProcessor::process_SYNC(const GCodeReader::GCodeLine& line)
     }
 }
 
+
+// PING: Classic (ChiTu-board) dual machines no longer emit T0/T1; the change_filament_gcode template emits
+// "M6050 S1 P0" (slot 1 / T0) and "M6050 S0 P0" (slot 2 / T1). Treat exactly those as a tool change so that
+// preview colours, per-slot usage, change count and cost follow the real filament. Anything else is NOT a change:
+// "M6050 S0.5" (co-feed), other S ratios (colour mixing), or P != 0 (tuning tower) keep the current filament.
+void GCodeProcessor::process_M6050(const GCodeReader::GCodeLine& line)
+{
+    float s = 0.f, p = 0.f;
+    if (!line.has_value('S', s) || !line.has_value('P', p))
+        return;
+    if (p != 0.f)
+        return;
+    int eid;
+    if (s == 1.f)
+        eid = 0;
+    else if (s == 0.f)
+        eid = 1;
+    else
+        return;
+    if (eid >= m_result.filaments_count)
+        return;
+    process_filament_change(eid);
+}
 
 void GCodeProcessor::process_T(const GCodeReader::GCodeLine& line)
 {
