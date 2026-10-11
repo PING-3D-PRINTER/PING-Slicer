@@ -5860,7 +5860,15 @@ static bool ping_apply_photo_tile_materials(Plater* plater,
     plater->sidebar().update_presets(Preset::TYPE_FILAMENT);
     plater->sidebar().obj_list()->update_filament_colors();
     plater->sidebar().update_dynamic_filament_list();
-    wxGetApp().get_tab(Preset::TYPE_PRINT)->update();
+    // PING(2026-10-11 票 #65)：列印板還在載入時關掉 App 會在這一行閃退（c0000005 讀空指標）。
+    // 成因＝匯入途中那個進度對話框的 Update() 會泵事件，wxEVT_CLOSE 因此插隊跑完 MainFrame::shutdown()，
+    // 而它第一件事就是 wxGetApp().tabs_list.clear()（原註解寫明「避免 mainframe 關掉後還去碰分頁」）
+    // ⇒ 回到這一行時 get_tab() 必定回 nullptr，原本直接 -> 就是讀空指標。
+    // 🔴 這個空窗用 is_closing() 擋不到：set_closing(true) 在 GUI_App::shutdown() 的最後一行、比
+    //    tabs_list.clear() 還晚 ⇒ 要擋的是 nullptr。分頁不在了本來就沒有東西要刷新，
+    //    而且 3MF 的內容在這之前已經寫好，跳過這段更新不影響產出。
+    if (Tab* print_tab = wxGetApp().get_tab(Preset::TYPE_PRINT))
+        print_tab->update();
 
     for (size_t i = 0; i < material_count; ++i) {
         BOOST_LOG_TRIVIAL(info) << "PING photo-tile import: T" << i << " preview " << colors[i]
