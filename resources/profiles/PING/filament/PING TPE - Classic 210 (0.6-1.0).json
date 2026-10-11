@@ -1,0 +1,88 @@
+{
+    "type": "filament",
+    "name": "PING TPE - Classic 210 (0.6-1.0)",
+    "alias": "PING TPE - Classic 210 (0.6-1.0)",
+    "from": "system",
+    "instantiation": "true",
+    "inherits": "fdm_filament_tpu",
+    "setting_id": "PINGFILCLASSICTPE06",
+    "filament_id": "PINGFILCLASSICTPE06",
+    "filament_type": [
+        "TPU"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "210"
+    ],
+    "nozzle_temperature": [
+        "210"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "60"
+    ],
+    "hot_plate_temp": [
+        "60"
+    ],
+    "fan_min_speed": [
+        "50"
+    ],
+    "fan_max_speed": [
+        "50"
+    ],
+    "filament_max_volumetric_speed": [
+        "7"
+    ],
+    "enable_pressure_advance": [
+        "0"
+    ],
+    "pressure_advance": [
+        "0"
+    ],
+    "slow_down_for_layer_cooling": [
+        "1"
+    ],
+    "slow_down_layer_time": [
+        "10"
+    ],
+    "filament_minimal_purge_on_wipe_tower": [
+        "30"
+    ],
+    "filament_start_gcode": [
+        "; Classic Marlin filament - machine retraction only\n"
+    ],
+    "overhang_fan_threshold": [
+        "25%"
+    ],
+    "filament_is_support": [
+        "0"
+    ],
+    "filament_soluble": [
+        "0"
+    ],
+    "slow_down_min_speed": [
+        "25"
+    ],
+    "compatible_printers": [
+        "DUAL 300 0.6 nozzle",
+        "DUAL 300 同進 0.6 nozzle",
+        "DUAL 300 單料頭 0.6 nozzle",
+        "DUAL 450 0.6 nozzle",
+        "DUAL 450 1.0 nozzle",
+        "DUAL 450 同進 0.6 nozzle",
+        "DUAL 450 同進 1.0 nozzle",
+        "DUAL 450 單料頭 0.6 nozzle",
+        "DUAL 450 單料頭 1.0 nozzle",
+        "DUAL 600 0.6 nozzle",
+        "DUAL 600 1.0 nozzle",
+        "DUAL 600 同進 0.6 nozzle",
+        "DUAL 600 同進 1.0 nozzle",
+        "DUAL 600 單料頭 0.6 nozzle",
+        "DUAL 600 單料頭 1.0 nozzle",
+        "DUAL 800 0.6 nozzle",
+        "DUAL 800 1.0 nozzle",
+        "DUAL 800 同進 0.6 nozzle",
+        "DUAL 800 同進 1.0 nozzle",
+        "DUAL 800 單料頭 0.6 nozzle",
+        "DUAL 800 單料頭 1.0 nozzle",
+        "EDU 200 0.6 nozzle"
+    ]
+}

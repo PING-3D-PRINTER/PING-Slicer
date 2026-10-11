@@ -8,5 +8,5 @@
     "bed_model": "PING_FD800_buildplate_model.stl",
     "bed_texture": "ping_buildplate_texture.svg",
     "hotend_model": "",
-    "default_materials": "PING PLA - 210;PING SupPLA;PING SupABS;PING PETG - 高流量噴頭;PING PETG;PING ABS;PING ABS(玻璃);PING PLA - 220;PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭;PING TPE - 210;PING SupTPE;PING PVA;PING Cast - 200;PING SupCast"
+    "default_materials": "PING PLA - 210;PING SupPLA;PING SupABS;PING PETG - 高流量噴頭;PING PETG;PING ABS;PING ABS(玻璃);PING PLA - 220;PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭;PING TPE - 210;PING SupTPE;PING PVA;PING Cast - 200;PING SupCast;PING TPE - 210 (0.6-1.0)"
 }
