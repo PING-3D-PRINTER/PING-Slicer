@@ -8,5 +8,5 @@
     "bed_model": "PING_FD600_buildplate_model.stl",
     "bed_texture": "ping_buildplate_texture.svg",
     "hotend_model": "",
-    "default_materials": "PING PLA - Classic 210;PING PLA - Classic 220;PING SupPLA - Classic;PING PLA - EDU Classic;PING ABS - Classic;PING SupABS - Classic;PING PETG - Classic;PING PVA - Classic;PING TPE - Classic 210;PING SupTPE - Classic"
+    "default_materials": "PING PLA - Classic 210;PING PLA - Classic 220;PING SupPLA - Classic;PING PLA - EDU Classic;PING ABS - Classic;PING SupABS - Classic;PING PETG - Classic;PING PVA - Classic;PING TPE - Classic 210;PING SupTPE - Classic;PING TPE - Classic 210 (0.6-1.0)"
 }

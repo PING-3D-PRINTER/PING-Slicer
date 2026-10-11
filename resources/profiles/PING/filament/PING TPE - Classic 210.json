@@ -29,7 +29,7 @@
         "50"
     ],
     "filament_max_volumetric_speed": [
-        "7"
+        "5"
     ],
     "enable_pressure_advance": [
         "0"
@@ -61,5 +61,33 @@
     "slow_down_min_speed": [
         "25"
     ],
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes=~/.*CLASSIC.*/"
+    "compatible_printers": [
+        "DUAL 300 0.25 nozzle",
+        "DUAL 300 0.4 nozzle",
+        "DUAL 300 同進 0.25 nozzle",
+        "DUAL 300 同進 0.4 nozzle",
+        "DUAL 300 單料頭 0.25 nozzle",
+        "DUAL 300 單料頭 0.4 nozzle",
+        "DUAL 450 0.25 nozzle",
+        "DUAL 450 0.4 nozzle",
+        "DUAL 450 同進 0.25 nozzle",
+        "DUAL 450 同進 0.4 nozzle",
+        "DUAL 450 單料頭 0.2 nozzle",
+        "DUAL 450 單料頭 0.4 nozzle",
+        "DUAL 600 0.25 nozzle",
+        "DUAL 600 0.4 nozzle",
+        "DUAL 600 同進 0.25 nozzle",
+        "DUAL 600 同進 0.4 nozzle",
+        "DUAL 600 單料頭 0.2 nozzle",
+        "DUAL 600 單料頭 0.4 nozzle",
+        "DUAL 800 0.25 nozzle",
+        "DUAL 800 0.4 nozzle",
+        "DUAL 800 同進 0.25 nozzle",
+        "DUAL 800 同進 0.4 nozzle",
+        "DUAL 800 單料頭 0.2 nozzle",
+        "DUAL 800 單料頭 0.4 nozzle",
+        "PING 200 0.4 nozzle",
+        "PING 270 0.4 nozzle",
+        "PING 300+ 0.4 nozzle"
+    ]
 }

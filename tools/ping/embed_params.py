@@ -1737,6 +1737,24 @@ CLASSIC_PVA     = "PING PVA - Classic"
 CLASSIC_TPE_210 = "PING TPE - Classic 210"   # 帶溫度尾碼＝與 PLA - Classic 210 命名一致
 CLASSIC_SUP_TPE = "PING SupTPE - Classic"
 
+# ★ TPE 本體按口徑拆支（Eric 2026-10-11 裁；ping-slicer core-rules〈材料層流量上限〉0812 待裁項結案）
+#   原話「要／0.4口徑建議是5／0.6口徑 7」，同輪四題皆「照建議」：
+#     ①其餘口徑分兩組＝0.2／0.25／0.4 → 5（都比 0.4 細，上限不該比它高）、0.6／1.0 → 7（1.0 給 7 是保守）
+#     ②Classic 版比照拆、值與 F 系一致  ③支撐材 SupTPE／SupTPE - Classic 不動（維持 5.5）
+#   命名（Eric 2026-10-11 08:4x 三題）：**原名留給細口徑**（他選「乙」）＝0.2／0.25／0.4 的使用者不改名、
+#   值 7→5；粗口徑另立新名，後綴用**口徑範圍**（照 DL1016 PLA (0.8)/(1.2)/(1.6) 先例把口徑放括號裡）。
+#   ⚠ 代價已當面講明再做：**0.6／1.0 機型的既有專案會找不到 `PING TPE - 210`**（它收窄成細口徑專用）。
+#   為什麼只能拆支：流量上限是**材料層單一值**，機器層／製程層都沒有 volumetric 上限鍵。
+TPE_BASE_210       = "PING TPE - 210"                      # 細口徑（原名；renamed_from "PING TPE" 只掛它）
+TPE_COARSE_210     = "PING TPE - 210 (0.6-1.0)"            # 粗口徑（本次新增）
+CLASSIC_TPE_COARSE = "PING TPE - Classic 210 (0.6-1.0)"    # 粗口徑・Classic 前代（本次新增）
+TPE_NOZZLES_FINE   = ("0.2", "0.25", "0.4")
+TPE_NOZZLES_COARSE = ("0.6", "1", "1.0")                   # 機型 json 寫的是 "1"，"1.0" 一併收
+TPE_FLOW_FINE      = "5"
+TPE_FLOW_COARSE    = "7"
+# 新支的 id：沿既有變體支慣例（`PINGFIL3PLA06`／`PINGFIL3SUP06` 用 06 表 0.6 起）
+TPE_SPLIT_IDS      = {TPE_COARSE_210: "PINGFILTPE06", CLASSIC_TPE_COARSE: "PINGFILCLASSICTPE06"}
+
 def _fill_array(d, key, value):
     """保留 Orca 來源 preset 的槽位數，只替換每槽值。"""
     old = d.get(key)
@@ -2767,6 +2785,11 @@ def main(src_base):
     #   6~8 的起始值 7（原 3.2 係 0718「軟慢」夾速設計＝0.2×0.4 下限速 40，比官方保守）。
     #   ⚠ 行為變更：0.4 口徑實質不再夾速（7÷0.08≈87>製程速度）；0.6 口徑 7÷0.18≈39 仍約 40。
     #   SupTPE 維持 5.5（本裁只點名 TPE）。
+    # ★ 1011 Eric 裁（TPE 按口徑拆支，牌 c-1011-ACF-05）：本體那支的 7 **只留給粗口徑**，
+    #   這裡建的母檔＝**細口徑專用**、上限 5（常數 TPE_FLOW_FINE）。粗口徑支與相容機型綁定
+    #   統一由 **4d-1c post-pass** 明寫 —— 不在這裡建，理由見該段 🔴 註（emit_classic 跑在本段之前，
+    #   `_classic_filament` 讀磁碟母檔＝跨輪非冪等源，在這裡建會讓第一輪與第二輪 regen 產出不同）。
+    #   SupTPE 照舊 5.5，本次不動。
     # ★ 0728 Eric 二輪裁「PING TPE - 210(温度也改低一点)」：本體改名帶溫度尾碼＋噴溫 220→210
     #  （初層/其他層一致）；SupTPE 名不動、噴溫跟隨 210（兩側一致原則不變）。
     #   renamed_from ⚠ 字串（T004 鐵則）只掛本體；id 不動（同一支材料身份）；殘檔清除 regen-durable。
@@ -2786,7 +2809,7 @@ def main(src_base):
                "hot_plate_temp_initial_layer": ["60"], "hot_plate_temp": ["60"],
                "fan_min_speed": ["100" if is_sup else "50"],
                "fan_max_speed": ["100" if is_sup else "50"],
-               "filament_max_volumetric_speed": ["5.5" if is_sup else "7"],
+               "filament_max_volumetric_speed": ["5.5" if is_sup else TPE_FLOW_FINE],
                "filament_retraction_length": ["3"], "filament_z_hop": ["0.6"],
                # 0728 Eric「TPE軟料的回抽 3/30/30」：速度/裝填補 30（原未設＝吃機器層 20/20）
                "filament_retraction_speed": ["30"], "filament_deretraction_speed": ["30"],
@@ -3647,6 +3670,77 @@ def main(src_base):
         pj["filament_list"] = [x for x in pj["filament_list"] if "@FF" not in x["name"]]
         for f in glob.glob(os.path.join(PINGDIR, "filament", "*@FF*.json")):
             os.remove(f)
+    # 4d-1c. ★ TPE 本體按口徑拆支（Eric 2026-10-11 裁，牌 c-1011-ACF-05）——裁示與命名見檔頭
+    #   TPE_BASE_210 那組常數。做法＝線材層拆兩支＋compatible_printers 綁口徑（先例 DL1016 PLA
+    #   (0.8)/(1.2)/(1.6)）：母檔收窄成**細口徑專用**＝5，另複製一支**粗口徑**＝7；Classic 兩支同辦。
+    #   🔴 為什麼四支的值與相容機型全部在這個 post-pass 明寫、而不是在 4b-1c／emit_classic：
+    #      `emit_classic` 跑在 4b-1c **之前**，而 `_classic_filament` 讀的是**磁碟上的母檔**＝跨輪
+    #      非冪等源（T080 那條回歸就是這條鏈）。粗口徑支若在 4b-1c 建，Classic 粗口徑支要到**下一輪**
+    #      regen 才抄得到 ⇒ 第一輪與第二輪產出不同。寫在這裡＝不依賴任何複製時序，第一輪就穩。
+    #   🔴 收窄既有線材的規矩（`SOP_參數入版紀律`〈收窄母檔…先問誰是從它複製出來的〉）：
+    #      `PING TPE - 210` 的衍生支只有 `PING TPE - Classic 210`（`_classic_filament` 來源），
+    #      而它 pop 掉 compatible_printers 不繼承、且本段自己明寫 ⇒ 不會再有 T080 那種滲透。
+    #   清單動態取自本輪 machine_list ＝ regen-durable；verify 檢查 16 釘住這條（含反向測試）。
+    _tpe_g = {"fine": [], "coarse": [], "cls_fine": [], "cls_coarse": []}
+    _tpe_unknown = []
+    for _e in pj["machine_list"]:
+        _mn = _e["name"]
+        # 射程＝使用者選得到的口徑 preset（同 verify `_cf_machine_set`）：排除 fdm_ 基底
+        # ⚠ `fdm_machine_common` 自己帶 nozzle_diameter 0.4，只靠「有沒有口徑欄」會把它收進細口徑組。
+        if _mn.startswith("fdm_") or not _mn.endswith(" nozzle"):
+            continue
+        if "照片磚" in _mn:      # 照片磚機本來就選不到 TPE（家族條件式擋著），拆支後照樣不給
+            continue
+        _md = json.load(io.open(os.path.join(PINGDIR, _e["sub_path"]), encoding="utf-8"))
+        _nd = _md.get("nozzle_diameter")
+        _n0 = str(_nd[0]) if isinstance(_nd, list) and _nd else None
+        if _n0 in TPE_NOZZLES_FINE:
+            _k = "fine"
+        elif _n0 in TPE_NOZZLES_COARSE:
+            _k = "coarse"
+        else:
+            _tpe_unknown.append("%s（口徑 %r）" % (_mn, _n0))
+            continue
+        if CLASSIC_MACHINE_RE.match(_mn):
+            _k = "cls_" + _k
+        _tpe_g[_k].append(_mn)
+    if _tpe_unknown:
+        # 大聲失敗：新口徑進庫而還沒人裁它屬哪一組時，**不可以默默歸進粗口徑**——那是往高的那邊錯
+        #（上限給太高＝靜默不夾速、缺料跳齒），而且畫面上看不出來。
+        raise SystemExit("TPE 按口徑拆支：有 %d 台口徑 preset 不在已裁的兩組內，請先裁它屬哪一組：\n  %s"
+                         % (len(_tpe_unknown), "\n  ".join(_tpe_unknown)))
+
+    def _tpe_bind(_tn, _machines, _flow):
+        """把既有那支收窄：明寫相容機型＋流量上限（冪等）。"""
+        _tp = os.path.join(PINGDIR, "filament", "%s.json" % _tn)
+        if not os.path.isfile(_tp):
+            print("  ⚠ TPE 按口徑拆支：找不到", _tn); return
+        _td = json.load(io.open(_tp, encoding="utf-8"))
+        _td["compatible_printers"] = sorted(_machines)
+        _td["filament_max_volumetric_speed"] = [_flow]
+        jdump(_tp, _td)
+        print("  TPE 按口徑拆支：%s → 上限 %s、%d 台" % (_tn, _flow, len(_machines)))
+
+    def _tpe_split(_base, _new, _machines):
+        """從**本輪**已寫好並 sweep 完的母檔複製粗口徑支（同一輪內複製 ⇒ 冪等）。"""
+        _bd = json.load(io.open(os.path.join(PINGDIR, "filament", "%s.json" % _base), encoding="utf-8"))
+        # 舊名相容標記只掛母檔：兩支搶同一個 renamed_from ＝引擎任挑一支（0728 基礎支改名已付過一次）
+        _bd.pop("renamed_from", None)
+        _nid = TPE_SPLIT_IDS[_new]
+        _bd.update({"name": _new, "alias": _new, "setting_id": _nid, "filament_id": _nid})
+        _bd["compatible_printers"] = sorted(_machines)
+        _bd["filament_max_volumetric_speed"] = [TPE_FLOW_COARSE]
+        jdump(os.path.join(PINGDIR, "filament", "%s.json" % _new), _bd)
+        print("  TPE 按口徑拆支：%s（新）→ 上限 %s、%d 台" % (_new, TPE_FLOW_COARSE, len(_machines)))
+        return {"name": _new, "sub_path": "filament/%s.json" % _new}
+
+    _tpe_bind(TPE_BASE_210,     _tpe_g["fine"],     TPE_FLOW_FINE)
+    _tpe_bind(CLASSIC_TPE_210,  _tpe_g["cls_fine"], TPE_FLOW_FINE)
+    _tpe_added = [_tpe_split(TPE_BASE_210,    TPE_COARSE_210,     _tpe_g["coarse"]),
+                  _tpe_split(CLASSIC_TPE_210, CLASSIC_TPE_COARSE, _tpe_g["cls_coarse"])]
+    _tpe_have = {x["name"] for x in pj["filament_list"]}
+    pj["filament_list"] += [x for x in _tpe_added if x["name"] not in _tpe_have]
+
     json.dump(pj, io.open(pj_path,"w",encoding="utf-8"), ensure_ascii=False, indent=4)
 
     # 4d-2. 預勾線材全族補齊（Eric 2026-08-07 裁）——必須排在 PING.json 重建**之後**，

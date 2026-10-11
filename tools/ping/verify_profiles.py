@@ -1064,7 +1064,11 @@ if "PING TPE" in presets:
     err("[TPE 舊名復活 0728v2] PING TPE 應已改名 PING TPE - 210")
 if os.path.isfile(os.path.join(PINGDIR, "filament", "PING TPE.json")):
     err("[TPE 舊檔殘留 0728v2] filament/PING TPE.json 應已移除")
-for _tn in ("PING TPE - 210", "PING SupTPE"):
+# 🆕 2026-10-11（牌 c-1011-ACF-05）：粗口徑支 `PING TPE - 210 (0.6-1.0)` 一起進本迴圈的射程
+#   （它是從母檔複製的，噴溫與回抽家規要一樣）。**Classic 粗口徑支不進來**——Classic 家族的回抽鍵
+#   被 `_classic_filament` pop 掉（回抽只由 Classic machine preset 控制，Eric 0807 裁），
+#   拿這裡的 3/30/30 去斷言它一定紅。
+for _tn in ("PING TPE - 210", "PING TPE - 210 (0.6-1.0)", "PING SupTPE"):
     _te = presets.get(_tn)
     if not _te or _te[0] != "filament":
         err(f"[TPE 缺席] {_tn} 不在 PING.json filament_list")
@@ -1075,10 +1079,9 @@ for _tn in ("PING TPE - 210", "PING SupTPE"):
     for _tk in ("nozzle_temperature", "nozzle_temperature_initial_layer"):
         if _te[1].get(_tk) != ["210"]:
             err(f"[TPE 噴溫 210 0728v2] {_tn}: {_tk}={_te[1].get(_tk)!r}, expected ['210']")
-    # 0729 Eric 裁（回報中心單）：TPE 最大體積流量 7（SpiderMaker 官方起始值）；SupTPE 維持 5.5
-    _mv_want = ["5.5"] if _tn == "PING SupTPE" else ["7"]
-    if _te[1].get("filament_max_volumetric_speed") != _mv_want:
-        err(f"[TPE 最大體積流量 0729] {_tn}: {_te[1].get('filament_max_volumetric_speed')!r}, expected {_mv_want!r}")
+    # 流量上限**不在這裡斷言**：Eric 2026-10-11 裁 TPE 本體按口徑拆支（細 5／粗 7）之後，
+    # 0729 那個「本體一律 7」已被取代；四支本體與兩支支撐材的值統一由**檔尾檢查 16**釘
+    # （含相容機型全集與機型預勾）。同一個值不要兩處各釘一份——會出現「改了一處、另一處才是真的」。
 _te = presets.get("PING TPE - 210")
 if _te:
     if _te[1].get("renamed_from") != "PING TPE":
@@ -2357,6 +2360,129 @@ for _n, (_k, _d) in presets.items():
         err(f"[CF單噴頭] 機型 {_n}: 不該預勾卻有 {_banned}")
     if not _missing and not _banned:
         _cf_census[_bucket] += 1
+
+# ★ 檢查 16：TPE 本體按口徑拆支（Eric 2026-10-11 裁「要／0.4口徑建議是5／0.6口徑 7」；
+#   產生器 4d-1c post-pass 的硬閘門）。三件一起釘：
+#   ①四支 TPE 本體的 compatible_printers ＝「該家族 × 該組口徑」的機型全集（多一台少一台都算錯）
+#   ②四支的 filament_max_volumetric_speed ＝該組的值（細 5／粗 7）；支撐材兩支維持 5.5 且**不收窄**
+#     （Eric 只點名本體；順手改支撐材＝超出裁示範圍）
+#   ③機型層 default_materials：有該組口徑變體的機型必須有那一支、沒有的一支都不准有
+#   🔴 為什麼要釘：流量上限是**材料層單一值**（機器層／製程層都沒有 volumetric 上限鍵），
+#      「同一支料在不同口徑吃不同上限」只能靠拆支＋相容機型實現。相容機型一旦被放寬回全機通用，
+#      0.4 機又會吃到 7 ＝ **靜默不夾速**（Orca 超過上限只降速、不報錯），畫面上只看得出
+#      「TPE 多一支少一支」——沒有人會注意到。
+#   🔴 T080 的教訓（檢查 15 那次）：護欄寫「某家族不在本檢查射程內」就是下一個洞的位置。
+#      所以這裡 Classic 家族與照片磚家族都**明寫**判定：照片磚機四支一支都不准預勾。
+_TPE_NOZZ = {"fine": ("0.2", "0.25", "0.4"), "coarse": ("0.6", "1", "1.0")}
+_TPE_FLOW = {"fine": "5", "coarse": "7"}
+_TPE_FILS = {   # 線材名 → (口徑組, 是不是 Classic 家族)
+    "PING TPE - 210":                   ("fine",   False),
+    "PING TPE - 210 (0.6-1.0)":         ("coarse", False),
+    "PING TPE - Classic 210":           ("fine",   True),
+    "PING TPE - Classic 210 (0.6-1.0)": ("coarse", True),
+}
+_TPE_SUP_FLOW = {"PING SupTPE": "5.5", "PING SupTPE - Classic": "5.5"}
+_TPE_RENAMED = {"PING TPE - 210": "PING TPE"}   # 舊名只准掛這一支（兩支搶同一舊名＝引擎任挑一支）
+
+
+def _tpe_nozzle_of(_n):
+    """口徑 preset 的口徑：取機名尾段（`_CLASSIC_MACHINE_RE` 是通用的 "<機> <口徑> nozzle"）。
+    ⚠ 刻意與產生器**取不同來源**（它讀 json 的 `nozzle_diameter`）＝兩邊獨立，對不上時會紅。"""
+    _m = _CLASSIC_MACHINE_RE.match(_n)
+    return _m.group(2) if _m else None
+
+
+_tpe_models = {}        # printer_model → 該機型底下的口徑集合與家族
+for _tn, (_tk, _td) in presets.items():
+    if _tk != "machine" or _tn.startswith("fdm_") or not _tn.endswith(" nozzle"):
+        continue
+    _tpm = _td.get("printer_model")
+    if not _tpm:
+        continue
+    _ti = _tpe_models.setdefault(_tpm, {"nozz": set(), "classic": False, "pt": False})
+    _ti["nozz"].add(_tpe_nozzle_of(_tn))
+    _ti["classic"] = _ti["classic"] or bool(classic_model_for_machine(_tn))
+    _ti["pt"] = _ti["pt"] or ("照片磚" in _tn)
+
+
+def _tpe_machine_set(_grp, _classic):
+    return sorted(_tn for _tn, (_tk, _td) in presets.items()
+                  if _tk == "machine" and not _tn.startswith("fdm_") and _tn.endswith(" nozzle")
+                  and "照片磚" not in _tn
+                  and bool(classic_model_for_machine(_tn)) == _classic
+                  and _tpe_nozzle_of(_tn) in _TPE_NOZZ[_grp])
+
+
+_tpe_sets = {}
+for _fn, (_grp, _cls) in _TPE_FILS.items():
+    _tpe_sets[_fn] = _want = _tpe_machine_set(_grp, _cls)
+    if not _want:
+        err(f"[TPE口徑] 找不到任何{'Classic' if _cls else 'F 系'}的{_grp}口徑機 preset ⇒ 判定失效")
+    if _fn not in presets:
+        err(f"[TPE口徑] 線材 {_fn!r} 不存在（拆支沒做或名字被改）")
+        continue
+    _td = presets[_fn][1]
+    _got = _td.get("compatible_printers")
+    if not isinstance(_got, list) or not _got:
+        err(f"[TPE口徑] {_fn}: compatible_printers 缺或型別不是 list"
+            f"（{type(_got).__name__}）⇒ 全機通用，口徑綁定失效，0.4 機會吃到上限 7")
+    elif sorted(_got) != _want:
+        _ex = sorted(set(_got) - set(_want))
+        _ms = sorted(set(_want) - set(_got))
+        err(f"[TPE口徑] {_fn}: compatible_printers 不等於該組口徑全集"
+            f"（多 {len(_ex)}: {_ex[:3]}；少 {len(_ms)}: {_ms[:3]}）")
+    _tfl = _td.get("filament_max_volumetric_speed")
+    _tfl0 = _tfl[0] if isinstance(_tfl, list) and _tfl else _tfl
+    if str(_tfl0) != _TPE_FLOW[_grp]:
+        err(f"[TPE口徑] {_fn}: filament_max_volumetric_speed={_tfl0!r} ≠ {_TPE_FLOW[_grp]!r}")
+    _trn = _td.get("renamed_from")
+    if _trn != _TPE_RENAMED.get(_fn):
+        err(f"[TPE口徑] {_fn}: renamed_from={_trn!r} ≠ {_TPE_RENAMED.get(_fn)!r}"
+            f" ⇒ 兩支搶同一個舊名，引擎會任挑一支")
+for _sn, _sv in _TPE_SUP_FLOW.items():
+    if _sn not in presets:
+        err(f"[TPE口徑] 支撐材 {_sn!r} 不存在")
+        continue
+    _sd = presets[_sn][1]
+    _sfl = _sd.get("filament_max_volumetric_speed")
+    _sfl0 = _sfl[0] if isinstance(_sfl, list) and _sfl else _sfl
+    if str(_sfl0) != _sv:
+        err(f"[TPE口徑] 支撐材 {_sn}: 上限 {_sfl0!r} ≠ {_sv!r}（Eric 只點名本體，支撐材不動）")
+    if _sd.get("compatible_printers"):
+        err(f"[TPE口徑] 支撐材 {_sn}: 被收窄成明列相容機型 ⇒ 超出裁示範圍（本體才按口徑拆）")
+_tpe_census = {"細": 0, "粗": 0, "細＋粗": 0, "照片磚（皆無）": 0}
+for _mn, (_mk, _md) in presets.items():
+    if _mk != "machine_model":
+        continue
+    _mats = set(x for x in str(_md.get("default_materials") or "").split(";") if x)
+    _ti = _tpe_models.get(_mn)
+    if _ti is None:
+        err(f"[TPE口徑] 機型 {_mn}: 找不到任何口徑 preset ⇒ 判定失效")
+        continue
+    if _ti["pt"]:
+        _ptbad = sorted(set(_TPE_FILS) & _mats)
+        if _ptbad:
+            err(f"[TPE口徑] 照片磚機型 {_mn}: 不該預勾卻有 {_ptbad}")
+        else:
+            _tpe_census["照片磚（皆無）"] += 1
+        continue
+    _mok, _mhas = True, []
+    for _fn, (_grp, _cls) in _TPE_FILS.items():
+        _want_here = (_cls == _ti["classic"]) and bool(_ti["nozz"] & set(_TPE_NOZZ[_grp]))
+        if _want_here:
+            _mhas.append(_grp)
+        if (_fn in _mats) != _want_here:
+            err(f"[TPE口徑] 機型 {_mn}（口徑 {sorted(_ti['nozz'])}）: "
+                f"{'少了' if _want_here else '不該預勾卻有'} {_fn}")
+            _mok = False
+    if _mok:
+        _tpe_census["細＋粗" if len(_mhas) == 2 else ("細" if _mhas == ["fine"] else "粗")] += 1
+print(f"TPE 按口徑拆支：細 {_TPE_FLOW['fine']} ×"
+      f"{len(_tpe_sets['PING TPE - 210'])}+{len(_tpe_sets['PING TPE - Classic 210'])} 台"
+      f"（F 系＋Classic）｜粗 {_TPE_FLOW['coarse']} ×"
+      f"{len(_tpe_sets['PING TPE - 210 (0.6-1.0)'])}+{len(_tpe_sets['PING TPE - Classic 210 (0.6-1.0)'])} 台"
+      f"｜支撐材 2 支維持 5.5 未收窄｜機型預勾 細 {_tpe_census['細']}／粗 {_tpe_census['粗']}"
+      f"／細＋粗 {_tpe_census['細＋粗']}／照片磚皆無 {_tpe_census['照片磚（皆無）']}")
 
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 print(f"另存預設名：{_savename_census} 支機型各自唯一（model+variant，零撞系統名）")
