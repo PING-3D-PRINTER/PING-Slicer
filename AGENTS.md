@@ -8,11 +8,11 @@
 > ⚠️ 開不了那個路徑（權限設定擋住）＝**回報，不要當成沒有規則**。
 > 📎 `D:/dev/2026claude/事故庫/20260904_Codex文件預算是共用池而且到repo邊界就停.md`
 
-## 🔴 兩線同源三句
+## 🔴 只有一條線：出貨線 `release/v3.6`
 
-**規則**：①功能分支**一律從 `origin/release/v3.6` 切**（桌面 App 開的工作樹基底是 `main`，兩條線都不是）②**同一條分支併兩邊**——上車 merge 進 `release/v3.6`、先試 merge 進 `ping/v3.5`，不 cherry-pick、不另移植一份 ③**出貨線每前進一步，同一棒收工前回併開發線**（`git merge origin/release/v3.6`），**方向永遠只有出貨線→開發線**。動參數就把 `resources/profiles/PING.json` 的 `version` 抬成**兩線最大值＋1**（兩線共用一條號碼線；撞號時 git 會在那一行報衝突＝守衛，而違反②會讓這個守衛失效）。
-**為什麼**：兩線曾分岔到 737 個檔，根因是「同一件事在兩條線各做一次」——搬的時候改寫、併顆、順手抬不同的號。
-📎 正本＝`../00治理文件/SOP_參數入版紀律.md` §V（收工跑同夾 `check_two_lines_sync.cjs`）；做法＝`../SOP_兩線對齊與回併.md`。
+**規則**：①功能分支**一律從 `origin/release/v3.6` 切**（桌面 App 開的工作樹基底是 `main`＝上游線，不是我們的線）②**要給別人測到的直接上車**；只自己試的停在功能分支，不另開長期分支 ③動參數就把 `resources/profiles/PING.json` 的 `version` 抬成目前最大值＋1；組車併第二條也動參數的分支，要自己比兩個父的 `version`（兩邊抬成同一個值時 git **不會**報衝突）④本機自己 build 帶 `-DPING_LOCAL_BUILD_TAG=DEV`（標題列「Beta DEV」，不冒用 `version.inc` 的 T 號；掛鉤在 `CMakeLists.txt`、隨 T086 起的車上線；CI 不帶這個參數＝不影響任何一班車）。
+**為什麼**：開發線 `ping/v3.5` 已於 2026-10-14 廢除（Eric 裁），封存在 tag `archive/ping-v3.5-final`。兩線時期回併只有「出貨線→開發線」一個方向，停在開發線的東西永遠不會自己走到車上（ABS-CF 卡兩天、10-10 重做一次）。原本開發線獨有的 10 支 `tools/ping/` 維運工具與 `ping_export_deps_cache.yml` 已搬上本線。
+📎 正本＝`../00治理文件/SOP_參數入版紀律.md` §V。
 
 # Repository Guidelines
 

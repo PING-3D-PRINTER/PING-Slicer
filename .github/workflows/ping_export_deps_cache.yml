@@ -1,0 +1,66 @@
+# 一次性工具（照片磚 C-1 本地建置用・2026-07-31）：
+# 把 build_check_cache 存下來的 Windows deps 快取轉成可下載 artifact，
+# 讓本機免建 deps（省 2~4 小時、免裝 Strawberry Perl）直接編主程式。
+# 只吃 workflow_dispatch＝不隨 push 觸發、不影響 build_all／出貨線。
+name: PING export deps cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      cache-key:
+        description: 'deps 快取 key（留空＝用目前 deps/** 雜湊算）'
+        required: false
+        default: ''
+
+jobs:
+  export:
+    name: Export Windows deps cache
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: 'true'
+
+      - name: Resolve cache key
+        id: k
+        shell: bash
+        run: |
+          key="${{ inputs.cache-key }}"
+          if [ -z "$key" ]; then
+            key="windows-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}"
+          fi
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "使用 key: $key"
+
+      - name: Restore deps cache
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
+          key: ${{ steps.k.outputs.key }}
+
+      - name: Fail fast on cache miss
+        if: steps.restore.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          echo "::error::deps 快取未命中：${{ steps.k.outputs.key }}"
+          exit 1
+
+      - name: Pack deps install tree
+        shell: pwsh
+        run: |
+          $src = "${{ github.workspace }}\deps\build\OrcaSlicer_dep"
+          if (-not (Test-Path $src)) { throw "找不到 $src" }
+          & "${{ github.workspace }}\tools\7z.exe" a -mx=5 "${{ github.workspace }}\orca_deps_win64.7z" $src
+          if ($LASTEXITCODE -ne 0) { throw "7z 壓縮失敗（exit $LASTEXITCODE）" }
+          $f = Get-Item "${{ github.workspace }}\orca_deps_win64.7z"
+          "封裝完成：{0} MB" -f [math]::Round($f.Length / 1MB, 1)
+          "SHA256: {0}" -f (Get-FileHash $f.FullName -Algorithm SHA256).Hash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: orca-deps-win64
+          path: orca_deps_win64.7z
+          retention-days: 7
