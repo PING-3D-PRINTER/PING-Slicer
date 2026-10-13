@@ -42,9 +42,9 @@ namespace Slic3r {
 // PING(2026-10-10)：更新來源改成本 repo 的 version.json——原 Orca 的 check-version 通道查的是
 // OrcaSlicer 的版本，對本 fork 無意義。欄位沿用 GitHub releases API（tag_name／prerelease／
 // html_url／body），所以 check_new_version_sf() 的解析碼不必改。
-// feed 放 PING 正線 ping/v3.5；用 refs/heads 指名是因為分支名含斜線，直接寫會有歧義。
+// feed 放出貨線 release/v3.6（2026-10-14 開發線 ping/v3.5 已廢、分支已刪；牌 c-1014-DEV-01）；用 refs/heads 指名是因為分支名含斜線，直接寫會有歧義。
 // 🔴 每次發出貨版都要更新那支檔，否則客戶收不到通知（見 SOP_轉正客戶版.md）。
-static const std::string VERSION_CHECK_URL = "https://raw.githubusercontent.com/PING-3D-PRINTER/PING-Slicer/refs/heads/ping/v3.5/version.json";
+static const std::string VERSION_CHECK_URL = "https://raw.githubusercontent.com/PING-3D-PRINTER/PING-Slicer/refs/heads/release/v3.6/version.json";
 static const std::string PROFILE_UPDATE_URL = "https://api.github.com/repos/OrcaSlicer/orcaslicer-profiles/releases/tags";
 static const std::string MODELS_STR = "models";
 
