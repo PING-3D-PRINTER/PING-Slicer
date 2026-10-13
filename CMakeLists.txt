@@ -71,6 +71,13 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_VERSION VERSION_LESS "3.25")
 endif ()
 
 include("version.inc")
+# PING 2026-10-14（Eric 裁，牌 c-1014-DEV-01）：開發線 ping/v3.5 已廢，本機 build 改從出貨線編。
+# 本機 cmake 帶 -DPING_LOCAL_BUILD_TAG=DEV ⇒ 標題列「Beta DEV」，不冒用 version.inc 的 T 號。
+# 不能直接 -DPING_TEST_BUILD=DEV：version.inc 用一般 set()，會蓋掉同名的 cache 值（0 效果、無警告）。
+# CI 不帶這個參數 ⇒ 不影響任何一班車。
+if (DEFINED PING_LOCAL_BUILD_TAG AND NOT "${PING_LOCAL_BUILD_TAG}" STREQUAL "")
+    set(PING_TEST_BUILD "${PING_LOCAL_BUILD_TAG}")
+endif ()
 include(GNUInstallDirs)
 include(CMakeDependentOption)
 
