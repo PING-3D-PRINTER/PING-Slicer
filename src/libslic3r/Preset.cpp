@@ -2500,10 +2500,13 @@ void PresetCollection::save_current_preset(const std::string &new_name, bool det
             BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(": save preset %1% , with detach")%new_name;
         } else if (preset.is_system) {
             // PING(2026-10-15 回報中心 #122，Eric 裁甲・牌 c-1015-RPR-02)：只有系統預設才記成上一層。
-            // 原本用 is_base_preset()，它把「已脫鉤的使用者預設」也當基底 ⇒ 新預設的 inherits 記成另一顆使用者預設；
-            // 但啟動讀使用者預設時上一層只認得到系統預設（load_presets 的 find_preset2 找不到 ⇒「can not find parent」⇒ 整顆跳過），
-            // 重啟後這顆就從清單消失，開專案時退回上一層＋修改值＝名字不見、設定還在。
+            // 原本用 is_base_preset()，它把「已脫鉤的使用者預設」也當基底 ⇒ 新預設的 inherits 記成另一顆使用者預設。
+            // 上游本來支援這種「自訂→自訂」：根預設放在 <dir>/base/ 會先載入（load_presets 的 "Load custom roots first"）。
+            // 但 PING 實際的脫鉤根預設（例：FD300 同進照片磚 0.4.json，全量 151 鍵）躺在主資料夾，跟子預設同一層；
+            // 同一層的預設要等整層讀完才併進 m_presets，find_preset2 找不到 ⇒「can not find parent」⇒ 子預設整顆跳過，
+            // 重啟後從清單消失，開專案時退回上一層＋修改值＝名字不見、設定還在（T085 實測，log 有那句）。
             // 改成：來源是脫鉤的使用者預設時，新的那顆也存成脫鉤（inherits 留空 ⇒ 下面 save(nullptr) 存完整參數）。
+            // 代價：另存不再建立「自訂→自訂」鏈（改上一層不會傳給它）；既有的鏈照舊運作。既存壞檔不會自己回來。
             inherits = old_name;
         }
 
