@@ -6,8 +6,8 @@
 <title>引导_P21</title>
 <link rel="stylesheet" type="text/css" href="../../include/global.css" />	<!-- ORCA One for all-->
 <link rel="stylesheet" type="text/css" href="../css/common.css" />
-<link rel="stylesheet" type="text/css" href="24.css?v=20260908c" />
-<link rel="stylesheet" type="text/css" href="../ping-modes/ping-modes.css?v=20260918a" />	<!-- ?v= 是快取破壞字串，改了模組就一起改（SOP_WebView2 §N） -->	<!-- PING v12 列印模式說明區 -->
+<link rel="stylesheet" type="text/css" href="24.css?v=20261015a" />
+<link rel="stylesheet" type="text/css" href="../ping-modes/ping-modes.css?v=20261015a" />	<!-- ?v= 是快取破壞字串，改了模組就一起改（SOP_WebView2 §N） -->	<!-- PING v12 列印模式說明區 -->
 <link rel="stylesheet" type="text/css" href="../css/dark.css" />	
 <!-- <script type="text/javascript" src="test.js"></script> -->
 <script type="text/javascript" src="../js/jquery-3.6.0.min.js"></script>
@@ -15,13 +15,16 @@
 <script type="text/javascript" src="../../data/text.js"></script>	
 <script type="text/javascript" src="../js/globalapi.js"></script>	
 <!-- <script type="text/javascript" src="../js/common.js"></script> -->
-<script type="text/javascript" src="../ping-modes/ping-modes.js?v=20260908c"></script>	<!-- PING v12 列印模式說明區（21/24 共用） -->
-<script type="text/javascript" src="24.js?v=20260908c"></script>		
+<script type="text/javascript" src="../ping-modes/ping-modes.js?v=20261015a"></script>	<!-- PING v12 列印模式說明區（21/24 共用） -->
+<script type="text/javascript" src="24.js?v=20261015a"></script>		
 </head>
 <body onLoad="OnInit()">
 <div id="Title">
 	<div class="trans" tid="t10">Printer Selection</div>
 </div>
+<div id="Content"  class="ZScrol"s>
+<!-- #184（Eric 2026-10-15）：說明卡在最上、搜尋框在卡下、卡片區在 #VendorArea；三者都在捲動區內（0908：說明區隨內容捲動） -->
+<div id="PingModeHelpHost"></div>
 <div class="wrap">
 	<div class="search">
 		<input type="text" class="searchTerm" placeholder="Device keyword" oninput="textInput(this)">
@@ -31,7 +34,8 @@
 		</svg>
 	</div>
 </div>
-<div id="Content"  class="ZScrol"s>
+<div id="VendorArea"></div>
+
 
 <!--<div class="OneVendorBlock" Vendor="BBL">	
 <div class="BlockBanner">

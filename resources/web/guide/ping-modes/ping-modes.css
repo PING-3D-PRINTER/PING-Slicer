@@ -183,3 +183,61 @@
 .ModeHelpChev { width: 12px; height: 12px; flex: 0 0 auto; transition: transform .15s ease; }
 .OneVendorBlock.ModeHelpCollapsed .ModeHelpChev { transform: rotate(180deg); }   /* 收起＝箭頭朝下 */
 .OneVendorBlock.ModeHelpCollapsed #PingModeHelp { display: none; }
+
+/* ── #184（回報中心 #184，Eric 2026-10-15 對原型裁 Q1 拿掉／Q2 乙／Q5 可以）：說明卡 ──
+   說明區包成一張卡：淺橘標題列「PING 3D列印機-模式說明」＋按鈕式頁籤＋說明。標題列本身是收合開關
+   （承接 0908「點 PING 收起、箭頭展開朝上／收起朝下、記住狀態」；原「PING ⌃」標頭列已拿掉）。
+   淺橘只用在標題列這一條（CIS：橘色僅 accent，不大面積填滿）。 */
+.PmhCard {
+  border: 1px solid #F3D3C5;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #FFFFFF;
+  margin: 0 0 14px;
+}
+.PmhHead {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 40px;
+  background: #FBE3D9;
+  color: #EA4E16;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+.PmhHead:hover { background: #F9D8CA; }
+.PmhHead:focus-visible { outline: 2px solid #202221; outline-offset: -2px; }
+.PmhHead .ModeHelpChev { position: absolute; right: 16px; top: 50%; margin-top: -6px; }
+.PmhCard.ModeHelpCollapsed .ModeHelpChev { transform: rotate(180deg); }   /* 收起＝箭頭朝下 */
+.PmhCard.ModeHelpCollapsed #PingModeHelp { display: none; }
+.PmhCard #PingModeHelp { margin: 0; padding: 10px 20px 4px; border-bottom: 0; }
+/* 雙料／四料頁有四張用途圖：文字欄 210→190px、圖說內距收窄，讓「四色列印（四料機）」維持一行（0908 五模式等高） */
+.PmhCard #PingModeHelp { --pmh-copy-width: 190px; }
+.PmhCard #PingModeHelp .pmh-case figcaption { padding: 4px 0 0; }
+/* 雙料／四料的說明多一句（四料機）⇒ 繁中實量 163px；四頁一起抬到 164px 維持等高，切頁時下方卡片不跳動 */
+.PmhCard #PingModeHelp .pmh-detail { min-height: 164px; }
+/* 頁籤改按鈕樣式、置中（回報者圖二）。⚠ 0918 曾因頁籤攤滿、正好壓在三張用途圖上方被讀成一一對應而改靠左；
+   這版是按鈕樣式且置中成一組，交 Eric 眼驗時另外確認這點。 */
+.PmhCard #PingModeHelp .pmh-modes { justify-content: center; gap: 14px; border-bottom: 0; margin-bottom: 4px; }
+.PmhCard #PingModeHelp .pmh-mode {
+  min-width: 96px;
+  min-height: 28px;
+  margin: 0;
+  padding: 2px 16px;
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  background: #F1F1F1;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+.PmhCard #PingModeHelp .pmh-mode:hover { background: #E8E8E8; }
+.PmhCard #PingModeHelp .pmh-mode[aria-selected="true"] {
+  background: #FFFFFF;
+  border-color: #EA4E16;
+  color: #EA4E16;
+  font-weight: 700;
+}

@@ -186,19 +186,15 @@ function HandleModelList( pVal )
 				sVV="Orca colosseum";
 
 			let HtmlNewVendor='<div class="OneVendorBlock" Vendor="'+strVendor+'">'+
-'<div class="VendorStickyHead">' +'<div class="BlockBanner">'+
-/* 2026-09-08（Eric）：PING 的「全選／清空」搬到產品線分頁列（那是屬於下方卡片區的控制項）；標頭列只剩可收合的 PING 標籤 */
-(strVendor=='PING' ? '' : '	<div class="BannerBtns">'+VendorSelectBtnsHtml(strVendor)+'	</div>')+
-(strVendor=='PING' ? PingModeHelpToggleHtml(sVV) : '	<a>'+sVV+'</a>')+
-'</div>'+
-'</div>' +   /* VendorStickyHead 只包到 PING 底線（Eric 2026-09-08：凍結區「更換成上方 PING 底線之上」；先前說明區被包進黏頂 ⇒ 捲軸拉不到機器） */
-PingModeHelpHtml(strVendor)+   /* PING v12（Eric 2026-09-08 定案）：「認識列印模式」說明區，放產品線分頁之上、卡片區之上；隨內容捲動 */
+/* #184（Eric 2026-10-15 裁 Q1「拿掉」）：PING 不再有「PING ⌃」標頭列（收合搬到說明卡標題列），
+   說明卡與搜尋框改放 #Content 頂端（PingModeHelpMount）。其他廠牌照舊保留黏頂標頭。 */
+(strVendor=='PING' ? '' : '<div class="VendorStickyHead">'+'<div class="BlockBanner">'+'	<div class="BannerBtns">'+VendorSelectBtnsHtml(strVendor)+'	</div>'+'	<a>'+sVV+'</a>'+'</div>'+'</div>')+
 '<div class="VendorStickyTabs">' + ProductLineTabs(strVendor) + '</div>' +   /* 分頁列第二段黏頂：說明區捲過去後停在 PING 底線下（保留 #94「知道自己在哪個產品線」） */
 '<div class="PrinterArea">	'+
 '</div>'+
 '</div>';
 			
-			$('#Content').append(HtmlNewVendor);
+			$('#VendorArea').append(HtmlNewVendor);   /* #184：卡片區另放 #VendorArea，說明卡＋搜尋框留在 #Content 頂端不被重畫 */
 		}
 		
 		let ModelName=OneModel['model'];
@@ -265,7 +261,7 @@ PingModeHelpHtml(strVendor)+   /* PING v12（Eric 2026-09-08 定案）：「認�
 	// }
 	
 	ApplyPingProductLine();
-	if (typeof PingModeHelpInit === 'function') PingModeHelpInit();   /* PING v12：說明區渲染（語言同 TranslatePage） */
+	if (typeof PingModeHelpMount === 'function') PingModeHelpMount();   /* #184：說明卡掛在 #Content 頂端（冪等；語言同 TranslatePage） */
 	TranslatePage();
 }
 
@@ -368,7 +364,7 @@ function FilterModelList(keyword) {
 	let nTotal = pModel.length;
 	let ModelHtml = {};
 
-	$('#Content').empty();
+	$('#VendorArea').empty();   /* #184：只重畫卡片區；搜尋框在 #Content 頂端，打字不會失焦 */
 	for (let n = 0; n < nTotal; n++) {
 		let OneModel = pModel[n];
 
@@ -389,19 +385,14 @@ function FilterModelList(keyword) {
 				sVV = "Orca colosseum";
 
 			let HtmlNewVendor = '<div class="OneVendorBlock" Vendor="' + strVendor + '">' +
-				'<div class="VendorStickyHead">' +'<div class="BlockBanner">' +
-				/* 2026-09-08（Eric）：PING 的「全選／清空」搬到產品線分頁列（那是屬於下方卡片區的控制項）；標頭列只剩可收合的 PING 標籤 */
-				(strVendor=='PING' ? '' : '	<div class="BannerBtns">'+VendorSelectBtnsHtml(strVendor)+'	</div>') +
-				(strVendor=='PING' ? PingModeHelpToggleHtml(sVV) : '	<a>'+sVV+'</a>') +
-				'</div>' +
-				'</div>' +
-				PingModeHelpHtml(strVendor) +   /* PING v12：搜尋重繪也要有說明區（否則打字篩選後說明區消失） */
+				/* #184：同 HandleModelList——PING 無標頭列、說明卡不在區塊內（搜尋只重畫卡片區） */
+				(strVendor=='PING' ? '' : '<div class="VendorStickyHead">'+'<div class="BlockBanner">'+'	<div class="BannerBtns">'+VendorSelectBtnsHtml(strVendor)+'	</div>'+'	<a>'+sVV+'</a>'+'</div>'+'</div>') +
 				'<div class="VendorStickyTabs">' + ProductLineTabs(strVendor) + '</div>' +
 				'<div class="PrinterArea">	' +
 				'</div>' +
 				'</div>';
 
-			$('#Content').append(HtmlNewVendor);
+			$('#VendorArea').append(HtmlNewVendor);   /* #184：卡片區另放 #VendorArea，說明卡＋搜尋框留在 #Content 頂端不被重畫 */
 		}
 
 		//Collect Html Node Nozzel Html
@@ -444,7 +435,6 @@ function FilterModelList(keyword) {
 	// }
 
 	ApplyPingProductLine();
-	if (typeof PingModeHelpInit === 'function') PingModeHelpInit();   /* PING v12：搜尋重繪後重掛說明區 */
 	TranslatePage();
 }
 

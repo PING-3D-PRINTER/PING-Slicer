@@ -456,3 +456,18 @@ img.ModelThumbnail
 .LineBtns > :first-child { margin-left: 0; }
 .LineTabs { display: flex; gap: 4px; }
 .BlockBanner a { margin-left: auto; }
+
+/* #184（Eric 2026-10-15）：搜尋框搬進 #Content，放在說明卡下方、卡片區上方（隨內容捲動，打字只重畫 #VendorArea） */
+#Content .wrap { width: 300px; max-width: 100%; padding: 0 0 14px; position: relative; z-index: 6; }   /* z-index：壓過 24 分頁列黏頂遮罩（::before 32px），否則搜尋框下半被蓋住（10-15 實測） */
+/* #184：PING 已無「PING ⌃」黏頂標頭列 ⇒ Fast/Classic 分頁列直接黏在最上面（top 0），
+   並沿用 .VendorStickyHead 的 32px 遮罩（#Content 內距），避免黏住後上方露出捲過去的卡片。 */
+.OneVendorBlock[vendor='PING'] .VendorStickyTabs { top: 0; }
+.OneVendorBlock[vendor='PING'] .VendorStickyTabs::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: -32px;
+	height: 32px;
+	background-color: inherit;
+}

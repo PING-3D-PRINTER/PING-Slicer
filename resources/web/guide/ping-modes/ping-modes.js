@@ -6,7 +6,11 @@
    ─ 行為：頁籤只切換說明，不動任何機型勾選／搜尋／確定取消；預設頁籤＝雙料。
    ─ 掛點：HandleModelList() 組 PING 廠牌區塊時呼叫 PingModeHelpHtml('PING') 放在卡片區上方，
      區塊落地後呼叫 PingModeHelpInit() 渲染（冪等，重呼叫只重繪）。
-   ─ 21 與 24 兩頁共用本檔；改文案改 mode-copy.json 再重產，不要手改下面的 JSON。 */
+   ─ 21 與 24 兩頁共用本檔；改文案改 mode-copy.json 再重產，不要手改下面的 JSON。
+   ─ 🆕 2026-10-15（#184）：原產生器 build_pingmodes.py 只存在 0908 那棒的 scratchpad，已找不到；
+     本次以腳本同時改本檔 JSON 段與 slides/…/mode-copy.json（兩邊內容一致）。下次要改文案，兩處一起改。
+   ─ 🆕 #184：說明區包成「說明卡」（淺橘標題列＋收合），由 PingModeHelpMount() 掛到 #PingModeHelpHost（#Content 頂端），
+     不再放在 PING 廠牌區塊裡；「PING ⌃」標頭列拿掉，收合開關改在卡片標題列。 */
 
 var PingModeCopy = {
  "zh_TW": {
@@ -15,12 +19,12 @@ var PingModeCopy = {
   "selectMode": "選擇要查看說明的列印模式",
   "modes": {
    "dual": {
-    "name": "雙料",
-    "title": "A / B 雙料模式",
-    "benefit": "兩支材料，個別設定",
-    "body": "可用於雙色、異材質、軟硬結合，或分開列印主體與易拆支撐。",
+    "name": "雙料/四料",
+    "title": "雙料／四料模式",
+    "benefit": "兩支或四支材料，個別設定",
+    "body": "可用於多色、異材質、軟硬結合，或分開列印主體與易拆支撐。雙料機兩支、四料機（FF 系列）四支。",
     "limit": "",
-    "alt": "雙料模式的三種用途：易拆支撐、雙色列印與軟硬結合。",
+    "alt": "雙料／四料模式的四種用途：易拆支撐、雙色列印、軟硬結合與四色列印。",
     "applications": [
      {
       "id": "dual-support",
@@ -36,6 +40,11 @@ var PingModeCopy = {
       "id": "dual-soft",
       "label": "軟硬結合",
       "alt": "灰色軟質握把包覆並接合橘色硬質本體，形成一件完整產品。"
+     },
+     {
+      "id": "dual-quad",
+      "label": "四色列印（四料機）",
+      "alt": "橘、中灰、淺灰、炭黑四色各佔齒輪四分之一，構成同一件四色齒輪。"
      }
     ]
    },
@@ -80,7 +89,8 @@ var PingModeCopy = {
     "limit": "",
     "alt": "三卷橘色主材線合流後加粗並標示 ×3，供應平放的橘色五輻輪圈；第四卷灰色材料獨立供應輪緣與輪輻下方的灰色支撐格柵，支撐具有連接底座及橫向連結。"
    }
-  }
+  },
+  "cardTitle": "PING 3D列印機-模式說明"
  },
  "en": {
   "lang": "en",
@@ -88,12 +98,12 @@ var PingModeCopy = {
   "selectMode": "Choose a print mode to view its description",
   "modes": {
    "dual": {
-    "name": "Dual material",
-    "title": "A / B dual material mode",
-    "benefit": "Two filaments, configured separately",
-    "body": "Print two colors, combine different or rigid and flexible materials, or use a separate filament for removable supports.",
+    "name": "Dual / Quad",
+    "title": "Dual / quad material mode",
+    "benefit": "Two or four filaments, configured separately",
+    "body": "Multi-color, mixed or rigid + flexible materials, or separate supports. Quad printers (FF series) take four filaments.",
     "limit": "",
-    "alt": "Three dual material uses: removable supports, two-color parts and rigid-flexible combinations.",
+    "alt": "Four dual / quad material uses: removable supports, two-color parts, rigid-flexible combinations and four-color parts.",
     "applications": [
      {
       "id": "dual-support",
@@ -109,6 +119,11 @@ var PingModeCopy = {
       "id": "dual-soft",
       "label": "Rigid + flexible",
       "alt": "A gray flexible grip wraps and joins the orange rigid frame as one complete handle."
+     },
+     {
+      "id": "dual-quad",
+      "label": "Four colors (quad)",
+      "alt": "Orange, mid gray, light gray and charcoal each fill a quarter of one four-color gear."
      }
     ]
    },
@@ -153,7 +168,8 @@ var PingModeCopy = {
     "limit": "",
     "alt": "Three orange main feeds merge into a thicker orange line marked ×3 to supply a horizontal orange five-spoke wheel rim. A separate fourth gray feed supplies gray support grids beneath the rim and spokes, joined by a common base and transverse ties."
    }
-  }
+  },
+  "cardTitle": "PING 3D printers – print modes"
  },
  "de_DE": {
   "lang": "de",
@@ -161,12 +177,12 @@ var PingModeCopy = {
   "selectMode": "Druckmodus auswählen, um die Beschreibung anzuzeigen",
   "modes": {
    "dual": {
-    "name": "Zwei Materialien",
-    "title": "A / B: Zwei Materialien",
-    "benefit": "Zwei Filamente, getrennt eingestellt",
-    "body": "Zweifarbig drucken, verschiedene oder harte und flexible Materialien kombinieren – oder ein Filament für entfernbare Stützen verwenden.",
+    "name": "Zwei / Vier Materialien",
+    "title": "Zwei / Vier Materialien",
+    "benefit": "Zwei oder vier Filamente, getrennt eingestellt",
+    "body": "Mehrfarbig, Materialmix, hart + flexibel oder separate Stützen. Vier-Material-Drucker (FF-Serie) nutzen vier Filamente.",
     "limit": "",
-    "alt": "Drei Anwendungen: entfernbare Stützen, zweifarbige Bauteile und die Kombination von hartem und flexiblem Material.",
+    "alt": "Vier Anwendungen für zwei / vier Materialien: entfernbare Stützen, zweifarbige Bauteile, Hart-Weich-Kombinationen und vierfarbige Bauteile.",
     "applications": [
      {
       "id": "dual-support",
@@ -182,6 +198,11 @@ var PingModeCopy = {
       "id": "dual-soft",
       "label": "Hart + flexibel",
       "alt": "Ein flexibler grauer Griff umschließt den starren orangefarbenen Rahmen und ist mit ihm verbunden."
+     },
+     {
+      "id": "dual-quad",
+      "label": "Vierfarbig (FF)",
+      "alt": "Orange, Mittelgrau, Hellgrau und Anthrazit füllen je ein Viertel eines vierfarbigen Zahnrads."
      }
     ]
    },
@@ -226,7 +247,8 @@ var PingModeCopy = {
     "limit": "",
     "alt": "Drei orangefarbene Hauptzuführungen vereinigen sich zu einer dickeren orangefarbenen Linie mit ×3 und versorgen eine waagerecht liegende orangefarbene Fünfspeichenfelge. Eine separate vierte graue Zuführung versorgt graue Stützgitter unter Felgenrand und Speichen, verbunden durch einen gemeinsamen Sockel und Querverbindungen."
    }
-  }
+  },
+  "cardTitle": "PING 3D-Drucker – Druckmodi"
  },
  "fr_FR": {
   "lang": "fr",
@@ -234,12 +256,12 @@ var PingModeCopy = {
   "selectMode": "Choisir un mode d’impression pour afficher sa description",
   "modes": {
    "dual": {
-    "name": "Deux matériaux",
-    "title": "A / B : deux matériaux",
-    "benefit": "Deux filaments, réglés séparément",
-    "body": "Imprimez en deux couleurs, combinez des matériaux différents ou rigides et souples, ou réservez un filament aux supports amovibles.",
+    "name": "Deux / quatre matériaux",
+    "title": "Deux / quatre matériaux",
+    "benefit": "Deux ou quatre filaments, réglés séparément",
+    "body": "Multicolore, matériaux mixtes, rigide + souple ou supports séparés. Les imprimantes série FF utilisent quatre filaments.",
     "limit": "",
-    "alt": "Trois usages : supports amovibles, pièce bicolore et combinaison rigide-souple.",
+    "alt": "Quatre usages deux / quatre matériaux : supports amovibles, pièce bicolore, rigide + souple et pièce à quatre couleurs.",
     "applications": [
      {
       "id": "dual-support",
@@ -255,6 +277,11 @@ var PingModeCopy = {
       "id": "dual-soft",
       "label": "Rigide + souple",
       "alt": "La prise souple grise enveloppe le corps rigide orange et forme avec lui une poignée complète."
+     },
+     {
+      "id": "dual-quad",
+      "label": "Quatre couleurs (FF)",
+      "alt": "Orange, gris moyen, gris clair et anthracite occupent chacun un quart d’un même engrenage à quatre couleurs."
      }
     ]
    },
@@ -299,7 +326,8 @@ var PingModeCopy = {
     "limit": "",
     "alt": "Trois alimentations principales orange fusionnent en une ligne orange plus épaisse marquée ×3 pour alimenter une jante horizontale orange à cinq branches. Une quatrième alimentation grise indépendante fournit les supports en treillis gris sous le bord et les branches, reliés par une base commune et des traverses."
    }
-  }
+  },
+  "cardTitle": "Imprimantes 3D PING – modes d’impression"
  }
 };
 
@@ -308,6 +336,7 @@ var PingModeArt = {
   'dual-support': '../ping-modes/dual-support.png',
   'dual-color': '../ping-modes/dual-color.png',
   'dual-soft': '../ping-modes/dual-soft.png',
+  'dual-quad': '../ping-modes/dual-quad.png',   /* #184（Eric 2026-10-15 Q2 乙）：四色列印（四料機），照 dual-color 畫法確定性繪製 */
   'cofeed': '../ping-modes/cofeed.png',
   'cofeed-gradient': '../ping-modes/cofeed-gradient.png',
   'photo': '../ping-modes/photo.png',
@@ -437,7 +466,7 @@ function PingModeHelpIsCollapsed() {
   return PingModeHelpCollapsedMem;
 }
 function PingModeHelpApplyCollapsed() {
-  var block = document.querySelector(".OneVendorBlock[vendor='PING']"); if (!block) return;
+  var block = document.querySelector('.PmhCard'); if (!block) return;   /* #184：收合作用在說明卡（原為 PING 廠牌區塊） */
   var collapsed = PingModeHelpIsCollapsed();
   block.classList.toggle('ModeHelpCollapsed', collapsed);
   block.querySelectorAll('.ModeHelpToggle').forEach(function (a) { a.setAttribute('aria-expanded', collapsed ? 'false' : 'true'); });
@@ -452,4 +481,28 @@ function TogglePingModeHelp(ev) {
 function PingModeHelpToggleHtml(label) {
   return '<a class="ModeHelpToggle" role="button" tabindex="0" aria-expanded="true" onclick="TogglePingModeHelp(event)" onkeydown="TogglePingModeHelp(event)">' + label +
          '<svg class="ModeHelpChev" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 7.5 6 3.5 10 7.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>';
+}
+
+/* ── #184（Eric 2026-10-15）：說明卡＝淺橘標題列「PING 3D列印機-模式說明」＋可收合內容 ──
+   標題列本身就是收合開關（承接 0908「點 PING 收起說明區、箭頭展開朝上／收起朝下、記住狀態」）。
+   掛點＝21／24 的 #PingModeHelpHost（#Content 頂端、搜尋框上方），只在清單裡有 PING 機型時掛；冪等。 */
+function PingModeHelpCardHtml() {
+  return '<div class="PmhCard">' +
+    '<div class="PmhHead ModeHelpToggle" role="button" tabindex="0" aria-expanded="true" onclick="TogglePingModeHelp(event)" onkeydown="TogglePingModeHelp(event)">' +
+      '<span class="PmhHeadText"></span>' +
+      '<svg class="ModeHelpChev" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 7.5 6 3.5 10 7.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+    '</div>' +
+    PingModeHelpHtml('PING') +
+  '</div>';
+}
+function PingModeHelpMount() {
+  var host = document.getElementById('PingModeHelpHost');
+  if (!host) { PingModeHelpInit(); return; }
+  var hasPing = (typeof pModel !== 'undefined') && pModel && pModel.some(function (m) { return m && m.vendor === 'PING'; });
+  if (!hasPing) { host.innerHTML = ''; return; }
+  if (!host.querySelector('.PmhCard')) host.innerHTML = PingModeHelpCardHtml();
+  var sel = PingModeCopy[PingModeLang()] || PingModeCopy.en;
+  var ht = host.querySelector('.PmhHeadText');
+  if (ht) ht.textContent = sel.cardTitle || PingModeCopy.en.cardTitle || '';
+  PingModeHelpInit();
 }
