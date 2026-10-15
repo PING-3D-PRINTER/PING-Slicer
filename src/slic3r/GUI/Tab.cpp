@@ -6343,6 +6343,11 @@ bool Tab::select_preset(
                 ping_backfill_new_slots(old_n);
                 wxGetApp().plater()->sidebar().on_filament_count_change(n_def);
             }
+            // PING(2026-10-15 回報中心 #93，Eric 裁乙・牌 c-1015-RPR-02)：上面 update_selections／set_num_filaments
+            // 會改寫 project_config 的料色，但這一趟後面沒有任何一步保證會把它同步給列印板、重畫物件列表色塊
+            // （filament_colour 不在印表機分頁的 m_config 裡，on_config_change 看不到；從印表機分頁下拉換機那條路完全不刷）。
+            // 這裡無條件同步一次；update_filament_colors_in_full_config 現在會順便重畫物件列表。
+            wxGetApp().plater()->update_filament_colors_in_full_config();
         }
         load_current_preset();
 
