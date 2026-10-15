@@ -16679,6 +16679,11 @@ bool Plater::update_filament_colors_in_full_config()
 
     p->config->option<ConfigOptionStrings>("filament_colour")->values = color_opt->values;
     p->config->option<ConfigOptionStrings>("filament_type")->values = type_opt->values;
+    // PING(2026-10-15 回報中心 #93，Eric 裁乙・牌 c-1015-RPR-02)：料色同步給列印板時，物件列表的色塊一起重畫。
+    // 換列印設備後料色被重設，3D 畫面跟著變、物件列色塊卻停在舊色（T085 實測兩次）——有些路徑只同步、沒刷新物件列。
+    // 色塊讀的是 project_config，重畫一次就會對；重複刷新無害（update_filament_colors 只重算欄位＋Refresh）。
+    if (p->sidebar != nullptr && p->sidebar->obj_list() != nullptr)
+        p->sidebar->obj_list()->update_filament_colors();
     return true;
 }
 
