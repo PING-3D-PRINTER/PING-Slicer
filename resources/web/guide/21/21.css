@@ -377,3 +377,6 @@ img.ModelThumbnail
 .LineBtns > :first-child { margin-left: 0; }
 .LineTabs { display: flex; gap: 4px; }
 .BlockBanner a { margin-left: auto; }
+
+/* #184（Eric 2026-10-15）：搜尋框搬進 #Content，放在說明卡下方、卡片區上方（隨內容捲動，打字只重畫 #VendorArea） */
+#Content .wrap { width: 300px; max-width: 100%; padding: 0 0 14px; position: relative; z-index: 6; }   /* z-index：壓過 24 分頁列黏頂遮罩（::before 32px），否則搜尋框下半被蓋住（10-15 實測） */
