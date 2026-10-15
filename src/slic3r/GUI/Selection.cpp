@@ -688,7 +688,16 @@ void Selection::clear()
 #endif
 
     // #et_FIXME fake KillFocus from sidebar
-    wxGetApp().plater()->canvas3D()->handle_sidebar_focus_event("", false);
+    /* PING(2026-10-12 票 #73)：這一行會在 App 關閉、3D 畫面正在解構時被叫到
+       （View3D 解構 → ~GLCanvas3D → reset_volumes → 這裡），那時 Plater 已經拆到一半，
+       直接 -> 就是讀空指標（實測 0xC0000005，T085 成品上連兩輪同一個位址）。
+       🔑 上面那段 #if 0 的註解「this happens while the application is closing」講的就是同一件事——
+          上游關掉了那一行，卻把這一行留著沒擋。
+       主要防線是「載入中不給關」（MainFrame 的 wxEVT_CLOSE_WINDOW，同票）；
+       這一道是關機／登出時 CanVeto() 為 false、主要防線擋不住時的最後保險。 */
+    if (Plater* plater = wxGetApp().plater())
+        if (GLCanvas3D* canvas = plater->canvas3D())
+            canvas->handle_sidebar_focus_event("", false);
 }
 
 // Update the selection based on the new instance IDs.

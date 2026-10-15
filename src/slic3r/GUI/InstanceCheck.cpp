@@ -100,12 +100,21 @@ namespace instance_check_internal
 		err = GetClassName(hwnd, className, 1000);
 		if (err == 0)
 			return true;
-		err = GetWindowText(hwnd, wndText, 1000);
-		if (err == 0)
-			return true;
+		/* PING(2026-10-12 票 #74)：原本的判準是「**視窗標題含 PING Slicer**」，而那個條件在本產品
+		   **永遠不成立** ⇒ 偏好設定「只允許一個 PING Slicer 實例」打開之後，在檔案總管雙擊 3MF
+		   會**完全沒有反應**（新實例找不到舊實例、靜默結束，檔案沒被開啟；而且 send_message() 的
+		   回傳值沒有人看，送不出去照樣 return true 結束）。
+		   實查：MainFrame::update_title() 的函式本體是 `return;`（空的），真正設標題的
+		   Plater::priv::update_title_dirty_status() 設的是**純專案名**（沒開專案時是「未命名」）；
+		   畫面上那行「PING Slicer V3.6.0 Beta Txxx」是**自繪的上方工具列**，不是作業系統的視窗標題。
+		   ⇒ 改成直接比 init_windows_properties() 自己設的 Instance_Hash_* 視窗屬性——那才是它真正的
+		     身分鍵，而且下面本來就已經在比了（原本只是多掛了一個永遠不成立的標題條件在前面）。
+		   標題仍然讀出來，但只拿來寫 log；讀不到（空標題）不再當成「不是它」。 */
+		wndText[0] = 0;
+		GetWindowText(hwnd, wndText, 1000);
 		std::wstring classNameString(className);
 		std::wstring wndTextString(wndText);
-		if (wndTextString.find(L"PING Slicer") != std::wstring::npos && classNameString == L"wxWindowNR") {
+		if (classNameString == L"wxWindowNR") {
 			//check if other instances has same instance hash
 			//if not it is not same version(binary) as this version 
 			HANDLE   handle = GetProp(hwnd, L"Instance_Hash_Minor");
@@ -116,6 +125,11 @@ namespace instance_check_internal
 			other_instance_hash_major = PtrToUint(handle);
 			other_instance_hash_major = other_instance_hash_major << 32;
 			other_instance_hash += other_instance_hash_major;
+			/* PING(2026-10-12 票 #74)：拿掉標題條件之後，這裡會看到系統上**每一個** wxWindowNR
+			   頂層視窗；沒有掛身分屬性的那些兩個 GetProp 都回 0 ⇒ 先把它們排掉，
+			   免得哪天 my_instance_hash 剛好是 0 就配對到不相干的視窗。 */
+			if (other_instance_hash == 0)
+				return true;
 			if(my_instance_hash == other_instance_hash)
 			{
 				BOOST_LOG_TRIVIAL(debug) << "win enum - found correct instance";

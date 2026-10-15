@@ -578,6 +578,25 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
             return;
         }
 
+        /* PING(2026-10-12 票 #73)：列印板還在載入時先不要關。
+           兩處閃退（#65 的 get_tab、#73 的 canvas3D）其實是同一個病——**關閉跑完了，載入還沒停**：
+           MainFrame::shutdown() 會先清掉分頁、並把列印板上的模型清空（reset_canvas_volumes），
+           而載入還在進度對話框的事件泵裡跑，清完又把分頁要用的東西與模型塞回去
+           ⇒ 稍後真的拆 3D 畫面時 GLCanvas3D::reset_volumes() 不再從 m_volumes.empty() 早退，
+             往下走到 Selection::clear() 回頭問已經半拆掉的 Plater 要畫面，就是讀空指標。
+           擋住這個重疊，上面兩處都不會發生。
+           ⚠ 關機／登出或 Close(true) 時 CanVeto() 是 false、這一道擋不住
+             ⇒ Selection.cpp 那道空值防護（同票）仍要留著當最後一道。 */
+        if (event.CanVeto() && m_plater != nullptr && m_plater->is_loading_project()) {
+            event.Veto();
+            /* ping-ux FBK-46：在等外部條件時畫面要說「在等什麼」，不能只說處理中；
+               FBK-11：「按了沒反應」而沒有說明，使用者會以為軟體壞了。 */
+            m_plater->get_notification_manager()->push_notification(
+                into_u8(wxString::FromUTF8("正在載入列印板，請等它載完再關閉（通常幾秒）。")));
+            BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< "cancelled by project loading in progress";
+            return;
+        }
+
         //BBS:
         //if (event.CanVeto() && !wxGetApp().check_and_save_current_preset_changes(_L("Application is closing"), _L("Closing Application while some presets are modified."))) {
         //    event.Veto();
