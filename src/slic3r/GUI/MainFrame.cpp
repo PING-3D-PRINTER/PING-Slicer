@@ -2119,6 +2119,13 @@ wxBoxSizer* MainFrame::create_side_tools()
 
     m_slice_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& event)
         {
+            // PING #106：已切片＝純狀態鈕，按了不切頁、不重切，只跳一行提示（Eric 2026-10-15 裁乙）
+            if (m_slice_done) {
+                m_plater->get_notification_manager()->push_notification(
+                    NotificationType::CustomNotification, NotificationManager::NotificationLevel::RegularNotificationLevel,
+                    "已切好了，請到「預覽」頁查看。改動模型或參數後才需要重新切片。");
+                return;
+            }
 
             //this->m_plater->select_view_3D("Preview");
             m_plater->exit_gizmo();
@@ -2275,10 +2282,10 @@ wxBoxSizer* MainFrame::create_side_tools()
             slice_plate_btn->SetCornerRadius(0);
 
             slice_all_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-                m_slice_btn->SetLabel(_L("Slice all"));
                 m_slice_select = eSliceAll;
                 m_slice_enable = get_enable_slice_status();
                 m_slice_btn->Enable(m_slice_enable);
+                apply_slice_btn_look(false); // PING #106：也負責換字
                 this->Layout();
                 fit_tab_labels(); // ORCA on label change
                 if(m_slice_option_pop_up)
@@ -2286,10 +2293,11 @@ wxBoxSizer* MainFrame::create_side_tools()
                 });
 
             slice_plate_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-                m_slice_btn->SetLabel(_L("Slice plate"));
                 m_slice_select = eSlicePlate;
                 m_slice_enable = get_enable_slice_status();
-                m_slice_btn->Enable(m_slice_enable);
+                const bool done = is_slice_done_status();
+                m_slice_btn->Enable(m_slice_enable || done);
+                apply_slice_btn_look(done); // PING #106：也負責換字
                 this->Layout();
                 fit_tab_labels(); // ORCA on label change
                 if(m_slice_option_pop_up)
@@ -2489,6 +2497,70 @@ wxBoxSizer* MainFrame::create_side_tools()
     sizer->Add(FromDIP(19), 0, 0, 0, 0);
 
     return sizer;
+}
+
+// PING #106：單一列印板模式下，目前列印板的切片結果仍有效＝「已切片」完成態。
+// 切片中、純 G-code／已匯出 3MF 模式都不算（那些情況維持原本的停用鈕）。
+bool MainFrame::is_slice_done_status()
+{
+    if (m_slice_select != eSlicePlate || m_plater == nullptr)
+        return false;
+    if (m_plater->is_background_process_slicing() || m_plater->only_gcode_mode() || m_plater->using_exported_file())
+        return false;
+    PartPlate* current_plate = m_plater->get_partplate_list().get_curr_plate();
+    return current_plate != nullptr && current_plate->is_slice_result_valid();
+}
+
+// PING #106：完成態＝深灰底、灰框、淺字「✓ 已切片」，hover／按下不變色（原型樣式乙）；
+// 非完成態＝還原 SideButton 建構時的 PING 橘配色與原本字樣。
+void MainFrame::apply_slice_btn_look(bool done)
+{
+    if (m_slice_btn == nullptr)
+        return;
+    const wxString label = done ? wxString::FromUTF8("✓ 已切片") : (m_slice_select == eSliceAll ? _L("Slice all") : _L("Slice plate"));
+    const bool label_changed = m_slice_btn->GetLabel() != label;
+    if (done != m_slice_done || label_changed) {
+        StateColor bg, border, text;
+        if (done) {
+            bg.append(0x6B6B6B, StateColor::Disabled);
+            bg.append(0x4A4D50, StateColor::Pressed);
+            bg.append(0x4A4D50, StateColor::Hovered);
+            bg.append(0x4A4D50, StateColor::Normal);
+            border.append(0x6B6B6B, StateColor::Disabled);
+            border.append(0x8A8D90, StateColor::Pressed);
+            border.append(0x8A8D90, StateColor::Hovered);
+            border.append(0x8A8D90, StateColor::Normal);
+            text.append(0xACACAC, StateColor::Disabled);
+            text.append(0xE6E6E6, StateColor::Pressed);
+            text.append(0xE6E6E6, StateColor::Hovered);
+            text.append(0xE6E6E6, StateColor::Normal);
+        } else {
+            bg.append(0x6B6B6B, StateColor::Disabled);
+            bg.append(wxColour(200, 66, 18), StateColor::Pressed);
+            bg.append(wxColour(242, 108, 61), StateColor::Hovered);
+            bg.append(0xEA4E16, StateColor::Normal);
+            border.append(0x6B6B6B, StateColor::Disabled);
+            border.append(wxColour(200, 66, 18), StateColor::Pressed);
+            border.append(wxColour(242, 108, 61), StateColor::Hovered);
+            border.append(0xEA4E16, StateColor::Normal);
+            text.append(0xACACAC, StateColor::Disabled);
+            text.append(0xFEFEFE, StateColor::Pressed);
+            text.append(0xFEFEFE, StateColor::Hovered);
+            text.append(0xFEFEFE, StateColor::Normal);
+        }
+        bg.setTakeFocusedAsHovered(false);
+        border.setTakeFocusedAsHovered(false);
+        m_slice_btn->SetBackgroundColor(bg);
+        m_slice_btn->SetBorderColor(border);
+        m_slice_btn->SetForegroundColor(text);
+        m_slice_btn->SetToolTip(done ? wxString::FromUTF8("已切好了，請到「預覽」頁查看。改動模型或參數後才需要重新切片。") : wxString());
+        m_slice_done = done;
+    }
+    if (label_changed) {
+        m_slice_btn->SetLabel(label);
+        this->Layout();
+        fit_tab_labels();
+    }
 }
 
 bool MainFrame::get_enable_slice_status()
@@ -2730,13 +2802,16 @@ void MainFrame::update_slice_print_status(SlicePrintEventType event, bool can_sl
         enable_slice = get_enable_slice_status();
     }
 
-    bool old_slice_status = m_slice_btn->IsEnabled();
+    // PING #106：完成態時鈕本身是可按的，舊狀態改看 m_slice_enable（＝「真的能切」）
+    bool old_slice_status = m_slice_enable;
+    const bool slice_done = !enable_slice && is_slice_done_status();
 
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" m_slice_select %1%: can_slice= %2%, can_print %3%, enable_slice %4%, enable_print %5% ")%m_slice_select % can_slice %can_print %enable_slice %enable_print;
     m_print_btn->Enable(enable_print);
-    m_slice_btn->Enable(enable_slice);
+    m_slice_btn->Enable(enable_slice || slice_done);
     m_slice_enable = enable_slice;
     m_print_enable = enable_print;
+    apply_slice_btn_look(slice_done);
 
     if (!old_slice_status && enable_slice)
         m_plater->reset_check_status();
