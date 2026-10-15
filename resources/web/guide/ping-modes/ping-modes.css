@@ -220,8 +220,8 @@
 .PmhCard #PingModeHelp .pmh-case figcaption { padding: 4px 0 0; }
 /* 雙料／四料的說明多一句（四料機）⇒ 繁中實量 163px；四頁一起抬到 164px 維持等高，切頁時下方卡片不跳動 */
 .PmhCard #PingModeHelp .pmh-detail { min-height: 164px; }
-/* 頁籤改按鈕樣式、置中（回報者圖二）。⚠ 0918 曾因頁籤攤滿、正好壓在三張用途圖上方被讀成一一對應而改靠左；
-   這版是按鈕樣式且置中成一組，交 Eric 眼驗時另外確認這點。 */
+/* 頁籤改按鈕樣式、置中（回報者圖二）。0918 曾因頁籤攤滿、壓在三張用途圖上方被讀成一一對應而改靠左；
+   Eric 2026-10-15 裁：「頁籤照圖二置中就好，09-18 靠左那條在新版說明卡裡不適用」（按鈕樣式置中成一組）。 */
 .PmhCard #PingModeHelp .pmh-modes { justify-content: center; gap: 14px; border-bottom: 0; margin-bottom: 4px; }
 .PmhCard #PingModeHelp .pmh-mode {
   min-width: 96px;
