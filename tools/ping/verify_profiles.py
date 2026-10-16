@@ -53,6 +53,26 @@ COMBO_CAT_EASYTREE                   = "易拆樹狀"
 EASY_TREE_ALLOWED_DIFF = {"name", "setting_id", "renamed_from", "support_type", "support_style",
                           "support_speed", "support_interface_speed"}
 COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE}
+# 🆕 2026-10-16（Eric 三題照建議，牌 c-1016-TRE-01）：1.0 口徑樹狀製程「<層高>mm 樹狀 @<機型> (1.0)」。
+#   整組＝同事在 DUAL 600 同進實調的支撐值，刻意與標準的多條家規不同（Z 0.5／介面 0 層／空心 50／
+#   首層 50%·擴展 10／XY 1.5／有機直徑 5·角度 60／牆 1）⇒ 那幾條家規對本族豁免，改由下方「1.0 樹狀族」
+#   區塊 exact 鎖全部值＋鎖範圍（每支標準名 1.0 製程恰有一支樹狀雙生）。值與 embed_params.TREE10_OVERRIDES 同值各一份。
+#   ⚠ regex 用 \S+ 開頭＝不會吃到「0.5mm PA-CF 樹狀 @」（中間有空白）與「易拆樹狀」（token 不同）。
+_TREE10_RE = re.compile(r"^\S+mm 樹狀 @.+ \(1\.0\)$")
+_TREE10_VALUES = {
+    "support_type": "tree(auto)", "support_style": "organic",
+    "raft_first_layer_density": "50%", "raft_first_layer_expansion": "10",
+    "support_top_z_distance": "0.5", "support_bottom_z_distance": "0.5",
+    "tree_support_wall_count": "1",
+    "support_base_pattern": "hollow", "support_base_pattern_spacing": "50",
+    "support_interface_top_layers": "0", "support_interface_bottom_layers": "2",
+    "support_interface_spacing": "0", "support_bottom_interface_spacing": "0",
+    "support_expansion": "1", "support_object_xy_distance": "1.5",
+    "tree_support_branch_diameter_organic": "5", "tree_support_branch_angle_organic": "60",
+    "tree_support_branch_distance_organic": "1", "tree_support_tip_diameter": "1.2",
+    "tree_support_top_rate": "30%", "tree_support_branch_diameter_angle": "5",
+    "tree_support_angle_slow": "25",
+}
 # 照片磚系線材（冷卻降速 0910 的例外名單）；與 embed_params 的 PT_FIL_PLA／PT_FIL_PLA_FD 同值，
 # 兩支檔各自宣告＝既有慣例（verify 刻意不 import 產生器，避免驗證對象驗自己）。
 PT_FIL_PLA_V, PT_FIL_PLA_FD_V = "PING PLA(照片磚)", "PING PLA(照片磚 FD300)"
@@ -476,7 +496,10 @@ for name, (kind, d) in presets.items():
                 _geo = [("tree_support_branch_diameter", "%g" % min(nz_v * 12, 10.0)),
                         ("tree_support_branch_distance", "%g" % (nz_v * 6)),
                         ("support_base_pattern_spacing", _spacing)]
+                _is_t10 = bool(_TREE10_RE.match(name))   # 1.0 樹狀族：本段豁免的鍵由「1.0 樹狀族」區塊 exact 鎖
                 for key, value in _geo:
+                    if _is_t10 and key in _TREE10_VALUES:
+                        continue
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
                 # 頂部接觸面間距（Eric 2026-08-04 裁「70% 密度等效」蓋 0714「一律 0.1」）：
@@ -501,12 +524,12 @@ for name, (kind, d) in presets.items():
                     _sis = "0.1"
                 else:
                     _sis = "%g" % round(nz_v * 3 / 7, 2)
-                if d.get("support_interface_spacing") != _sis:
+                if not _is_t10 and d.get("support_interface_spacing") != _sis:
                     err(f"[支撐介面 70% 等效 0804] {name}: support_interface_spacing={d.get('support_interface_spacing')!r}, expected {_sis!r}")
                 # 支撐首層密度（同鍵服務 raft 首層）＝10% 全庫（0804；主體類規則全庫套＝0722 ×9 先例，
                 # 含 3in1 範本 30%→10%）；raft 機種（ABS 系/棧板 raft_layers≥1）＝貼床抓床維持 100%。
                 _rfd = "100%" if str(d.get("raft_layers", "0")) != "0" else "10%"
-                if d.get("raft_first_layer_density") != _rfd:
+                if not _is_t10 and d.get("raft_first_layer_density") != _rfd:
                     err(f"[支撐首層密度 0804] {name}: raft_first_layer_density={d.get('raft_first_layer_density')!r}, expected {_rfd!r}")
                 # 普通支撐配方（Eric 2026-07-22 七裁；行為四項同日二裁擴及易拆）
                 expected_recipe = [("support_type", "normal(auto)"),
@@ -541,6 +564,8 @@ for name, (kind, d) in presets.items():
                 elif _ctok not in (COMBO_CAT_EASY, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE) and "3in1" not in name and not is_classic:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz_v * 1.0, 2)))
                 for key, value in expected_recipe:
+                    if _is_t10 and key in _TREE10_VALUES:
+                        continue
                     if d.get(key) != value:
                         err(f"[普通支撐配方 0722] {name}: {key}={d.get(key)!r}, expected {value!r}")
                 # 樹狀支撐保守配方（Eric 2026-07-25 裁）：只在使用者手動切「混合樹」後生效，
@@ -556,6 +581,8 @@ for name, (kind, d) in presets.items():
                                    ("tree_support_wall_count", "0"),
                                    ("tree_support_branch_diameter_organic", "2.6"),
                                    ("tree_support_branch_angle_organic", "40")]:
+                    if _is_t10 and key in _TREE10_VALUES:
+                        continue
                     if d.get(key) != value:
                         err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
                 # ★ Classic 前代：確認新工藝**確實有套**（Eric 2026-07-25 裁「Classic 套新工藝」，
@@ -652,7 +679,9 @@ for name, (kind, d) in presets.items():
             # PA-CF 樹狀版（Eric 2026-08-26 追裁「增加一個製程參數，是樹狀支撐」）：整支的存在意義就是換支撐類型。
             # 機型預設（FD300/FF600＝普通(自動)，0722 七裁）對它不適用；PA-CF **一般版**仍照機型預設查。
             # 易拆樹狀（0919）同理：整支的存在意義就是換成樹狀，機型預設不適用（類型/樣式另由上方配方斷言 exact 鎖）。
-            support_expected = set() if (" PA-CF 樹狀 @" in name or _ctok == COMBO_CAT_EASYTREE) else                 {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
+            # 1.0 樹狀族（1016）同理，類型由「1.0 樹狀族」區塊 exact 鎖。
+            support_expected = set() if (" PA-CF 樹狀 @" in name or _ctok == COMBO_CAT_EASYTREE
+                                         or _TREE10_RE.match(name)) else                {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
             support_expected.discard(None)
             if len(support_expected) > 1:
                 err(f"[support mode ambiguous] {name}: expected candidates={sorted(support_expected)!r}")
@@ -662,7 +691,8 @@ for name, (kind, d) in presets.items():
                     err(f"[support mode default] {name}: support_type={d.get('support_type')!r}, expected {value!r}")
             # PA-CF 樹狀版（Eric 2026-08-26）：整支的存在意義就是換支撐類型，Classic 機同理豁免；
             # **PA-CF 一般版仍被要求 normal(auto)**，閘門沒關（與上面 support mode default 同款處理）。
-            if is_classic and " PA-CF 樹狀 @" not in name and d.get("support_type") != "normal(auto)":
+            if (is_classic and " PA-CF 樹狀 @" not in name and not _TREE10_RE.match(name)
+                    and d.get("support_type") != "normal(auto)"):
                 err(f"[Classic support mode] {name}: support_type={d.get('support_type')!r}, expected 'normal(auto)'")
         # 檢查 12（Eric 2026-07-18 裁「只做腳本」）：3in1 線材起始 gcode 必須含 T 指令。
         # 缺 T 時切片器會自動補「槽位序號」T（第2槽→T1）→機上無此巨集→Klipper 只警告不停
@@ -2180,6 +2210,8 @@ for _name, (_kind, _d) in presets.items():
     if "raft_first_layer_expansion" in _d:
         _is_raft = str(_d.get("raft_layers", "0")) != "0"
         _want = "6" if _is_raft else "0"
+        if _TREE10_RE.match(_name):
+            _want = _TREE10_VALUES["raft_first_layer_expansion"]   # 1.0 樹狀族（1016）＝同事實調 10
         if _d["raft_first_layer_expansion"] != _want:
             err(f"[支撐首層擴展] {_name}: raft_first_layer_expansion="
                 f"{_d['raft_first_layer_expansion']!r} ≠ {_want!r}"
@@ -2241,6 +2273,8 @@ for _name, (_kind, _d) in presets.items():
     _easy = ("易拆" in _name) or ("3in1" in _name)
     _want = "0" if _easy else "0.2"
     _fam  = "易拆" if _easy else "一般"
+    if _TREE10_RE.match(_name):
+        continue   # 1.0 樹狀族（1016）刻意 0.5，由「1.0 樹狀族」區塊 exact 鎖
     for _k in ("support_top_z_distance", "support_bottom_z_distance"):
         if _k not in _d:
             err(f"[支撐Z間距] {_name}: 缺鍵 {_k}（{_fam}家族應顯式寫 {_want}，不可靠繼承）")
@@ -2250,6 +2284,42 @@ for _name, (_kind, _d) in presets.items():
         _Z_CENSUS["易拆0" if _easy else "一般0.2"] += 1
 if _Z_CENSUS["易拆0"] == 0:
     err("[支撐Z間距] 全庫找不到任何易拆家族製程 ⇒ 易拆家族消失或判定失效")
+
+# ★ 1.0 樹狀族（Eric 2026-10-16 三題照建議，牌 c-1016-TRE-01）：上面幾條家規對本族豁免，這裡補回 exact 鎖。
+#   ①值鎖：_TREE10_VALUES 每一鍵 exact；②新品不得帶 renamed_from（同易拆樹狀 0919 理由）；
+#   ③範圍鎖：每支「標準名」1.0 製程（`<層高>mm @<機型> (1.0)`、非照片磚）恰有一支樹狀雙生，反之亦然
+#     ＝新機型自動涵蓋、也抓「多派生到不該派生的地方」；④其餘鍵＝同機標準那支（只准差在值鎖的鍵與身分鍵）。
+_T10_PLAIN_RE = re.compile(r"^(\S+)mm @(.+) \(1\.0\)$")
+_t10_have, _t10_want = set(), set()
+for _name, (_kind, _d) in presets.items():
+    if _kind != "process" or _name.startswith("fdm_"):
+        continue
+    if _TREE10_RE.match(_name):
+        _t10_have.add(_name)
+        for _k, _v in _TREE10_VALUES.items():
+            if _d.get(_k) != _v:
+                err(f"[1.0 樹狀族 1016] {_name}: {_k}={_d.get(_k)!r}, expected {_v!r}")
+        if "renamed_from" in _d:
+            err(f"[1.0 樹狀族 1016・不得有 renamed_from] {_name}: {_d.get('renamed_from')!r}")
+        _src_name = _name.replace("mm 樹狀 @", "mm @", 1)
+        _src = presets.get(_src_name, (None, None))[1]
+        if _src is None:
+            err(f"[1.0 樹狀族 1016] {_name}: 找不到來源標準製程 {_src_name!r}")
+        else:
+            _allowed = set(_TREE10_VALUES) | {"name", "setting_id", "renamed_from"}
+            for _k in sorted((set(_d) | set(_src)) - _allowed):
+                if _d.get(_k) != _src.get(_k):
+                    err(f"[1.0 樹狀族 1016・與標準不同的鍵] {_name}: {_k}={_d.get(_k)!r} ≠ 標準 {_src.get(_k)!r}")
+    else:
+        _m10 = _T10_PLAIN_RE.match(_name)
+        if _m10 and "照片磚" not in _m10.group(2):
+            _t10_want.add("%smm 樹狀 @%s (1.0)" % (_m10.group(1), _m10.group(2)))
+for _n in sorted(_t10_want - _t10_have):
+    err(f"[1.0 樹狀族 1016・範圍] 缺 {_n}（標準名 1.0 製程都要有樹狀雙生）")
+for _n in sorted(_t10_have - _t10_want):
+    err(f"[1.0 樹狀族 1016・範圍] 多出 {_n}（找不到對應的標準名 1.0 製程）")
+if not _t10_have:
+    err("[1.0 樹狀族 1016] 全庫找不到任何 1.0 樹狀製程 ⇒ 產生器沒派生或判定失效")
 
 # ── 另存列印設備的預設名＝printer_model + " " + printer_variant（2026-09-15 Eric 裁「A」）──────
 #   PhysicalPrinterDialog 建構子（src/slic3r/GUI/PhysicalPrinterDialog.cpp）用這兩個鍵組出

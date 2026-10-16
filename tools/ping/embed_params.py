@@ -1538,6 +1538,36 @@ def easy_tree_pname(lh, model, nz):
     return "%smm %s @%s (%s)" % (lh, EASY_TREE_TOKEN, model, nz)
 
 
+# ★ 1.0 口徑樹狀製程（Eric 2026-10-16 三題照建議；牌 c-1016-TRE-01）
+#   來源＝同事在 DUAL 600 同進 1.0 實調的「0.5mm - 樹枝」整組支撐值（以同機標準製程逐欄比對後只留有差的鍵）。
+#   Q1：**新增**「樹狀」製程、現有標準不動（Z 間距／接觸面／主體圖案／牆數是普通與樹狀共用鍵，改標準會連帶改普通支撐）。
+#   Q2：主線 1.0 全部＝每台機「標準名」那支（`<層高>mm @<機型> (1.0)`）派生一支；
+#       易拆／水溶／筏層／照片磚／PA-CF／高流量等帶 token 的製程不派生（各有特調）。
+#   Q3：先進廠內測試版，同事實印驗過才進出貨版——🔴 頂部接觸面 0 層＋Z 間距 0.5，懸空下表面可能較粗。
+#   樣式明寫 organic（同易拆樹狀 0919：寫 default 引擎也解成有機樹，但 UI 顯示「預設」會被看成沒選到）。
+#   支撐料槽／介面料槽不寫＝沿用同機標準（雙料機標準是槽 2，同進／單料頭是槽 1）。
+#   token「樹狀」Tab.cpp 不認得 ⇒ 歸「一般」家族（fail-visible，同 PA-CF 樹狀），不觸發配料連動。
+TREE10_TOKEN = "樹狀"
+TREE10_NZ = "1.0"
+TREE10_OVERRIDES = {
+    "support_type": "tree(auto)", "support_style": "organic",
+    "raft_first_layer_density": "50%", "raft_first_layer_expansion": "10",   # 首層密度／首層擴展（樹根抓床）
+    "support_top_z_distance": "0.5", "support_bottom_z_distance": "0.5",
+    "tree_support_wall_count": "1",
+    "support_base_pattern": "hollow", "support_base_pattern_spacing": "50",
+    "support_interface_top_layers": "0", "support_interface_bottom_layers": "2",
+    "support_interface_spacing": "0", "support_bottom_interface_spacing": "0",
+    "support_expansion": "1", "support_object_xy_distance": "1.5",
+    "tree_support_branch_diameter_organic": "5", "tree_support_branch_angle_organic": "60",
+    "tree_support_branch_distance_organic": "1", "tree_support_tip_diameter": "1.2",
+    "tree_support_top_rate": "30%", "tree_support_branch_diameter_angle": "5",
+    "tree_support_angle_slow": "25",
+}
+
+def tree10_pname(lh, model, nz):
+    return "%smm %s @%s (%s)" % (lh, TREE10_TOKEN, model, nz)
+
+
 def pva_overrides(nozzle):
     nz = float(nozzle)
     return {
@@ -2688,6 +2718,30 @@ def main(src_base):
     if abscf_fast_twins:
         print("  0.2mm 高速製程：%d 支（主段 PINGP%03d 止）" % (len(abscf_fast_twins), gp - 1))
 
+    # 4a-11. 1.0 口徑樹狀製程派生＋emit（Eric 2026-10-16，牌 c-1016-TRE-01）。
+    #        接在 4a-10 之後＝**真正的全庫最尾** ⇒ 既有 preset setting_id 全零位移。⚠ 下一個新增製程族排在本段之後。
+    #        🔴 刻意在這裡掃 proc_list、不掛在主迴圈：製程有四條產出路徑（主迴圈／ff_extra／Classic V3.6／
+    #        Classic DUAL 變體），只掛主迴圈會漏掉 DUAL 450/600/800 與 FF 同進（同事調參那台就是 DUAL 600 同進）。
+    #        來源＝「標準名」那支（`<層高>mm @<機型> (1.0)`，名稱中段沒有任何 token）；照片磚機型名帶「照片磚」排除。
+    tree10_twins = []
+    for _e in list(proc_list):
+        _m = re.match(r"^(\d+(?:\.\d+)?)mm @(.+) \((\d+(?:\.\d+)?)\)$", _e["name"])
+        if not _m or _m.group(3) != TREE10_NZ or "照片磚" in _m.group(2):
+            continue
+        _src = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % _e["name"]), encoding="utf-8"))
+        t10 = dict(_src); t10.update(TREE10_OVERRIDES)
+        t10["name"] = tree10_pname(_m.group(1), _m.group(2), _m.group(3))
+        t10.pop("renamed_from", None)
+        tree10_twins.append(t10)
+    for t10 in tree10_twins:
+        if _ext_proc(t10["name"]): t10["setting_id"] = _ext_take_p()
+        elif _nz_proc(t10["name"]): t10["setting_id"] = _nz_take_p()
+        else: t10["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % t10["name"]), t10)
+        proc_list.append({"name": t10["name"], "sub_path": "process/%s.json" % t10["name"]})
+    if tree10_twins:
+        print("  1.0 口徑樹狀製程：%d 支（主段 PINGP%03d 止）" % (len(tree10_twins), gp - 1))
+
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
     fil_new = []
@@ -3405,6 +3459,9 @@ def main(src_base):
             want_exp = (PALLET_RAFT_FIRST_LAYER_EXPANSION
                         if str(pdj.get("raft_layers", "0")) != "0"
                         else SUPPORT_RAFT_FIRST_LAYER_EXPANSION)
+            # 1.0 口徑樹狀（Eric 2026-10-16，牌 c-1016-TRE-01）＝整組套同事實調值，首層擴展 10 豁免本規則。
+            if re.match(r"^\S+mm %s @.+ \(%s\)$" % (TREE10_TOKEN, re.escape(TREE10_NZ)), pdj.get("name", "")):
+                want_exp = TREE10_OVERRIDES["raft_first_layer_expansion"]
             if pdj["raft_first_layer_expansion"] != want_exp:
                 pdj["raft_first_layer_expansion"] = want_exp
                 touched = True
@@ -3790,6 +3847,9 @@ def main(src_base):
         _nm   = _d.get("name", "")
         _easy = ("易拆" in _nm) or ("3in1" in _nm)
         _z = "0" if _easy else "0.2"
+        # 1.0 口徑樹狀（Eric 2026-10-16，牌 c-1016-TRE-01）刻意 0.5＝同事實調值，整支豁免本掃描。
+        if re.match(r"^\S+mm %s @.+ \(%s\)$" % (TREE10_TOKEN, re.escape(TREE10_NZ)), _nm):
+            _z = TREE10_OVERRIDES["support_top_z_distance"]
         if _d.get("support_top_z_distance") != _z or _d.get("support_bottom_z_distance") != _z:
             _d["support_top_z_distance"] = _d["support_bottom_z_distance"] = _z
             jdump(_p, _d)

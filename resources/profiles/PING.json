@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.32",
+    "version": "01.00.01.33",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -1713,6 +1713,94 @@
         {
             "name": "0.2mm 高速 @FD800 Pro 單料頭 (0.4)",
             "sub_path": "process/0.2mm 高速 @FD800 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @FD450 Pro (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @FD450 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @FD450 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @FD450 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @FD450 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @FD600 Pro (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @FD600 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @FD600 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @FD600 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @FD600 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @FD800 Pro (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @FD800 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @FD800 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @FD800 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @FD800 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.35mm 樹狀 @FF600 (1.0)",
+            "sub_path": "process/0.35mm 樹狀 @FF600 (1.0).json"
+        },
+        {
+            "name": "0.35mm 樹狀 @FF800 (1.0)",
+            "sub_path": "process/0.35mm 樹狀 @FF800 (1.0).json"
+        },
+        {
+            "name": "0.45mm 樹狀 @FF600 同進 (1.0)",
+            "sub_path": "process/0.45mm 樹狀 @FF600 同進 (1.0).json"
+        },
+        {
+            "name": "0.45mm 樹狀 @FF800 同進 (1.0)",
+            "sub_path": "process/0.45mm 樹狀 @FF800 同進 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @DUAL 450 同進 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @DUAL 450 同進 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @DUAL 450 單料頭 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @DUAL 450 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @DUAL 600 同進 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @DUAL 600 同進 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @DUAL 600 單料頭 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @DUAL 600 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @DUAL 800 同進 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @DUAL 800 同進 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @DUAL 800 單料頭 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @DUAL 800 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @DUAL 450 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @DUAL 450 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @DUAL 600 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @DUAL 600 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @DUAL 800 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @DUAL 800 (1.0).json"
         }
     ],
     "filament_list": [
