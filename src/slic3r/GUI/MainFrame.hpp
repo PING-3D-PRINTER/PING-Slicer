@@ -454,6 +454,11 @@ public:
     FilamentGroupPopup* m_filament_group_popup{ nullptr };
     mutable bool          m_slice_enable{ true };
     mutable bool          m_print_enable{ true };
+    // PING #106（Eric 2026-10-15 對原型裁「乙」，ping-ux FBK-15）：單一列印板已切好時，
+    // 切片鈕改顯示深灰「✓ 已切片」純狀態（可按但不重切，只提示去預覽頁）；切片失效即回原鈕。
+    bool                  m_slice_done{ false };
+    bool is_slice_done_status();
+    void apply_slice_btn_look(bool done);
     bool get_enable_slice_status();
     bool get_enable_print_status();
     //BBS
