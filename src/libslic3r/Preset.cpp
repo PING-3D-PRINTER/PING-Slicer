@@ -2457,6 +2457,14 @@ void PresetCollection::save_current_preset(const std::string &new_name, bool det
         preset.config = std::move(curr_preset.config);
         // The newly saved preset will be activated -> make it visible.
         preset.is_visible = true;
+        // PING(2026-10-16 牌 c-1016-OVW-01，Eric 裁「照建議修覆寫分支」)：上面整顆換成目前畫面的設定，連 inherits 一起換。
+        // 來源是系統預設時，它的 inherits 本來就是空的（系統機型檔已攤平）⇒ 覆寫後這顆使用者預設被靜默脫鉤：
+        // 存成全量參數、跟系統機型斷線 ⇒ 判相容只看 compatible_printers 名單的線材／製程（PA-CF、ABS-CF、TPE-210…）
+        // 靠 is_compatible_with_parent_printer 比 inherits 才接得住，一斷就全掉進「不支援」。
+        // 觸發＝從系統機型按「連線」、預設名（機型＋口徑）已存在、按確認覆蓋（T085 實測：inherits 由「FD300 單料頭 0.4 nozzle」變空、PA-CF 被換成 Cast）。
+        // 改成：跟下面「新建」分支一樣，來源是系統預設就把上一層記成它。來源是使用者預設時照舊（設定裡本來就帶它自己的 inherits）。
+        if (!detach && curr_preset.is_system)
+            preset.inherits() = curr_preset.name;
         //TODO: remove the detach logic
         if (detach) {
             // Clear the link to the parent profile.
