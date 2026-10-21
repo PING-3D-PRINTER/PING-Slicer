@@ -1,6 +1,6 @@
 {
     "type": "filament",
-    "name": "PING PETG - 高流量噴頭",
+    "name": "PING PETG - 雙料同進噴頭",
     "from": "system",
     "instantiation": "true",
     "setting_id": "PINGFILHFNPETG",
@@ -94,5 +94,6 @@
     "slow_down_min_speed": [
         "25"
     ],
-    "alias": "PING PETG - 高流量噴頭"
+    "alias": "PING PETG - 雙料同進噴頭",
+    "renamed_from": "PING PETG - 高流量噴頭"
 }

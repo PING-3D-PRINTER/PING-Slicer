@@ -21,8 +21,8 @@
         "#000000"
     ],
     "default_filament_profile": [
-        "PING PLA - 高流量噴頭",
-        "PING SupPLA - 高流量噴頭"
+        "PING PLA - 雙料同進噴頭",
+        "PING SupPLA - 雙料同進噴頭"
     ],
     "default_print_profile": "0.5mm 易拆 @FD450 Pro (1.0)",
     "deretraction_speed": [

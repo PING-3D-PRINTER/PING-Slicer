@@ -1,6 +1,6 @@
 {
     "type": "filament",
-    "name": "PING SupPLA - 高流量噴頭",
+    "name": "PING SupPLA - 雙料同進噴頭",
     "from": "system",
     "instantiation": "true",
     "setting_id": "PINGFILHFNSUP",
@@ -94,5 +94,6 @@
     "slow_down_min_speed": [
         "25"
     ],
-    "alias": "PING SupPLA - 高流量噴頭"
+    "alias": "PING SupPLA - 雙料同進噴頭",
+    "renamed_from": "PING SupPLA - 高流量噴頭"
 }

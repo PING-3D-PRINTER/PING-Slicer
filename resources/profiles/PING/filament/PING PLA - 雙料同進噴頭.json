@@ -267,7 +267,7 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING PLA - 高流量噴頭",
+    "name": "PING PLA - 雙料同進噴頭",
     "from": "system",
     "instantiation": "true",
     "setting_id": "PINGFILHFNPLA",
@@ -277,5 +277,6 @@
         "#EA4E16"
     ],
     "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes!~/.*CLASSIC.*/",
-    "alias": "PING PLA - 高流量噴頭"
+    "alias": "PING PLA - 雙料同進噴頭",
+    "renamed_from": "PING PLA - 高流量噴頭"
 }
