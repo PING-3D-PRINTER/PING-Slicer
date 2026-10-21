@@ -219,6 +219,92 @@ struct StepRepairPin
     int         protocol_version = 0;
 };
 
+/* 【2026-10-21・牌 c-1021-STEP-02】契約 §3 第⑤步原本只確認 integrityManifest「這個檔在」，
+   清單裡那些 SHA-256 執行期**一個都沒有驗**——vendor 目錄被換掉一個位元組也照樣放行，
+   而本函式的註解卻宣稱「即契約 §3 的六步驗證」。下面三支小工具是為了把第⑥步補成真的。
+
+   🔴 **逐項驗，不寫死檔數**：1.0.2 那一版是 6 個檔，alpha.8 起補齊授權聲明之後是 21 個。
+      寫死數量的話，以後每補一份授權聲明就會把整個功能 fail closed 擋掉——清單說幾個就驗幾個。 */
+
+// 64 位十六進位字串轉小寫；格式不對回空字串（呼叫端一律把空字串當失敗）。
+std::string step_repair_lower_hex64(const std::string& value)
+{
+    if (value.size() != 64)
+        return {};
+    std::string out;
+    out.reserve(64);
+    for (const char ch : value) {
+        if ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'))
+            out.push_back(ch);
+        else if (ch >= 'A' && ch <= 'F')
+            out.push_back(static_cast<char>(ch - 'A' + 'a'));
+        else
+            return {};
+    }
+    return out;
+}
+
+/* 清單裡的 path 只准是 vendor 目錄底下的相對路徑。
+   擋的是「清單自己把我們指到別的地方」：絕對路徑、磁碟代號、反斜線、`..` 一律不收。
+   （不用 lexically_normal 做包含判斷——那支 API 要較新的 boost，逐段檢查反而確定。） */
+bool step_repair_safe_relative(const std::string& rel)
+{
+    if (rel.empty() || rel.size() > 240)
+        return false;
+    if (rel.find('\\') != std::string::npos || rel.find(':') != std::string::npos)
+        return false;
+    if (rel.front() == '/')
+        return false;
+    for (size_t start = 0;;) {
+        const size_t      slash = rel.find('/', start);
+        const std::string part  = rel.substr(start, slash == std::string::npos ? std::string::npos : slash - start);
+        if (part.empty() || part == "." || part == "..")
+            return false;
+        if (slash == std::string::npos)
+            break;
+        start = slash + 1;
+    }
+    return true;
+}
+
+// 串流算檔案的 SHA-256，回小寫十六進位；任何一步失敗都回空字串。
+std::string step_repair_file_sha256(const boost::filesystem::path& path)
+{
+    boost::nowide::ifstream ifs(path.string(), std::ios::binary);
+    if (!ifs.good())
+        return {};
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    if (ctx == nullptr)
+        return {};
+    std::string out;
+    if (EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) == 1) {
+        std::vector<char> buffer(64 * 1024);
+        bool              ok = true;
+        while (ifs.good()) {
+            ifs.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+            const std::streamsize got = ifs.gcount();
+            if (got > 0 && EVP_DigestUpdate(ctx, buffer.data(), static_cast<size_t>(got)) != 1) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok && ! ifs.bad()) {
+            unsigned char digest[EVP_MAX_MD_SIZE];
+            unsigned int  length = 0;
+            if (EVP_DigestFinal_ex(ctx, digest, &length) == 1 && length == 32) {
+                static const char hex[] = "0123456789abcdef";
+                out.reserve(64);
+                for (unsigned int i = 0; i < length; ++i) {
+                    out.push_back(hex[digest[i] >> 4]);
+                    out.push_back(hex[digest[i] & 0x0F]);
+                }
+            }
+        }
+    }
+    EVP_MD_CTX_free(ctx);
+    return out;
+}
+
 const StepRepairPin& step_repair_pin()
 {
     namespace bfs = boost::filesystem;
@@ -260,6 +346,76 @@ const StepRepairPin& step_repair_pin()
                 BOOST_LOG_TRIVIAL(error) << "STEP repair vendor manifest has no usable version fields";
                 return out;
             }
+
+            /* ⑥ 契約 §3：依 integrityManifest 指的那份清單**逐項**驗（bytes＋SHA-256），不寫死檔數。
+               成本＝alpha.10 共 21 檔約 11.7 MB，整個程序只算這一次（pin 是 static）。
+               🔴 清單沒列到的檔不管（`vendor-manifest.json`／`release-manifest.json`／`.gitattributes`
+                  本來就不在清單裡）；驗的是「清單列的每一個都要對」，不是「目錄裡不准有別的東西」。 */
+            {
+                constexpr size_t    max_entries     = 512;
+                constexpr uintmax_t max_total_bytes = 128ULL * 1024ULL * 1024ULL;
+
+                boost::nowide::ifstream rfs((vendor_dir / integrity).string());
+                if (!rfs.good()) {
+                    BOOST_LOG_TRIVIAL(error) << "STEP repair integrity manifest not readable: " << integrity;
+                    return StepRepairPin{};
+                }
+                json r;
+                rfs >> r;
+
+                // 契約 §2：同一個 release 裡 core 與 protocol 固定——兩份 manifest 對不起來就是配錯版。
+                if (r.value("coreVersion", std::string()) != out.core_version ||
+                    r.value("protocolVersion", 0) != out.protocol_version) {
+                    BOOST_LOG_TRIVIAL(error) << "STEP repair manifests disagree: vendor core=" << out.core_version
+                                             << "/protocol=" << out.protocol_version << ", release core="
+                                             << r.value("coreVersion", std::string()) << "/protocol="
+                                             << r.value("protocolVersion", 0);
+                    return StepRepairPin{};
+                }
+
+                const auto files_it = r.find("files");
+                if (files_it == r.end() || !files_it->is_array() || files_it->empty() ||
+                    files_it->size() > max_entries) {
+                    BOOST_LOG_TRIVIAL(error) << "STEP repair integrity manifest has no usable file list";
+                    return StepRepairPin{};
+                }
+
+                uintmax_t total_bytes = 0;
+                for (const auto& entry : *files_it) {
+                    const std::string rel            = entry.value("path", std::string());
+                    const std::string expected       = step_repair_lower_hex64(entry.value("sha256", std::string()));
+                    const uintmax_t   expected_bytes = entry.value("bytes", uintmax_t(0));
+                    if (!step_repair_safe_relative(rel) || expected.empty()) {
+                        BOOST_LOG_TRIVIAL(error) << "STEP repair integrity entry rejected: " << rel;
+                        return StepRepairPin{};
+                    }
+
+                    const bfs::path           target = vendor_dir / rel;
+                    boost::system::error_code ec;
+                    if (!bfs::is_regular_file(target, ec) || ec) {
+                        BOOST_LOG_TRIVIAL(error) << "STEP repair vendored file missing: " << rel;
+                        return StepRepairPin{};
+                    }
+                    const uintmax_t actual_bytes = bfs::file_size(target, ec);
+                    if (ec || actual_bytes != expected_bytes) {
+                        BOOST_LOG_TRIVIAL(error) << "STEP repair vendored file size mismatch: " << rel
+                                                 << ", expected=" << expected_bytes << ", actual=" << actual_bytes;
+                        return StepRepairPin{};
+                    }
+                    total_bytes += actual_bytes;
+                    if (total_bytes > max_total_bytes) {
+                        BOOST_LOG_TRIVIAL(error) << "STEP repair integrity manifest exceeds the size budget";
+                        return StepRepairPin{};
+                    }
+                    if (step_repair_file_sha256(target) != expected) {
+                        BOOST_LOG_TRIVIAL(error) << "STEP repair vendored file digest mismatch: " << rel;
+                        return StepRepairPin{};
+                    }
+                }
+                BOOST_LOG_TRIVIAL(info) << "STEP repair integrity verified: " << files_it->size() << " files, "
+                                        << total_bytes << " bytes";
+            }
+
             out.valid = true;
             BOOST_LOG_TRIVIAL(info) << "STEP repair pinned by manifest: core=" << out.core_version
                                     << ", protocol=" << out.protocol_version;
