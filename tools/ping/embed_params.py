@@ -297,9 +297,17 @@ BASE_PLA_OLD, BASE_PLA_NEW = "PING PLA", "PING PLA - 210"
 # 規格 _切片規則同步_來自pingslicer_高流量噴頭線材_20260712.md）。不分口徑、不限機型
 #（無 compatible_printers）。覆蓋值＝Eric %APPDATA% 權威樣本 4 鍵（規格表另列的擦拭/空駛
 # 欄樣本未覆蓋＝吃機器層，照「權威＝樣本」抄 4 鍵，偏差已回報參數端）。
-HFN_PLA = "PING PLA - 高流量噴頭"
-HFN_SUP = "PING SupPLA - 高流量噴頭"
-HFN_PETG = "PING PETG - 高流量噴頭"   # 2026-07-18 Eric：PETG 也開高流量支
+# 🆕 2026-10-21 Eric 改名：「高流量噴頭」→「**雙料同進噴頭**」（牌 c-1021-HFR-01）。
+#   理由（Eric 原話補充）：「四料可以裝雙料同進噴頭，也可以裝四料同進噴頭；但是雙料只能裝雙料同進噴頭」
+#   ⇒ 這三支真正對應的硬體＝**雙料兩進一出**的噴頭（與「四料同進噴頭」同一套照硬體命名，0816 心法）。
+#   ⚠ 這是**改分類鍵**不是改顯示字串：家族判定點一律明文列「雙料同進」（is_hf／PA 豁免），
+#     不靠新名碰巧含某字；setting_id／filament_id 不變；舊名走 renamed_from（字串，T004 鐵則）；
+#     C++ `Tab.cpp` 硬寫的 PING_PLA_HF／PING_SUP_HF 同步改（find_preset 不走 renamed_from）。
+HFN_PLA = "PING PLA - 雙料同進噴頭"
+HFN_SUP = "PING SupPLA - 雙料同進噴頭"
+HFN_PETG = "PING PETG - 雙料同進噴頭"   # 2026-07-18 Eric：PETG 也開高流量支
+HFN_OLD = {HFN_PLA: "PING PLA - 高流量噴頭", HFN_SUP: "PING SupPLA - 高流量噴頭",
+           HFN_PETG: "PING PETG - 高流量噴頭"}
 # 2026-07-12 Eric 二裁：擦拭/空駛 4 欄也入覆蓋（8 鍵＝完整定義；取代同日稍早「4 鍵免加」）
 # 2026-07-12 統一四值④：PA 0.2 兩支都套；噴溫 210/210 只 PLA 版（SupPLA 版溫度待 Eric 裁）
 # 2026-07-30 Eric 三裁：高流量家族回抽長度 2→3（「雙料高流量與四料高流量都一致 3/30/30」）
@@ -331,6 +339,9 @@ def def_fil_single_for(base):
 #   這支真正的專屬條件是**四進一出（同進）**，所以改用模式命名。
 #   ⚠ setting_id/filament_id 仍不變（同一支材料身份）；舊名走 renamed_from（字串，T004 鐵則）。
 FF_FIL_ALIAS = {"PLA": "PING PLA - 四料同進噴頭", "SupPLA": "PING SupPLA - 四料同進噴頭"}
+# 🆕 2026-10-21 Eric「複製一套到 PETG」：PETG 四料同進支（從雙料同進 PETG 派生，見 4b-1b-2）。
+#   刻意不放進 FF_FIL_ALIAS——那張表驅動 4b 從 FF 交付檔取值與 FF_FIL_RENAME 舊名鏈，PETG 兩者都沒有。
+FF_FIL_PETG = "PING PETG - 四料同進噴頭"
 FF_FIL_OLD   = {"PLA": "PING PLA - 四料高流量噴頭", "SupPLA": "PING SupPLA - 四料高流量噴頭"}
 # ★ 2026-08-16 Eric 裁「甲」：照片磚豁免——照片磚機 64 槽維持舊值（流量 30、清料 120），
 #   故另開專用支綁死照片磚機；等 Eric 自己實印後再決定要不要跟著吃 50。
@@ -495,7 +506,7 @@ def seed_materials_ff(nz):
 DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING PLA - 210;"
                         "PING SupABS;PING PETG;PING ABS;PING ABS(玻璃);PING PA-CF;"
                         # 高流量噴頭支入精靈預設清單（FD450+ 預設線材要看得見；任何 FD 換噴頭可選）
-                        "PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭;PING PETG - 高流量噴頭")
+                        "%s;%s;%s" % (HFN_PLA, HFN_SUP, HFN_PETG))
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
 # 🆕 2026-09-07（回報中心 #112・Eric 裁「甲」）：床貼圖改 **SVG**。
 #   起因＝「拉大看模型時底圖 LOGO 邊緣不銳利」。查下來不是解析度不夠（原 PNG 3192×3191、
@@ -2833,8 +2844,34 @@ def main(src_base):
         fd_.update({"name": new_name, "alias": new_name,   # 獨立 alias 勿與其他 PLA 併組
                     "setting_id": fid, "filament_id": fid})
         fd_.pop("compatible_printers", None)   # 不限機型
+        fd_["renamed_from"] = HFN_OLD[new_name]   # 🆕 1021 改名接舊名（⚠ 字串，T004 鐵則）
         jdump(os.path.join(PINGDIR, "filament", "%s.json" % new_name), fd_)
         fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
+        _oldp = os.path.join(PINGDIR, "filament", "%s.json" % HFN_OLD[new_name])
+        if os.path.isfile(_oldp):
+            os.remove(_oldp); print("  filament 移除(1021 改名):", HFN_OLD[new_name])
+        # 🆕 4b-1b-2. PETG 四料同進支（Eric 2026-10-21「複製一套到 PETG」＋Q2「照建議」；牌 c-1021-HFR-01）：
+        #   以雙料同進 PETG 為底（噴溫 230／床 75／風扇 50），套四料同進共通三值——
+        #   PA 0.4、清料 120（兩者下行明寫；4b-3 對「四料同進噴頭」是**跳過不寫**、不會補 120）、
+        #   回抽 0.8（4b-2e `_is_ff_only` 依名字）。
+        #   流量上限**維持 25**（明寫＝fdm_filament_pet 同值，不比照 PLA 支 50——那是 Eric 0816 單點名裁的，
+        #   SupPLA 支同理維持 30；放寬要 Eric 再裁）。可見範圍＝FF600／FF800 同進（同 PLA／SupPLA 四料支）。
+        #   不掛 renamed_from（新支）；同進機預設線材仍是 PLA 四料同進支（不動）。
+        if new_name == HFN_PETG:
+            ff4 = json.loads(json.dumps(fd_))          # 深拷貝（本檔未 import copy）
+            ff4.pop("renamed_from", None)
+            ff4.update({"name": FF_FIL_PETG, "alias": FF_FIL_PETG,
+                        "setting_id": "PINGFILHFPETG", "filament_id": "PINGFILHFPETG",
+                        "enable_pressure_advance": ["1"], "pressure_advance": ["0.4"],
+                        "filament_minimal_purge_on_wipe_tower": ["120"],
+                        "filament_max_volumetric_speed": ["25"]})
+            ff4.pop("compatible_printers_condition", None)
+            ff4["compatible_printers"] = sorted(
+                x["name"] for x in mac_list
+                if x["name"].startswith(("FF600", "FF800")) and "同進" in x["name"]
+                and "照片磚" not in x["name"] and "3in1" not in x["name"])
+            jdump(os.path.join(PINGDIR, "filament", "%s.json" % FF_FIL_PETG), ff4)
+            fil_new.append({"name": FF_FIL_PETG, "sub_path": "filament/%s.json" % FF_FIL_PETG})
 
     # 4b-1c. ★ TPE 軟料一對（Eric 2026-07-18 裁，承 V2.1 Cura 線 TPE 工程定稿）：
     # PING TPE - 210（本體）＋ PING SupTPE（TPU 系支撐料）。
@@ -3020,7 +3057,8 @@ def main(src_base):
         # 🔴 2026-08-16 改名連坐（本輪第三處）：家族判定一律靠**名字字串**，
         #    「四料高流量噴頭」→「四料同進噴頭」後掉出 is_hf ⇒ 回抽 3/30/30 與額外回填 0.6
         #    會靜默退回一般流量值。照片磚專用支同屬同進硬體，一併納入。
-        is_hf = ("高流量" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
+        # 🆕 1021：「高流量噴頭」→「雙料同進噴頭」改名，明文補「雙料同進」（不靠新名碰巧含字；牌 c-1021-HFR-01）
+        is_hf = ("高流量" in bn) or ("雙料同進" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
         # 🆕 FF600／FF800 **專屬**線材（2026-09-15 Eric 裁回抽 0.8 的範圍）＝is_hf 的真子集。
         #   四支：PING PLA／SupPLA - 四料同進噴頭、PING PLA(3in1)／SupPLA(3in1) - 高流量噴頭。
         #   ⛔ 不含「- 高流量噴頭」那三支（白名單空、走 condition，FD 全系列也吃得到）；
@@ -3088,7 +3126,8 @@ def main(src_base):
         #    改名成「四料同進噴頭」後不含那三個字 ⇒ PA 會被壓成 0.08（實測踩到，非推測）。
         #    Eric 0728 原裁本來就寫「不是高流量跟火山口**或四料**」＝四料本來就在豁免內，
         #    這裡把「四料同進」與照片磚專用支明文列出，不再靠名字碰巧含「高流量」。
-        if any(t in bn for t in ("Classic", "高流量", "四料同進", "(照片磚)", "(3in1)", "TPE", "PA-CF")):
+        # 🆕 1021 改名連坐：「雙料同進」明文列入（原「高流量噴頭」三支靠「高流量」拿豁免；牌 c-1021-HFR-01）
+        if any(t in bn for t in ("Classic", "高流量", "雙料同進", "四料同進", "(照片磚)", "(3in1)", "TPE", "PA-CF")):
             continue
         if fd.get("enable_pressure_advance") != ["1"] or fd.get("pressure_advance") != ["0.08"]:
             fd["enable_pressure_advance"] = ["1"]
@@ -3680,6 +3719,8 @@ def main(src_base):
     # 0728 改名批：清單條目就地改指新名（保序＝最小 diff；後續 regen 舊名不存在＝no-op）
     # 基礎支（v1）＋TPE 本體（v2 二輪：改名帶溫度尾碼、SupTPE 名不動）
     _renamed_0728 = {BASE_PLA_OLD: BASE_PLA_NEW, "PING TPE": "PING TPE - 210"}
+    # 🆕 1021 改名批（高流量噴頭→雙料同進噴頭）同一條路：就地改指新名、保序
+    _renamed_0728.update({_o: _n for _n, _o in HFN_OLD.items()})
     for x in pj["filament_list"]:
         if x["name"] in _renamed_0728:
             x["name"] = _renamed_0728[x["name"]]

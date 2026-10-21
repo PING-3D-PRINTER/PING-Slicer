@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.33",
+    "version": "01.00.01.34",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -1841,8 +1841,8 @@
             "sub_path": "filament/PING SupABS.json"
         },
         {
-            "name": "PING PETG - 高流量噴頭",
-            "sub_path": "filament/PING PETG - 高流量噴頭.json"
+            "name": "PING PETG - 雙料同進噴頭",
+            "sub_path": "filament/PING PETG - 雙料同進噴頭.json"
         },
         {
             "name": "PING PETG",
@@ -1865,12 +1865,12 @@
             "sub_path": "filament/PING PLA - 220.json"
         },
         {
-            "name": "PING PLA - 高流量噴頭",
-            "sub_path": "filament/PING PLA - 高流量噴頭.json"
+            "name": "PING PLA - 雙料同進噴頭",
+            "sub_path": "filament/PING PLA - 雙料同進噴頭.json"
         },
         {
-            "name": "PING SupPLA - 高流量噴頭",
-            "sub_path": "filament/PING SupPLA - 高流量噴頭.json"
+            "name": "PING SupPLA - 雙料同進噴頭",
+            "sub_path": "filament/PING SupPLA - 雙料同進噴頭.json"
         },
         {
             "name": "PING PLA - Classic 210",
@@ -1975,6 +1975,10 @@
         {
             "name": "PING TPE - Classic 210 (0.6-1.0)",
             "sub_path": "filament/PING TPE - Classic 210 (0.6-1.0).json"
+        },
+        {
+            "name": "PING PETG - 四料同進噴頭",
+            "sub_path": "filament/PING PETG - 四料同進噴頭.json"
         }
     ],
     "machine_list": [

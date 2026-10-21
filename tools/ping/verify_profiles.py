@@ -83,6 +83,14 @@ PT_FIL_PLA_FDHF_V = "PING PLA(照片磚 FD高流量)"   # 🆕 0907 #99 丙・�
 #     但那是實查過的結果、不是靠巧合（§N 第 2 條：不依賴「新名碰巧也含某關鍵字」）。
 TI_FIL_PLA = "PING PLA(3in1) - 高流量噴頭"
 TI_FIL_SUP = "PING SupPLA(3in1) - 高流量噴頭"
+# 🆕 2026-10-21 Eric 改名：「高流量噴頭」→「雙料同進噴頭」三支＋新增 PETG 四料同進支（牌 c-1021-HFR-01）。
+#   名字集中在這裡（§N 第 3 條：別內聯複製）；舊名只能待在 renamed_from。
+HFN_PLA_V = "PING PLA - 雙料同進噴頭"
+HFN_SUP_V = "PING SupPLA - 雙料同進噴頭"
+HFN_PETG_V = "PING PETG - 雙料同進噴頭"
+HFN_OLD_V = {HFN_PLA_V: "PING PLA - 高流量噴頭", HFN_SUP_V: "PING SupPLA - 高流量噴頭",
+             HFN_PETG_V: "PING PETG - 高流量噴頭"}
+FF_FIL_PETG_V = "PING PETG - 四料同進噴頭"
 TI_FIL_OLD = {"PING PLA(3in1)", "PING SupPLA(3in1)"}   # 改名前的名字，不得復活成 preset 名
 COMBO_OLD_TOKENS = {"PLA+SUP", "PLA+PVA", "ABS+SUP", "PLA+PLA", "ABS+ABS"}
 # 0730 五類名（**歷史值**，只用於 renamed_from 回溯鏈驗證）
@@ -164,15 +172,15 @@ EXPECTED_COMBO_MAP = {
     COMBO_CAT_EASYTREE: ("PING PLA - 210", "PING SupPLA"),              # 0919：同易拆配料
 }
 EXPECTED_COMBO_MAP_HF = {
-    COMBO_CAT_EASY:    ("PING PLA - 高流量噴頭", "PING SupPLA - 高流量噴頭"),
-    COMBO_CAT_PVA:     ("PING PLA - 高流量噴頭", "PING PVA"),
+    COMBO_CAT_EASY:    (HFN_PLA_V, HFN_SUP_V),
+    COMBO_CAT_PVA:     (HFN_PLA_V, "PING PVA"),
     COMBO_CAT_EASYPAL: ("PING ABS", "PING SupABS"),
-    COMBO_CAT_EASYTREE: ("PING PLA - 高流量噴頭", "PING SupPLA - 高流量噴頭"),  # 0919：同易拆配料
+    COMBO_CAT_EASYTREE: (HFN_PLA_V, HFN_SUP_V),  # 0919：同易拆配料
 }
 # 0811：兩個雙料鍵已從 Tab.cpp 的 map 消失——一般雙料改走「空 token 分支」（Eric 裁「雙料機無
 # token 就當 PLA+PLA」），雙料筏層改走既有「_筏層 分支」（全槽 ABS）。下方跨層護欄另有專查。
 EXPECTED_PLAIN_DUAL    = ("PING PLA - 220", "PING PLA - 220")
-EXPECTED_PLAIN_DUAL_HF = ("PING PLA - 高流量噴頭", "PING PLA - 高流量噴頭")
+EXPECTED_PLAIN_DUAL_HF = (HFN_PLA_V, HFN_PLA_V)
 # #39 筏層建議對話框：2026-08-14 批2 R4 依 Eric 0813 裁4 **整支退役**——批2 的材料→製程自動收斂
 # （ping_converge_process）已涵蓋同一件事，對話框成了「先問一次、然後系統自己也會做」的重複動作。
 # ⇒ 原 EXPECTED_P39 與其跨層護欄一併移除，改由下方 G3-c 反向斷言「它確實不在了、且不得復活」。
@@ -298,8 +306,8 @@ for name, (kind, d) in presets.items():
         if name.startswith(("FF600", "FF800")) and not any(
                 t in name for t in ("同進", "3in1", "照片磚")):
             # 12-c 四料本體機四槽＝高流量噴頭支（0816 裁：分開進＝各噴頭獨立、不吃同進支）
-            if _dfp and set(_dfp) != {"PING PLA - 高流量噴頭"}:
-                err(f"[四料本體機四槽必為高流量噴頭支] {name} -> {sorted(set(_dfp))!r}")
+            if _dfp and set(_dfp) != {HFN_PLA_V}:
+                err(f"[四料本體機四槽必為雙料同進噴頭支（原高流量噴頭支）] {name} -> {sorted(set(_dfp))!r}")
         if "同進照片磚" in name and name.startswith(("FF600", "FF800")):
             # 12-d 照片磚機＝照片磚專用支（0816 裁「甲」＝照片磚維持舊值、不吃流量 50）
             if _dfp and set(_dfp) != {"PING PLA(照片磚)"}:
@@ -734,6 +742,7 @@ for name, (kind, d) in presets.items():
             #      （同 0816「未點名不順手改」）。同樣要放寬得是 Eric 新的一次裁定。
             _want_mvs = {"PING PLA - 四料同進噴頭": "50",
                          "PING SupPLA - 四料同進噴頭": "30",
+                         FF_FIL_PETG_V: "25",   # 🆕 1021：PETG 四料同進支維持 PETG 基底 25（Eric Q2 照建議；不比照 PLA 50）
                          "PING PLA(照片磚)": "30",
                          TI_FIL_PLA: "30",
                          TI_FIL_SUP: "12"}.get(name)
@@ -759,6 +768,37 @@ for name, (kind, d) in presets.items():
                     _tg = _tg[0] if isinstance(_tg, list) and _tg else _tg
                     if _tg != _tv:
                         err(f"[3in1 高流量支硬表 0907] {name}: {_tk}={_tg!r}, expected {_tv!r}")
+            # ★ 檢查 13c（2026-10-21 改名＋PETG 四料同進，牌 c-1021-HFR-01）：新名 → 期望值 exact 硬表
+            #   （同 13b 理由：家族判定綁名字字串，產生器與驗證器會一起錯一起綠）。
+            _hf_want = {HFN_PLA_V:  {"filament_minimal_purge_on_wipe_tower": "30", "filament_retraction_length": "3",
+                                     "filament_retract_restart_extra": "0", "pressure_advance": "0.2",
+                                     "nozzle_temperature": "210", "filament_max_volumetric_speed": "30"},
+                        HFN_SUP_V:  {"filament_minimal_purge_on_wipe_tower": "60", "filament_retraction_length": "3",
+                                     "filament_retract_restart_extra": "0", "pressure_advance": "0.2",
+                                     "nozzle_temperature": "210", "filament_is_support": "1"},
+                        HFN_PETG_V: {"filament_minimal_purge_on_wipe_tower": "30", "filament_retraction_length": "3",
+                                     "filament_retract_restart_extra": "0", "pressure_advance": "0.2",
+                                     "nozzle_temperature": "230", "hot_plate_temp": "75"},
+                        FF_FIL_PETG_V: {"filament_minimal_purge_on_wipe_tower": "120", "filament_retraction_length": "0.8",
+                                        "filament_retract_restart_extra": "0", "pressure_advance": "0.4",
+                                        "enable_pressure_advance": "1", "nozzle_temperature": "230",
+                                        "nozzle_temperature_initial_layer": "230", "hot_plate_temp": "75"}}.get(name)
+            if _hf_want:
+                for _tk, _tv in _hf_want.items():
+                    _tg = d.get(_tk)
+                    _tg = _tg[0] if isinstance(_tg, list) and _tg else _tg
+                    if _tg != _tv:
+                        err(f"[雙料同進／PETG 四料同進硬表 1021] {name}: {_tk}={_tg!r}, expected {_tv!r}")
+            if name in HFN_OLD_V and d.get("renamed_from") != HFN_OLD_V[name]:
+                err(f"[雙料同進 renamed_from 1021] {name}: {d.get('renamed_from')!r}, expected {HFN_OLD_V[name]!r}（字串）")
+            if name == FF_FIL_PETG_V:
+                _cp = d.get("compatible_printers") or []
+                if not _cp or any(not (c.startswith(("FF600", "FF800")) and "同進" in c and "照片磚" not in c) for c in _cp):
+                    err(f"[PETG 四料同進只給 FF 同進機 1021] {name}: {_cp!r}")
+                if "renamed_from" in d:
+                    err(f"[PETG 四料同進是新支、不得有 renamed_from 1021] {name}: {d.get('renamed_from')!r}")
+            if name in HFN_OLD_V.values():
+                err(f"[高流量噴頭舊名不得復活 1021] {name}: 已改名雙料同進噴頭，舊名只能待在 renamed_from")
             if name in TI_FIL_OLD:
                 err(f"[3in1 舊名不得復活 0907] {name}: 已於 #153 改名，舊名只能待在 renamed_from")
             # 檢查 11：降速層時間一律 10 秒（Eric 2026-07-18 裁「擴及所有材料」）＋
@@ -819,7 +859,8 @@ for name, (kind, d) in presets.items():
                 #    改名成「四料同進噴頭」後就掉出去、被當一般流量要求 PA 0.08（本輪實測踩到）。
                 #    照片磚專用支同理（它就是同進支的照片磚分身）。
                 # ⚠ 「PING PLA(照片磚 FD300)」不含「(照片磚)」⇒ 刻意落在一般流量側（FD300＝雙料一般流量）。
-                is_hf = (("高流量" in name) or ("四料同進" in name)
+                # 🆕 1021：「雙料同進」明文列入（原「高流量噴頭」三支改名；不靠新名碰巧含字）
+                is_hf = (("高流量" in name) or ("雙料同進" in name) or ("四料同進" in name)
                          or ("(照片磚)" in name) or ("(3in1)" in name))
                 # 🆕 FF600／FF800 **專屬**線材（2026-09-15 Eric 裁回抽 0.8 的範圍）＝is_hf 的真子集。
                 #   四支：PING PLA／SupPLA - 四料同進噴頭、PING PLA(3in1)／SupPLA(3in1) - 高流量噴頭。

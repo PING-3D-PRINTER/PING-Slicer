@@ -180,8 +180,8 @@ static constexpr const char *PING_PLA_220 = "PING PLA - 220";
 static constexpr const char *PING_PLA_210 = "PING PLA - 210";  // 2026-07-28 基礎支改名而來；0729 Eric 裁 C＝PLA+SUP 連動帶它
 static constexpr const char *PING_SUP_PLA = "PING SupPLA";
 static constexpr const char *PING_SUP_ABS = "PING SupABS";
-static constexpr const char *PING_PLA_HF  = "PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD";      // 高流量噴頭
-static constexpr const char *PING_SUP_HF  = "PING SupPLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD";
+static constexpr const char *PING_PLA_HF  = "PING PLA - \xE9\x9B\x99\xE6\x96\x99\xE5\x90\x8C\xE9\x80\xB2\xE5\x99\xB4\xE9\xA0\xAD";      // 雙料同進噴頭（2026-10-21 由「高流量噴頭」改名，牌 c-1021-HFR-01；find_preset 不走 renamed_from，名字必須同步）
+static constexpr const char *PING_SUP_HF  = "PING SupPLA - \xE9\x9B\x99\xE6\x96\x99\xE5\x90\x8C\xE9\x80\xB2\xE5\x99\xB4\xE9\xA0\xAD";
 
 // PING(2026-08-14 批2 R1)：製程名 token 字面集中一處——配料連動（ping_apply_combo_filaments）
 // 與家族分類（ping_classify_process）共用同一份字面與同一支解析器。
