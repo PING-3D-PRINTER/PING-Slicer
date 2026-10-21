@@ -91,6 +91,10 @@ HFN_PETG_V = "PING PETG - 雙料同進噴頭"
 HFN_OLD_V = {HFN_PLA_V: "PING PLA - 高流量噴頭", HFN_SUP_V: "PING SupPLA - 高流量噴頭",
              HFN_PETG_V: "PING PETG - 高流量噴頭"}
 FF_FIL_PETG_V = "PING PETG - 四料同進噴頭"
+# 🆕 2026-10-21 Eric：FF 分開進四槽＝「單通道高流量」三支（牌 c-1021-SCH-01）；值照抄雙料同進對應支。
+SCH_V = {HFN_PLA_V: "PING PLA - 單通道高流量噴頭", HFN_SUP_V: "PING SupPLA - 單通道高流量噴頭",
+         HFN_PETG_V: "PING PETG - 單通道高流量噴頭"}
+SCH_PLA_V = SCH_V[HFN_PLA_V]
 TI_FIL_OLD = {"PING PLA(3in1)", "PING SupPLA(3in1)"}   # 改名前的名字，不得復活成 preset 名
 COMBO_OLD_TOKENS = {"PLA+SUP", "PLA+PVA", "ABS+SUP", "PLA+PLA", "ABS+ABS"}
 # 0730 五類名（**歷史值**，只用於 renamed_from 回溯鏈驗證）
@@ -305,9 +309,10 @@ for name, (kind, d) in presets.items():
                 err(f"[雙料機第二槽必為 SupPLA 系] {name} -> {_dfp[1]!r}")
         if name.startswith(("FF600", "FF800")) and not any(
                 t in name for t in ("同進", "3in1", "照片磚")):
-            # 12-c 四料本體機四槽＝高流量噴頭支（0816 裁：分開進＝各噴頭獨立、不吃同進支）
-            if _dfp and set(_dfp) != {HFN_PLA_V}:
-                err(f"[四料本體機四槽必為雙料同進噴頭支（原高流量噴頭支）] {name} -> {sorted(set(_dfp))!r}")
+            # 12-c 四料本體機四槽＝單通道高流量支（0816 裁：分開進＝各噴頭獨立、不吃同進支；
+            #      1021 Eric：名字改對上硬體＝單通道高流量，值同雙料同進）
+            if _dfp and set(_dfp) != {SCH_PLA_V}:
+                err(f"[四料本體機四槽必為單通道高流量噴頭支 1021] {name} -> {sorted(set(_dfp))!r}")
         if "同進照片磚" in name and name.startswith(("FF600", "FF800")):
             # 12-d 照片磚機＝照片磚專用支（0816 裁「甲」＝照片磚維持舊值、不吃流量 50）
             if _dfp and set(_dfp) != {"PING PLA(照片磚)"}:
@@ -791,6 +796,25 @@ for name, (kind, d) in presets.items():
                         err(f"[雙料同進／PETG 四料同進硬表 1021] {name}: {_tk}={_tg!r}, expected {_tv!r}")
             if name in HFN_OLD_V and d.get("renamed_from") != HFN_OLD_V[name]:
                 err(f"[雙料同進 renamed_from 1021] {name}: {d.get('renamed_from')!r}, expected {HFN_OLD_V[name]!r}（字串）")
+            # ★ 檢查 13d（1021 單通道高流量，牌 c-1021-SCH-01）：值必須與對應雙料同進支逐鍵相同
+            #   （除名字／id／可見範圍），可見範圍＝只有 FF600／FF800 分開進。
+            if name in SCH_V.values():
+                _src = {v: k for k, v in SCH_V.items()}[name]
+                if _src not in presets:
+                    err(f"[單通道高流量・找不到對應雙料同進支 1021] {name}: {_src}")
+                else:
+                    _sd = presets[_src][1]
+                    _skip = {"name", "alias", "setting_id", "filament_id", "renamed_from",
+                             "compatible_printers", "compatible_printers_condition"}
+                    for _k in sorted((set(d) | set(_sd)) - _skip):
+                        if d.get(_k) != _sd.get(_k):
+                            err(f"[單通道高流量值須同雙料同進 1021] {name}: {_k}={d.get(_k)!r} vs {_src}={_sd.get(_k)!r}")
+                _cp = d.get("compatible_printers") or []
+                if not _cp or any(not c.startswith(("FF600", "FF800"))
+                                  or any(t in c for t in ("同進", "3in1", "照片磚")) for c in _cp):
+                    err(f"[單通道高流量只給 FF 分開進 1021] {name}: {_cp!r}")
+                if "renamed_from" in d:
+                    err(f"[單通道高流量是新支、不得有 renamed_from 1021] {name}: {d.get('renamed_from')!r}")
             if name == FF_FIL_PETG_V:
                 _cp = d.get("compatible_printers") or []
                 if not _cp or any(not (c.startswith(("FF600", "FF800")) and "同進" in c and "照片磚" not in c) for c in _cp):

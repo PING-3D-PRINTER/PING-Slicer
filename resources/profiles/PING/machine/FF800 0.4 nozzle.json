@@ -23,10 +23,10 @@
         "#FFC000"
     ],
     "default_filament_profile": [
-        "PING PLA - 雙料同進噴頭",
-        "PING PLA - 雙料同進噴頭",
-        "PING PLA - 雙料同進噴頭",
-        "PING PLA - 雙料同進噴頭"
+        "PING PLA - 單通道高流量噴頭",
+        "PING PLA - 單通道高流量噴頭",
+        "PING PLA - 單通道高流量噴頭",
+        "PING PLA - 單通道高流量噴頭"
     ],
     "default_print_profile": "0.2mm @FF800 (0.4)",
     "deretraction_speed": [

@@ -308,6 +308,15 @@ HFN_SUP = "PING SupPLA - 雙料同進噴頭"
 HFN_PETG = "PING PETG - 雙料同進噴頭"   # 2026-07-18 Eric：PETG 也開高流量支
 HFN_OLD = {HFN_PLA: "PING PLA - 高流量噴頭", HFN_SUP: "PING SupPLA - 高流量噴頭",
            HFN_PETG: "PING PETG - 高流量噴頭"}
+# 🆕 2026-10-21 Eric：FF 分開進四槽＝「單通道高流量」（牌 c-1021-SCH-01；Q1～Q4「全部照建議」）。
+#   分開進＝四顆噴頭各自一個通道、各自出料 ⇒ 硬體是**單通道高流量噴頭**，不是雙料同進。
+#   一套三支（PLA／SupPLA／PETG），值**照抄**對應的雙料同進支（回抽 3/30/30、PA 0.2、清料 30／Sup 60、
+#   流量 PLA 30／PETG 25）；新 id、不掛 renamed_from；**只給 FF600／FF800 分開進**（非同進／3in1／照片磚）。
+#   雙料同進三支可見範圍不變（FF 也能裝雙料同進頭）；FD 單料頭維持雙料同進（FD 只能裝雙料同進頭）。
+SCH_FIL = {HFN_PLA: ("PING PLA - 單通道高流量噴頭", "PINGFILSCHPLA"),
+           HFN_SUP: ("PING SupPLA - 單通道高流量噴頭", "PINGFILSCHSUP"),
+           HFN_PETG: ("PING PETG - 單通道高流量噴頭", "PINGFILSCHPETG")}
+SCH_PLA = SCH_FIL[HFN_PLA][0]
 # 2026-07-12 Eric 二裁：擦拭/空駛 4 欄也入覆蓋（8 鍵＝完整定義；取代同日稍早「4 鍵免加」）
 # 2026-07-12 統一四值④：PA 0.2 兩支都套；噴溫 210/210 只 PLA 版（SupPLA 版溫度待 Eric 裁）
 # 2026-07-30 Eric 三裁：高流量家族回抽長度 2→3（「雙料高流量與四料高流量都一致 3/30/30」）
@@ -433,7 +442,7 @@ def rename_ff_filament_refs(d, pt=False, quad=False):
        ——`def_fil_ff()` 只管本函式外自產的那 5 支，範本機不經它，必須在這裡一起接住。"""
     m = FF_FIL_RENAME
     if pt or quad:
-        tgt = PT_FIL_PLA if pt else HFN_PLA
+        tgt = PT_FIL_PLA if pt else SCH_PLA   # 🆕 1021：四料本體機改指單通道高流量（同 def_fil_ff）
         m = dict(FF_FIL_RENAME)
         m[FF_FIL_OLD["PLA"]] = tgt
         m[FF_FIL_ALIAS["PLA"]] = tgt
@@ -462,7 +471,8 @@ def def_fil_ff(nz):
     # 🆕 **Eric 2026-08-16 裁：四料本體機四槽改指「高流量噴頭」支**——四料分開進＝各噴頭
     #    各自獨立出料、不共用噴頭 ⇒ 不需要同進支那組「清料 120／PA 0.4」；用一般高流量噴頭支
     #    才自洽（加熱段長度相同＝同屬高流量，差別只在有沒有四進一出）。
-    return [HFN_PLA]*4
+    # 🆕 2026-10-21 Eric：改指「單通道高流量噴頭」（值同雙料同進＝0816 這條的值不變，只是名字對上硬體）。
+    return [SCH_PLA]*4
 def _backfill_filament_attrs(_tag):
     """★ 配料屬性顯式化（Eric 2026-08-13 裁・「選材料→製程自動收斂」批1）
 
@@ -2872,6 +2882,19 @@ def main(src_base):
                 and "照片磚" not in x["name"] and "3in1" not in x["name"])
             jdump(os.path.join(PINGDIR, "filament", "%s.json" % FF_FIL_PETG), ff4)
             fil_new.append({"name": FF_FIL_PETG, "sub_path": "filament/%s.json" % FF_FIL_PETG})
+        # 🆕 4b-1b-3. 單通道高流量支（Eric 2026-10-21，牌 c-1021-SCH-01）：整份照抄本支、只換名／id／可見範圍。
+        #   回抽 3（is_hf 依名字明列「單通道高流量」）、清料 30／Sup 60（4b-3 一般規則）、PA 0.2（4b-2f 豁免）皆由 sweep 維持同值。
+        _sn, _sid = SCH_FIL[new_name]
+        sch = json.loads(json.dumps(fd_))          # 深拷貝
+        sch.pop("renamed_from", None)
+        sch.pop("compatible_printers_condition", None)
+        sch.update({"name": _sn, "alias": _sn, "setting_id": _sid, "filament_id": _sid})
+        sch["compatible_printers"] = sorted(
+            x["name"] for x in mac_list
+            if x["name"].startswith(("FF600", "FF800"))
+            and not any(t in x["name"] for t in ("同進", "3in1", "照片磚")))
+        jdump(os.path.join(PINGDIR, "filament", "%s.json" % _sn), sch)
+        fil_new.append({"name": _sn, "sub_path": "filament/%s.json" % _sn})
 
     # 4b-1c. ★ TPE 軟料一對（Eric 2026-07-18 裁，承 V2.1 Cura 線 TPE 工程定稿）：
     # PING TPE - 210（本體）＋ PING SupTPE（TPU 系支撐料）。
@@ -3058,7 +3081,7 @@ def main(src_base):
         #    「四料高流量噴頭」→「四料同進噴頭」後掉出 is_hf ⇒ 回抽 3/30/30 與額外回填 0.6
         #    會靜默退回一般流量值。照片磚專用支同屬同進硬體，一併納入。
         # 🆕 1021：「高流量噴頭」→「雙料同進噴頭」改名，明文補「雙料同進」（不靠新名碰巧含字；牌 c-1021-HFR-01）
-        is_hf = ("高流量" in bn) or ("雙料同進" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
+        is_hf = ("高流量" in bn) or ("單通道高流量" in bn) or ("雙料同進" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
         # 🆕 FF600／FF800 **專屬**線材（2026-09-15 Eric 裁回抽 0.8 的範圍）＝is_hf 的真子集。
         #   四支：PING PLA／SupPLA - 四料同進噴頭、PING PLA(3in1)／SupPLA(3in1) - 高流量噴頭。
         #   ⛔ 不含「- 高流量噴頭」那三支（白名單空、走 condition，FD 全系列也吃得到）；
@@ -3127,7 +3150,7 @@ def main(src_base):
         #    Eric 0728 原裁本來就寫「不是高流量跟火山口**或四料**」＝四料本來就在豁免內，
         #    這裡把「四料同進」與照片磚專用支明文列出，不再靠名字碰巧含「高流量」。
         # 🆕 1021 改名連坐：「雙料同進」明文列入（原「高流量噴頭」三支靠「高流量」拿豁免；牌 c-1021-HFR-01）
-        if any(t in bn for t in ("Classic", "高流量", "雙料同進", "四料同進", "(照片磚)", "(3in1)", "TPE", "PA-CF")):
+        if any(t in bn for t in ("Classic", "高流量", "單通道高流量", "雙料同進", "四料同進", "(照片磚)", "(3in1)", "TPE", "PA-CF")):
             continue
         if fd.get("enable_pressure_advance") != ["1"] or fd.get("pressure_advance") != ["0.08"]:
             fd["enable_pressure_advance"] = ["1"]

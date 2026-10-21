@@ -1,0 +1,105 @@
+{
+    "type": "filament",
+    "name": "PING SupPLA - 單通道高流量噴頭",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGFILSCHSUP",
+    "filament_id": "PINGFILSCHSUP",
+    "inherits": "fdm_filament_pla",
+    "filament_vendor": [
+        "PING"
+    ],
+    "filament_type": [
+        "PETG"
+    ],
+    "nozzle_temperature": [
+        "210"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "210"
+    ],
+    "hot_plate_temp": [
+        "60"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "60"
+    ],
+    "cool_plate_temp": [
+        "60"
+    ],
+    "cool_plate_temp_initial_layer": [
+        "60"
+    ],
+    "fan_max_speed": [
+        "100"
+    ],
+    "fan_min_speed": [
+        "100"
+    ],
+    "filament_retraction_length": [
+        "3"
+    ],
+    "filament_is_support": [
+        "1"
+    ],
+    "filament_minimal_purge_on_wipe_tower": [
+        "60"
+    ],
+    "filament_start_gcode": [
+        "; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
+    ],
+    "slow_down_for_layer_cooling": [
+        "1"
+    ],
+    "slow_down_layer_time": [
+        "10"
+    ],
+    "filament_retraction_minimum_travel": [
+        "3"
+    ],
+    "filament_wipe": [
+        "1"
+    ],
+    "filament_wipe_distance": [
+        "5"
+    ],
+    "filament_retract_before_wipe": [
+        "100%"
+    ],
+    "filament_retract_restart_extra": [
+        "0"
+    ],
+    "overhang_fan_threshold": [
+        "25%"
+    ],
+    "default_filament_colour": [
+        "#D3D3D3"
+    ],
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "pressure_advance": [
+        "0.2"
+    ],
+    "filament_soluble": [
+        "0"
+    ],
+    "filament_retraction_speed": [
+        "30"
+    ],
+    "filament_deretraction_speed": [
+        "30"
+    ],
+    "slow_down_min_speed": [
+        "25"
+    ],
+    "alias": "PING SupPLA - 單通道高流量噴頭",
+    "compatible_printers": [
+        "FF600 0.4 nozzle",
+        "FF600 0.6 nozzle",
+        "FF600 1.0 nozzle",
+        "FF800 0.4 nozzle",
+        "FF800 0.6 nozzle",
+        "FF800 1.0 nozzle"
+    ]
+}
