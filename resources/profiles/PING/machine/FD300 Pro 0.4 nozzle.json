@@ -21,7 +21,7 @@
         "#000000"
     ],
     "default_filament_profile": [
-        "PING PLA - 220",
+        "PING PLA - 210",
         "PING SupPLA"
     ],
     "default_print_profile": "0.2mm 易拆 @FD300 Pro (0.4)",

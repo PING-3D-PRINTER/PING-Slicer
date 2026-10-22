@@ -2570,12 +2570,15 @@ void ObjectList::add_corner_fixing_block()
     //   - 底層跟製程走（09-20）→ 逐塊 2 層。底厚一定要一起設 0：否則製程的底厚（0.8 mm）會把 0.2 層高撐回 4 層
     //     （底層數與底厚取多的那個，PrintObject::discover_vertical_shells；Eric 09-30「照建議」Q6）。
     // 只影響新加的塊；舊專案裡已經加好的塊，尺寸與這些設定都存在專案檔裡，不變。
+    // 🆕 Eric 2026-10-22（實機截圖圈「稀疏填充 10%、牆層數 1」：「填充值改成圖片的數字……10%，然後外圈一圈」）：
+    //   外牆 2→1、稀疏填充 0→10%；底層 2／頂層 0／底厚 0 不動（Q1「是」，牌 c-1022-P21-01）。
+    //   上面「填充 0 的前提＝外牆 2」那條因此不再適用——現在是外牆 1＋填充 10% 撐。
     new_volume->config.set_key_value("extruder",               new ConfigOptionInt(extruder_id));
-    new_volume->config.set_key_value("wall_loops",             new ConfigOptionInt(2));
+    new_volume->config.set_key_value("wall_loops",             new ConfigOptionInt(1));
     new_volume->config.set_key_value("top_shell_layers",       new ConfigOptionInt(0));
     new_volume->config.set_key_value("bottom_shell_layers",    new ConfigOptionInt(2));
     new_volume->config.set_key_value("bottom_shell_thickness", new ConfigOptionFloat(0.));
-    new_volume->config.set_key_value("sparse_infill_density",  new ConfigOptionPercent(0));
+    new_volume->config.set_key_value("sparse_infill_density",  new ConfigOptionPercent(10));
     // 切片時讓出同物件其他零件外擴 1×噴頭口徑：不吃主體、縫一直在（Eric 2026-09-21 裁問題 1 甲）。
     new_volume->config.set_key_value("ping_keep_clear_of_parts", new ConfigOptionBool(true));
     new_volume->source.is_from_builtin_objects = true;

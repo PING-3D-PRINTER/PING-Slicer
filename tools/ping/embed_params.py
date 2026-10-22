@@ -203,7 +203,10 @@ elif PING_ONLY:
     raise SystemExit("不支援的 PING_ONLY=%r（目前僅 P200+）" % PING_ONLY)
 # 資安版 E 機型（FD300 E / FD300 E Pro / FP300 E）不上 slicer 精靈——2026-06-10 使用者定
 # （畫面太滿；參數端交付 config 保留，要上架時加回 FAMS 即可）
-DEF_FIL_DUAL   = ["PING PLA - 220", "PING SupPLA"]
+# 🆕 2026-10-22 Eric「軟體一裝，Pla預設是220的，可以改成210的嗎？」（Q2 照建議，牌 c-1022-P21-01）：
+#   FD300／FD300 Pro／FD300 關門 雙料首槽 220→210（0728 v2「雙料維持 220」作廢）。全新安裝走精靈時
+#   開機不觸發組合連動 ⇒ 首槽直接吃這個預設，T091 實測帶出 220（截圖 D:/_sa/spg/全新安裝_FD300帶PLA220_T091.jpg）。
+DEF_FIL_DUAL   = ["PING PLA - 210", "PING SupPLA"]
 DEF_FIL_SINGLE = ["PING PLA - 220"]
 # ★ 基礎支改名（Eric 2026-07-28 裁「把 PLA 改 PLA_210。它是給 FP300 使用的噴頭」・規格檔
 #   _切片規則同步_來自pingslicer_TPE回抽速度與PLA210_20260728.md）：
