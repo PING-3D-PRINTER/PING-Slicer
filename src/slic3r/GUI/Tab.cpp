@@ -287,7 +287,7 @@ void ping_apply_combo_filaments(const std::string &process_name)
     static const std::map<std::string, std::pair<const char *, const char *>> COMBO_FILAMENTS = {
         // PING(2026-07-29 Eric 裁 C・#33 連帶)：SupPLA 全家族統一 210 後，PLA+SUP 連動改帶
         // PLA - 210（兩槽同溫 210＝不觸發 #33 溫度不一致視窗；#32 SUP 與 PLA 同溫單的收口）。
-        // 機器「預設」槽 1 仍是 PLA - 220（0728 v2 裁雙料維持 220）——只有手選 PLA+SUP 組合才連動。
+        // 機器「預設」槽 1 自 2026-10-22 起也是 PLA - 210（0728 v2「雙料維持 220」已由 Eric 改裁，牌 c-1022-P21-01）。
         // PING(2026-07-29/30 Eric 裁「材料對→功能歸類名」，Codex 四輪雙審定稿)：
         // 製程 token 改功能名，鍵值配對不變（0729 裁 C＝易拆連動帶 PLA-210 照舊）。
         // PING(2026-08-11 Eric 改名批)：token 去掉 (Z0)／(Z隙)，「棧板」→「筏層」；
@@ -300,7 +300,9 @@ void ping_apply_combo_filaments(const std::string &process_name)
         {"\xE6\x98\x93\xE6\x8B\x86\xE6\xA8\xB9\xE7\x8B\x80",                  {PING_PLA_210, PING_SUP_PLA}}, // 易拆樹狀（0919；配料同易拆）
     };
     // 空 token（＝一般雙料版，原「雙料(Z隙)」）的配對：兩槽同 PLA。
-    static const std::pair<const char *, const char *> PLAIN_DUAL    = {PING_PLA_220, PING_PLA_220};
+    // PING(2026-10-22 Eric「軟體一裝，Pla預設是220的，可以改成210的嗎？」Q3 照建議，牌 c-1022-P21-01)：
+    //   一般雙料連動 220/220 → 210/210，與機器預設首槽同步改 210（0728 v2「雙料維持 220」自此作廢）。
+    static const std::pair<const char *, const char *> PLAIN_DUAL    = {PING_PLA_210, PING_PLA_210};
     // PING(2026-07-12 Eric 裁定)：連動組依機型——FD450/600/800 Pro 出廠高流量噴頭，
     // PLA 組合連動到「高流量噴頭」支；FD300 系維持原表；ABS 無高流量版暫同一般。
     // 機型判定用 printer_model（user 自訂機（如「FD600 Pro-客戶機」）繼承後仍帶原 model）。

@@ -183,7 +183,7 @@ EXPECTED_COMBO_MAP_HF = {
 }
 # 0811：兩個雙料鍵已從 Tab.cpp 的 map 消失——一般雙料改走「空 token 分支」（Eric 裁「雙料機無
 # token 就當 PLA+PLA」），雙料筏層改走既有「_筏層 分支」（全槽 ABS）。下方跨層護欄另有專查。
-EXPECTED_PLAIN_DUAL    = ("PING PLA - 220", "PING PLA - 220")
+EXPECTED_PLAIN_DUAL    = ("PING PLA - 210", "PING PLA - 210")   # 2026-10-22 Eric 改裁 220→210（c-1022-P21-01）
 EXPECTED_PLAIN_DUAL_HF = (HFN_PLA_V, HFN_PLA_V)
 # #39 筏層建議對話框：2026-08-14 批2 R4 依 Eric 0813 裁4 **整支退役**——批2 的材料→製程自動收斂
 # （ping_converge_process）已涵蓋同一件事，對話框成了「先問一次、然後系統自己也會做」的重複動作。
@@ -1227,8 +1227,9 @@ for _mn, (_mk, _md) in presets.items():
             if not isinstance(_dfp, list) or "PING PLA - 220" in _dfp or "PING PLA - 210" not in _dfp:
                 err(f"[單一出料預設 210 0728v2] {_mn}: {_dfp!r}")
         elif _pmod in _dual_keep_220:
-            if not (isinstance(_dfp, list) and _dfp and _dfp[0] == "PING PLA - 220"):
-                err(f"[雙料首槽維持 220 0728v2] {_mn}: {_dfp!r}")
+            # 🔁 2026-10-22 Eric 改裁：雙料首槽 220→210（牌 c-1022-P21-01）；集合名沿用、語意已改為「雙料首槽 210」。
+            if not (isinstance(_dfp, list) and _dfp and _dfp[0] == "PING PLA - 210"):
+                err(f"[雙料首槽 210 1022] {_mn}: {_dfp!r}")
         elif isinstance(_dfp, list) and "PING PLA - 210" in _dfp:
             err(f"[預設 210 外溢 0728] {_mn}: 僅 FP300＋FD300 系單一出料應指 PING PLA - 210")
     elif _mk == "machine_model":
@@ -1544,6 +1545,18 @@ else:
         for _c in ("PLAIN_DUAL", "PLAIN_DUAL_HF"):
             if _c not in _tsrc:
                 err(f"[跨層護欄・空 token 分支] Tab.cpp 缺 {_c} 常數")
+        # 🆕 2026-10-22（牌 c-1022-P21-01 反向測試實抓）：上面只查「名字在不在」，把 PLAIN_DUAL 的值
+        #   改回 220/220 這裡照樣綠 ⇒ EXPECTED_PLAIN_DUAL 跟 C++ 實值從沒比對過。補值比對（同 COMBO_FILAMENTS 解法）。
+        _tconsts = {k: cxx_unescape(v) for k, v in
+                    re.findall(r'constexpr const char \*(\w+)\s*=\s*"([^"]*)"', _tsrc)}
+        for _c, _exp in (("PLAIN_DUAL", EXPECTED_PLAIN_DUAL), ("PLAIN_DUAL_HF", EXPECTED_PLAIN_DUAL_HF)):
+            _m = re.search(r'\b' + _c + r'\s*=\s*\{\s*(\w+)\s*,\s*(\w+)\s*\}', _tsrc)
+            if not _m:
+                err(f"[跨層護欄・{_c} 值] Tab.cpp 解析不到 {_c} = {{A, B}}（格式變了？護欄失效）")
+                continue
+            _got = (_tconsts.get(_m.group(1), _m.group(1)), _tconsts.get(_m.group(2), _m.group(2)))
+            if _got != tuple(_exp):
+                err(f"[跨層護欄・{_c} 值] Tab.cpp {_got!r} ≠ 期望 {tuple(_exp)!r}")
         if "filament_presets.size() != 2" not in _tsrc:
             err("[跨層護欄・空 token 分支] Tab.cpp 缺「槽數==2」判準 ⇒ 單料/四料可能被誤套 PLA+PLA")
     # 3) 🆕 G3（2026-08-14 批2・連動規格 R7）：C++ 連動碼存活護欄（取代已退役的 #39 護欄）。
