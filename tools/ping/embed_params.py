@@ -948,7 +948,9 @@ def normalize_unified_values(proc, ff=False):
     #    ⚠ 0724 的 A/B 實證是在 FD300 同進 0.4（小口徑）做的，本次一併關掉等於也關了那個好處；
     #      已提過 B（只關大口徑）方案，Eric 知情後仍選 A+C。要改回 B＝這裡加一條口徑判斷。
     #    ⚠ 與開發線 ping/v3.5 的 commit afdddff35a 同一裁定、同一組值，兩線必須一致。
-    proc["enable_overhang_speed"] = "0"
+    # 🆕 2026-10-23 Eric 改裁「懸空處降速打勾」（牌 c-1023-RIR-01）＝推翻上面 0816 的 A；C 的四段值照舊。
+    #    開關（enable_overhang_speed）改由 4b-8 全庫 post-pass 統一設 "1"，這裡不再寫——單一規則點，
+    #    Classic／照片磚等不走本函式的路徑由 post-pass 一併處理（照片磚的豁免也寫在那裡）。
     proc["overhang_1_4_speed"] = "50"
     proc["overhang_2_4_speed"] = "50"
     proc["overhang_3_4_speed"] = "25"
@@ -1130,7 +1132,8 @@ def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False
 #
 # 只動「絕對值、且屬列印動作」的速度鍵；**百分比相對值一律不動**
 #（`internal_bridge_speed` 150%／`small_perimeter_speed` 50%／`scarf_joint_speed` 100%／
-#  `initial_layer_travel_speed` 100%——它們的基準是 `outer_wall_speed`，基準翻倍它們自然跟著翻）。
+#  `initial_layer_travel_speed` 100%——它們的基準是 `outer_wall_speed`（`internal_bridge_speed` 的基準是
+#  `bridge_speed`，PrintConfig.cpp ratio_over；同在下面 ×2 清單內），基準翻倍它們自然跟著翻）。
 # 也不動 `travel_speed`（空駛，與流量無關）、`ironing_speed`、`wipe_*`（非磚體表面）。
 PT_2X_SPEED_KEYS = (
     "outer_wall_speed", "inner_wall_speed", "top_surface_speed", "internal_solid_infill_speed",
@@ -2038,8 +2041,8 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         #（支撐幾何）、normalize_support_recipe（普通支撐配方）、normalize_tree_support（樹狀配方）。
         # 行為變更（本裁的實質內容，驗收看這幾項）：
         #   懸空降速 關→**開**（爬坡品質 50/50/25/10）←🔴 **這一項只是 0725 當時的行為、已過期**：
-        #     2026-08-16 Eric 裁「A+C」起**全庫關閉、最慢階 25**（現值＝開關 `0`、50/50/25/**25**；
-        #     依據與理由見本檔 927 行 `enable_overhang_speed` 上方註解）⇒ 不要據本行以為 Classic 的懸空降速是開的。
+        #     2026-08-16 Eric 裁「A+C」起**全庫關閉、最慢階 25**；2026-10-23 Eric 再改裁開關**全庫開**
+        #     （4b-8 post-pass，Classic 照套）⇒ 現值＝開關 `1`、50/50/25/**25**。
         #   橋接流量 1→**0.95**、
         #   支撐臨界角 30→**35**、樹狀改保守配方（分支直徑 口徑×12 上限 10／距離 口徑×6／
         #   角度 30／auto_brim 關／brim 10／牆圈 1）、organic 防呆 2→2.6・60→40。
@@ -3631,6 +3634,55 @@ def main(src_base):
             jdump(pp_path, pdj)
     print("  支撐/支撐面速度下限 %g：改 %d 項｜Classic 前代機略過 %d 支｜易拆樹狀豁免 %d 支｜鍵不在葉檔 %d 項"
           % (SUPPORT_SPEED_FLOOR, spd_set, spd_skip_classic, spd_skip_easy_tree, spd_missing))
+
+    # 4b-8. ★ 全庫製程三項（Eric 2026-10-23 裁，牌 c-1023-RIR-01）
+    #
+    # Eric 原話：「『減小填充回抽』這個參數，幫我都關掉好了，如果做內部填充，翹起來會撞。」
+    #           「懸空處降速打勾，橋接 100% 這邊也幫我調整一下。」「以下是針對所有的參數」
+    # ① reduce_infill_retraction 1 → 0：開著時「空駛整段落在填充區內」就不回抽，**也不做 Z 抬升**
+    #    （PrintConfig.cpp tooltip：z-hop is also not performed in areas where retraction is skipped）
+    #    ⇒ 填充翹起來時噴頭平掃過去會撞。全庫 0、**無例外**：照片磚填充 0%，本鍵本來就不作用
+    #    （GCode.cpp needs_retraction 只在 sparse_infill_density > 0 時跳過回抽），跟著關＝全庫一個值好稽核。
+    # ② enable_overhang_speed 0 → 1：🔴 推翻 2026-08-16「A+C」的 A（降速開關全庫關）。四段值維持 C 的
+    #    50/50/25/25（normalize_unified_values ⑤）——0816 關掉的理由是 0.6 黃銅跑 10 mm/s 料在噴頭裡滾沸，
+    #    最慢階已由 C 拉到 25，本次只把開關打開（Eric 截圖 FF600 同進 0.6＝打勾＋50/50/25/25）。
+    # ③ internal_bridge_speed 150% → 100%：百分比的基準是 bridge_speed（PrintConfig.cpp ratio_over），
+    #    全庫 bridge_speed 多為 50 ⇒ 內部橋接 75 → 50 mm/s（＝與外部橋接同速）。
+    # ⛔ 照片磚只套 ①：②③是速度類，延續 2026-07-25「爬坡品質＝速度類，照片磚特調豁免」——照片磚整組速度
+    #    是 0912 實印定的 ×2 配方（bridge 100），新裁原話沒點到它；要不要也跟待 Eric 確認。
+    #    verify_profiles.py 的照片磚分支把這兩鍵鎖在現值（0／150%），改豁免要兩邊一起改。
+    # Classic 前代機照套三項（07-25「Classic 跟進 F 系」；三鍵都是切片端行為、不送韌體）。
+    # 做成 post-pass＝涵蓋所有 emit 路徑（同 4b-6 的理由）；fdm_* 共通基底不動（SOP_參數入版紀律 §8：
+    #    實際製程 100% 明寫這三鍵，基底值永遠被覆蓋）。鍵不在葉檔＝值來自繼承鏈 ⇒ 照樣寫入（明寫＝不靠基底）。
+    PROCESS_UNIFORM_1023 = {
+        "reduce_infill_retraction": "0",
+        "enable_overhang_speed": "1",
+        "internal_bridge_speed": "100%",
+    }
+    PROCESS_UNIFORM_1023_PT_ONLY = ("reduce_infill_retraction",)   # 照片磚只套這幾鍵
+    u_files = u_keys = u_pt = u_seen = 0
+    for pp_path in sorted(glob.glob(os.path.join(PINGDIR, "process", "*.json"))):
+        base = os.path.basename(pp_path)
+        if base.startswith("fdm_"):
+            continue
+        u_seen += 1
+        pdj = json.load(io.open(pp_path, encoding="utf-8"))
+        is_pt = "照片磚" in base
+        if is_pt:
+            u_pt += 1
+        hit = 0
+        for _k, _v in PROCESS_UNIFORM_1023.items():
+            if is_pt and _k not in PROCESS_UNIFORM_1023_PT_ONLY:
+                continue
+            if pdj.get(_k) != _v:
+                pdj[_k] = _v
+                hit += 1
+        if hit:
+            jdump(pp_path, pdj)
+            u_files += 1
+            u_keys += hit
+    print("  全庫製程三項（減小填充回抽 0／懸空降速 1／內部橋接 100%%）：掃 %d 支｜改 %d 支／%d 個鍵｜照片磚只套回抽 %d 支"
+          % (u_seen, u_files, u_keys, u_pt))
 
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
