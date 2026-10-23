@@ -747,7 +747,7 @@ for name, (kind, d) in presets.items():
             #      （同 0816「未點名不順手改」）。同樣要放寬得是 Eric 新的一次裁定。
             _want_mvs = {"PING PLA - 四料同進噴頭": "50",
                          "PING SupPLA - 四料同進噴頭": "30",
-                         FF_FIL_PETG_V: "25",   # 🆕 1021：PETG 四料同進支維持 PETG 基底 25（Eric Q2 照建議；不比照 PLA 50）
+                         FF_FIL_PETG_V: "30",   # 🔴 1023：25→30（FF600 Pro Max 實機校正後 Eric 定案；牌 c-1023-PG4-01）
                          "PING PLA(照片磚)": "30",
                          TI_FIL_PLA: "30",
                          TI_FIL_SUP: "12"}.get(name)
@@ -784,10 +784,12 @@ for name, (kind, d) in presets.items():
                         HFN_PETG_V: {"filament_minimal_purge_on_wipe_tower": "30", "filament_retraction_length": "3",
                                      "filament_retract_restart_extra": "0", "pressure_advance": "0.2",
                                      "nozzle_temperature": "230", "hot_plate_temp": "75"},
+                        # 🔴 1023 實測定案（Eric；牌 c-1023-PG4-01）：噴溫 230→220（兩鍵）、PA 0.4→0.3、流量比 1→1.03、流量上限 25→30；回抽 0.8 不動
                         FF_FIL_PETG_V: {"filament_minimal_purge_on_wipe_tower": "120", "filament_retraction_length": "0.8",
-                                        "filament_retract_restart_extra": "0", "pressure_advance": "0.4",
-                                        "enable_pressure_advance": "1", "nozzle_temperature": "230",
-                                        "nozzle_temperature_initial_layer": "230", "hot_plate_temp": "75"}}.get(name)
+                                        "filament_retract_restart_extra": "0", "pressure_advance": "0.3",
+                                        "enable_pressure_advance": "1", "nozzle_temperature": "220",
+                                        "nozzle_temperature_initial_layer": "220", "hot_plate_temp": "75",
+                                        "filament_flow_ratio": "1.03", "filament_max_volumetric_speed": "30"}}.get(name)
             if _hf_want:
                 for _tk, _tv in _hf_want.items():
                     _tg = d.get(_tk)
@@ -933,6 +935,7 @@ for name, (kind, d) in presets.items():
                 #     一般流量  PLA-220/PLA-210/SupPLA/ABS/SupABS/PETG/PVA ＝ **0.08**（enable 1）
                 #     高流量噴頭 PLA／SupPLA／PETG ＝ 0.2
                 #     四料高流量 PLA／SupPLA        ＝ 0.4
+                #     四料同進 PETG                 ＝ 0.3（2026-10-23 PA 塔實測，只這一支；13c 釘）
                 #     3in1      PLA 0.4／SupPLA 0.2
                 #     火山口     PA-CF ＝ 材料特例維持既值（不在 0.08 範圍）
                 #     TPE／SupTPE                   ＝ 關（0）＝0725 裁軟料待實測、0728 不翻案

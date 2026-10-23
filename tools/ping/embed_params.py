@@ -2864,20 +2864,29 @@ def main(src_base):
         if os.path.isfile(_oldp):
             os.remove(_oldp); print("  filament 移除(1021 改名):", HFN_OLD[new_name])
         # 🆕 4b-1b-2. PETG 四料同進支（Eric 2026-10-21「複製一套到 PETG」＋Q2「照建議」；牌 c-1021-HFR-01）：
-        #   以雙料同進 PETG 為底（噴溫 230／床 75／風扇 50），套四料同進共通三值——
-        #   PA 0.4、清料 120（兩者下行明寫；4b-3 對「四料同進噴頭」是**跳過不寫**、不會補 120）、
-        #   回抽 0.8（4b-2e `_is_ff_only` 依名字）。
-        #   流量上限**維持 25**（明寫＝fdm_filament_pet 同值，不比照 PLA 支 50——那是 Eric 0816 單點名裁的，
-        #   SupPLA 支同理維持 30；放寬要 Eric 再裁）。可見範圍＝FF600／FF800 同進（同 PLA／SupPLA 四料支）。
+        #   以雙料同進 PETG 為底（床 75／風扇 50），清料 120（下行明寫；4b-3 對「四料同進噴頭」是**跳過不寫**、不會補 120）、
+        #   回抽 0.8（4b-2e `_is_ff_only` 依名字）。可見範圍＝FF600／FF800 同進（同 PLA／SupPLA 四料支）。
         #   不掛 renamed_from（新支）；同進機預設線材仍是 PLA 四料同進支（不動）。
+        # 🔴 2026-10-23 改成實測定案值（Eric 在 Klipper 線 PTG 對話回「照建議」＋「直接訂 220」；牌 c-1023-PG4-01）。
+        #   依據＝FF600 Pro Max `PING-5F9BE6` 四進一出 0.6、PETG 實機校正（單台；案卷＝Klipper
+        #   `05市場研究/FLSUN實跑對照_20260929/11_PETG四料同進_5F9BE6_20261022/README.md`）：
+        #   - 噴溫 230→220：30 mm³/s 一溫一件，230／220 印完無跳齒、210 跳齒後堵頭；215 沒印成 ⇒ 220 的餘裕未驗（0～10 ℃），Eric 仍直接定 220。
+        #   - 流量上限 25→30：30 是 Eric 要保住的流量；持續上限實用 ≈40（230 ℃ 對空長跑：40.9 兩次皆順、50.5 冷機開工就跳齒）。
+        #   - 流量比 1→1.03：秤重實際送出 0.962～0.970，7～30 mm³/s 都一樣。
+        #   - PA 0.4→0.3：PA 塔轉角最乾淨 18～20 mm（230 ℃ 量）。
+        #   - 回抽 0.8 不動：回抽塔 0.2～2.0 都牽絲＝不是主因（牽絲另案）。
+        #   兩個噴溫鍵一起改＝溫度統一鐵律（同進噴頭首層與其他層同溫，不然換層要空燒等溫）。
+        #   ⚠ 這是**這一支**的實測值，不是「四料同進」家族值——PLA／SupPLA 四料支不跟著動；verify 13／13c 同步釘。
         if new_name == HFN_PETG:
             ff4 = json.loads(json.dumps(fd_))          # 深拷貝（本檔未 import copy）
             ff4.pop("renamed_from", None)
             ff4.update({"name": FF_FIL_PETG, "alias": FF_FIL_PETG,
                         "setting_id": "PINGFILHFPETG", "filament_id": "PINGFILHFPETG",
-                        "enable_pressure_advance": ["1"], "pressure_advance": ["0.4"],
+                        "enable_pressure_advance": ["1"], "pressure_advance": ["0.3"],
                         "filament_minimal_purge_on_wipe_tower": ["120"],
-                        "filament_max_volumetric_speed": ["25"]})
+                        "filament_max_volumetric_speed": ["30"],
+                        "filament_flow_ratio": ["1.03"],
+                        "nozzle_temperature": ["220"], "nozzle_temperature_initial_layer": ["220"]})
             ff4.pop("compatible_printers_condition", None)
             ff4["compatible_printers"] = sorted(
                 x["name"] for x in mac_list
