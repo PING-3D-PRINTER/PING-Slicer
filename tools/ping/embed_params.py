@@ -638,6 +638,32 @@ CLASSIC_SPECS = [
      "retract":"3", "retract_speed":"30", "dual":True,  "heated_bed":True,  "speed_class":"dual06"},
 ]
 CLASSIC_MODELS = [s["name"] for s in CLASSIC_SPECS]
+# Marlin 隔離：Classic 製程這兩組鍵一律 "0"＝交給機台韌體預設（不送 M204／抖動）。
+#   emit_classic 與下方 Classic DUAL Pro 噴頭製程共用這一份（2026-10-23 從 emit_classic 區域變數搬出來，值一字未動）。
+CLASSIC_ACCEL_KEYS = ("default_acceleration", "outer_wall_acceleration", "inner_wall_acceleration",
+                      "sparse_infill_acceleration", "internal_solid_infill_acceleration",
+                      "top_surface_acceleration", "initial_layer_acceleration", "bridge_acceleration",
+                      "travel_acceleration")
+CLASSIC_JERK_KEYS = ("default_jerk", "outer_wall_jerk", "inner_wall_jerk", "infill_jerk",
+                     "top_surface_jerk", "initial_layer_jerk", "travel_jerk")
+
+# ★ Classic DUAL 雙料機換 Pro 噴頭用的製程（Eric 2026-10-23；牌 c-1023-CDP-01）
+#   原話：「Classic 的 Dual 系列雙料系列，它的噴頭如果更換成 Pro 的噴頭，列印參數請幫我建一組 FD 系列的參數」
+#   「增加 0.2_易拆_PRO 0.2_易拆樹狀_PRO」；範圍題回「各尺寸都要／各尺寸的製程參數都要再多一組樹狀」，其餘照建議。
+#   範圍＝DUAL 300／450／600／800 **雙料本體** × 該機全部口徑（同進／單料頭不做），每組兩支：
+#     `<層高>mm 易拆_PRO @DUAL N (<口徑>)`    ← 同口徑 `<層高>mm 易拆 @FD<N> Pro (<口徑>)`
+#     `<層高>mm 易拆樹狀_PRO @DUAL N (<口徑>)` ← 同口徑 `<層高>mm 易拆樹狀 @FD<N> Pro (<口徑>)`
+#   值＝FD 來源整份（速度／層高／支撐／填充都照 FD），只套 Classic 的 Marlin 隔離：上面兩組鍵 "0"、
+#   accel_to_decel_enable "0"（Marlin 不認 SET_VELOCITY_LIMIT）。溫度／回抽／PA 不在製程裡＝照使用者選的 Classic 線材與機台（Eric 照建議：線材不動）。
+#   🔴 名字的「_PRO」用**底線**黏在 token 後面，不可改成空格：Tab.cpp 取 @ 前最後一個空白後的字當 token——
+#      最後一段若是「易拆」／「易拆樹狀」，Classic 雙料機放 SupPLA 時會①下拉只剩 PRO ②目前製程被自動換成 PRO（FD 速度）
+#      ③配料被換成非 Classic 線材（帶 Klipper 起始碼）。「易拆_PRO」是 Tab.cpp 不認得的 token＝歸一般家族＝
+#      不連動、不過濾：原本的 `<層高>mm @DUAL N` 照舊是預設，PRO 由使用者自己手選（verify 跨層鎖）。
+#   來源機型：DUAL 300 → FD300 Pro（與 FD300 的易拆製程實查逐鍵相同，取名字對得上「Pro 噴頭」的那台）；450／600／800 → FD Pro。
+#   層高跟 FD（SRC_LAYER_BY_NOZZLE），不跟 Classic 本體的 0.6＝0.25 專屬值。
+CLASSIC_PRO_SUFFIX = "_PRO"
+CLASSIC_PRO_SRC = {"DUAL 300": "FD300 Pro", "DUAL 450": "FD450 Pro",
+                   "DUAL 600": "FD600 Pro", "DUAL 800": "FD800 Pro"}
 
 # 口徑 → **FD 母檔**的層高／首層高（實查 FD300／FD450 Pro／FD600 Pro／FD800 Pro 的預設製程，2026-09-01）。
 # Eric 2026-09-01 裁 Q1＝丙「直接跟 FD 來源的 0.4／1.0 走」⇒ 新補的口徑用這張表，不自己發明數字。
@@ -1897,12 +1923,8 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         jdump(os.path.join(PINGDIR, "filament", "%s.json" % d["name"]), d)
         classic_fil_list.append({"name":d["name"], "sub_path":"filament/%s.json" % d["name"]})
 
-    accel_keys = ("default_acceleration", "outer_wall_acceleration", "inner_wall_acceleration",
-                  "sparse_infill_acceleration", "internal_solid_infill_acceleration",
-                  "top_surface_acceleration", "initial_layer_acceleration", "bridge_acceleration",
-                  "travel_acceleration")
-    jerk_keys = ("default_jerk", "outer_wall_jerk", "inner_wall_jerk", "infill_jerk",
-                 "top_surface_jerk", "initial_layer_jerk", "travel_jerk")
+    accel_keys = CLASSIC_ACCEL_KEYS
+    jerk_keys = CLASSIC_JERK_KEYS
 
     def _classic_defaults(spec):
         return ([CLASSIC_PLA_220, CLASSIC_SUP_PLA] if spec["dual"] else
@@ -3698,6 +3720,44 @@ def main(src_base):
     print("  側欄縮圖：家族封面重畫 %d 支｜專屬圖範本複製 %d 支（對照表 %d 列）" % (n_drawn, n_own, len(PREVIEW_OWN_ICON)))
     for mid in sorted(set(PREVIEW_OWN_ICON) - own_seen):   # 只提示不擋
         print("  ⚠ 側欄縮圖對照表：%s 沒有對到任何機型（改名或下架？），這一列目前沒有作用" % mid)
+
+    # 4c-3. ★ Classic DUAL 雙料機換 Pro 噴頭製程（Eric 2026-10-23，牌 c-1023-CDP-01；規則見檔頭 CLASSIC_PRO_SRC 註解）。
+    #        🔴 落點刻意在**所有製程 post-pass 之後**（4b-6 支撐線寬、4b-7 支撐速度下限、其後的全庫 post-pass），
+    #        PING.json 重建之前：4b-7 會跳過 Classic，若在它之前複製，這裡的支撐速度會停在 FD 被拉到 60 之前的值。
+    #        從本輪已收斂的 FD 來源複製＝冪等、與來源同值（verify 逐鍵比對）；支撐 Z 最終掃描（名含「易拆」＝0）在其後照套。
+    #        id：接在 4a-11 之後發（中間沒有別的製程發號）＝既有 preset setting_id 零位移；後加口徑走 1100 段續號。
+    #        ⚠ 下一個新增製程族排在本段之後。
+    _classic_pro = []
+    _pro_mac_re = re.compile(r"^(DUAL (?:300|450|600|800)) ([\d.]+) nozzle$")
+    for _e in mac_list:
+        _m = _pro_mac_re.match(_e["name"])
+        if not _m:
+            continue
+        _model, _nz = _m.group(1), _m.group(2)
+        _src_model = CLASSIC_PRO_SRC[_model]
+        _lh = SRC_LAYER_BY_NOZZLE.get(_nz)
+        if _lh is None:
+            raise SystemExit("[停手] Classic Pro 噴頭製程：%s 的口徑 %s 在 SRC_LAYER_BY_NOZZLE 沒有對應層高" % (_model, _nz))
+        for _src_name in (combo_pname(_lh, "PLA+SUP", _src_model, _nz), easy_tree_pname(_lh, _src_model, _nz)):
+            _sp = os.path.join(PINGDIR, "process", "%s.json" % _src_name)
+            if not os.path.isfile(_sp):
+                raise SystemExit("[停手] Classic Pro 噴頭製程找不到 FD 來源：%s（給 %s %s）" % (_src_name, _model, _nz))
+            _d = json.load(io.open(_sp, encoding="utf-8"))
+            _d.pop("renamed_from", None)      # 新品無舊名（同易拆樹狀 0919：複製來的那條不拿掉會冒領舊名）
+            _d.update({"name": _src_name.replace(" @%s (" % _src_model, "%s @%s (" % (CLASSIC_PRO_SUFFIX, _model)),
+                       "compatible_printers": [_e["name"]], "accel_to_decel_enable": "0"})
+            for _k in CLASSIC_ACCEL_KEYS + CLASSIC_JERK_KEYS:
+                _d[_k] = "0"
+            _classic_pro.append(_d)
+    if not _classic_pro:
+        raise SystemExit("[停手] Classic Pro 噴頭製程：一台 DUAL 雙料本體都沒對到（機型名格式變了？）")
+    for _d in _classic_pro:
+        if _ext_proc(_d["name"]): _d["setting_id"] = _ext_take_p()
+        elif _nz_proc(_d["name"]): _d["setting_id"] = _nz_take_p()
+        else: _d["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % _d["name"]), _d)
+        proc_list.append({"name": _d["name"], "sub_path": "process/%s.json" % _d["name"]})
+    print("  Classic DUAL 換 Pro 噴頭製程：%d 支（易拆_PRO／易拆樹狀_PRO，主段 PINGP%03d 止）" % (len(_classic_pro), gp - 1))
 
     # 4d-0. LAY-11（ping-ux）：machine_model_list 同型號變體相鄰成組——
     # 家族依 FAMS 順序，家族內：基本款 → 同進 → 3in1 → 單料頭。

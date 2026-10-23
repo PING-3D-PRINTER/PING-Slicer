@@ -53,6 +53,16 @@ COMBO_CAT_EASYTREE                   = "易拆樹狀"
 EASY_TREE_ALLOWED_DIFF = {"name", "setting_id", "renamed_from", "support_type", "support_style",
                           "support_speed", "support_interface_speed"}
 COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE}
+# 🆕 2026-10-23（Eric，牌 c-1023-CDP-01）：Classic DUAL 雙料機換 Pro 噴頭用的製程
+#   「<層高>mm 易拆_PRO／易拆樹狀_PRO @DUAL N (<口徑>)」。底線**刻意**讓 Tab.cpp 認不得 token（歸一般家族＝不連動、不過濾），
+#   ⇒ combo_token() 回 None，不能靠 token 認，用這支 regex。樹狀那支的支撐類型／樣式＝FD 易拆樹狀同值（tree(auto)／organic），
+#   「普通支撐配方」「Classic support mode」兩條對它比照易拆樹狀豁免；值的正確性由檔尾「Classic Pro 噴頭族」區塊逐鍵比對 FD 來源 exact 鎖。
+#   與 embed_params.CLASSIC_PRO_SUFFIX／CLASSIC_PRO_SRC 同義各一份（verify 不 import 產生器）。
+_CLASSIC_PRO_RE = re.compile(r"^(\d+(?:\.\d+)?)mm (易拆|易拆樹狀)_PRO @(DUAL (?:300|450|600|800)) \((\d+(?:\.\d+)?)\)$")
+
+def _is_classic_pro_tree(name):
+    _m = _CLASSIC_PRO_RE.match(name)
+    return bool(_m) and _m.group(2) == COMBO_CAT_EASYTREE
 # 🆕 2026-10-16（Eric 三題照建議，牌 c-1016-TRE-01）：1.0 口徑樹狀製程「<層高>mm 樹狀 @<機型> (1.0)」。
 #   整組＝同事在 DUAL 600 同進實調的支撐值，刻意與標準的多條家規不同（Z 0.5／介面 0 層／空心 50／
 #   首層 50%·擴展 10／XY 1.5／有機直徑 5·角度 60／牆 1）⇒ 那幾條家規對本族豁免，改由下方「1.0 樹狀族」
@@ -562,7 +572,7 @@ for name, (kind, d) in presets.items():
                 # 易拆樹狀（Eric 2026-09-19 改裁 Q2＝乙＝有機樹）：style 明寫 organic（UI 才顯示「有機樹」；
                 # default 行為相同但 UI 顯示「預設 (網格/有機)」＝Eric 0919 GUI 實看抓到）
                 # （同 PA-CF 樹狀；吃 _organic 防呆值）。寫成 tree_hybrid／snug 一律紅。
-                elif _ctok == COMBO_CAT_EASYTREE:
+                elif _ctok == COMBO_CAT_EASYTREE or _is_classic_pro_tree(name):   # 1023：Classic Pro 樹狀＝FD 易拆樹狀同配方
                     expected_recipe = [("support_type", "tree(auto)"),
                                        ("independent_support_layer_height", "0"),
                                        ("support_style", "organic"),
@@ -705,6 +715,7 @@ for name, (kind, d) in presets.items():
             # PA-CF 樹狀版（Eric 2026-08-26）：整支的存在意義就是換支撐類型，Classic 機同理豁免；
             # **PA-CF 一般版仍被要求 normal(auto)**，閘門沒關（與上面 support mode default 同款處理）。
             if (is_classic and " PA-CF 樹狀 @" not in name and not _TREE10_RE.match(name)
+                    and not _is_classic_pro_tree(name)          # 1023 Classic Pro 樹狀（類型由「Classic Pro 噴頭族」比對 FD 鎖）
                     and d.get("support_type") != "normal(auto)"):
                 err(f"[Classic support mode] {name}: support_type={d.get('support_type')!r}, expected 'normal(auto)'")
         # 檢查 12（Eric 2026-07-18 裁「只做腳本」）：3in1 線材起始 gcode 必須含 T 指令。
@@ -2152,6 +2163,67 @@ for _n, (_k, _d) in sorted(presets.items()):
 if _et_n == 0:
     err("[易拆樹狀・防空轉] 一支易拆樹狀製程都沒掃到 ⇒ 產生器沒產或 token 判定壞了")
 print("易拆樹狀：%d 支（逐支與同口徑易拆雙生比對，只准差支撐類型／樣式／速度）" % _et_n)
+
+# ★ Classic Pro 噴頭族（Eric 2026-10-23，牌 c-1023-CDP-01）：DUAL 300／450／600／800 **雙料本體**的每個口徑恰各一支
+#   「易拆_PRO」「易拆樹狀_PRO」，值＝同口徑 FD<N> Pro 的「易拆」「易拆樹狀」**逐鍵相同**，
+#   只准差名字／id／相容機型＋Marlin 隔離鍵（加速度 9 鍵、jerk 7 鍵、accel_to_decel_enable，全部必須 "0"）。
+#   另鎖三件：①token 不可被 Tab.cpp 認得（combo_token 為 None、名字不帶 _筏層）——改成空格的「易拆 PRO」或「PRO 易拆」
+#   都會讓沒換噴頭的 Classic 使用者被自動換到 PRO、配料被換成非 Classic 線材 ②機型預設製程不可指向 PRO
+#   ③同進／單料頭與非 DUAL 機型不得出現 PRO（範圍＝雙料本體）。
+_CLASSIC_PRO_SRC_V = {"DUAL 300": "FD300 Pro", "DUAL 450": "FD450 Pro", "DUAL 600": "FD600 Pro", "DUAL 800": "FD800 Pro"}
+_CLASSIC_PRO_LAYER_V = {"0.25": "0.125", "0.4": "0.2", "0.6": "0.3", "1.0": "0.5"}   # ＝embed_params.SRC_LAYER_BY_NOZZLE
+_CLASSIC_PRO_MARLIN_KEYS = {"default_acceleration", "outer_wall_acceleration", "inner_wall_acceleration",
+                            "sparse_infill_acceleration", "internal_solid_infill_acceleration",
+                            "top_surface_acceleration", "initial_layer_acceleration", "bridge_acceleration",
+                            "travel_acceleration",
+                            "default_jerk", "outer_wall_jerk", "inner_wall_jerk", "infill_jerk",
+                            "top_surface_jerk", "initial_layer_jerk", "travel_jerk",
+                            "accel_to_decel_enable"}
+_CLASSIC_PRO_ALLOWED = {"name", "setting_id", "compatible_printers"} | _CLASSIC_PRO_MARLIN_KEYS
+_cp_want = {}
+for _n, (_k, _d) in presets.items():
+    if _k != "machine":
+        continue
+    _mm = re.match(r"^(DUAL (?:300|450|600|800)) (\d+(?:\.\d+)?) nozzle$", _n)
+    if not _mm:
+        continue
+    if "_PRO @" in str(_d.get("default_print_profile", "")):
+        err(f"[Classic Pro 噴頭・不可當機型預設] {_n}: default_print_profile={_d.get('default_print_profile')!r}")
+    _lh = _CLASSIC_PRO_LAYER_V.get(_mm.group(2))
+    if _lh is None:
+        err(f"[Classic Pro 噴頭・口徑沒有對應層高] {_n}")
+        continue
+    for _tk in (COMBO_CAT_EASY, COMBO_CAT_EASYTREE):
+        _cp_want["%smm %s_PRO @%s (%s)" % (_lh, _tk, _mm.group(1), _mm.group(2))] = (
+            "%smm %s @%s (%s)" % (_lh, _tk, _CLASSIC_PRO_SRC_V[_mm.group(1)], _mm.group(2)), _n)
+_cp_have = {_n for _n, (_k, _) in presets.items() if _k == "process" and "_PRO @" in _n}
+for _n in sorted(set(_cp_want) - _cp_have):
+    err(f"[Classic Pro 噴頭・缺] {_n}")
+for _n in sorted(_cp_have - set(_cp_want)):
+    err(f"[Classic Pro 噴頭・範圍外] {_n}（只給 DUAL 300／450／600／800 雙料本體）")
+for _n in sorted(_cp_have & set(_cp_want)):
+    _d = presets[_n][1]
+    _src, _mac = _cp_want[_n]
+    if combo_token(_n) is not None or any(_s in _n for _s in ("_筏層", "_棧板")):
+        err(f"[Classic Pro 噴頭・token 會被 Tab.cpp 認得] {_n}（會觸發配料連動與下拉過濾）")
+    if _d.get("compatible_printers") != [_mac]:
+        err(f"[Classic Pro 噴頭・相容機型] {_n}: {_d.get('compatible_printers')!r}, expected {[_mac]!r}")
+    if "renamed_from" in _d:
+        err(f"[Classic Pro 噴頭・新品不得有 renamed_from] {_n}: {_d.get('renamed_from')!r}")
+    for _mk in sorted(_CLASSIC_PRO_MARLIN_KEYS):
+        if _d.get(_mk) != "0":
+            err(f"[Classic Pro 噴頭・Marlin 隔離] {_n}: {_mk}={_d.get(_mk)!r}, expected '0'")
+    _se = presets.get(_src)
+    if not _se or _se[0] != "process":
+        err(f"[Classic Pro 噴頭・FD 來源不存在] {_n}：找不到 {_src!r}")
+        continue
+    _dk = sorted(k for k in set(_d) | set(_se[1])
+                 if _d.get(k) != _se[1].get(k) and k not in _CLASSIC_PRO_ALLOWED and k != "renamed_from")
+    if _dk:
+        err(f"[Classic Pro 噴頭・與 FD 來源的差異超出允許] {_n}: {_dk[:6]}（只准差名字／id／相容機型／Marlin 隔離鍵）")
+if not _cp_want:
+    err("[Classic Pro 噴頭・防空轉] 一台 DUAL 雙料本體都沒掃到 ⇒ 機型名格式變了或判定壞了")
+print("Classic Pro 噴頭族：%d 支（%d 台×口徑×易拆／易拆樹狀，逐支與 FD Pro 來源比對）" % (len(_cp_have & set(_cp_want)), len(_cp_want) // 2))
 
 # ★ 跨層護欄：標題列的廠內測試版版次（Eric 2026-08-12 裁「標題列顯示 Beta T0xx」）
 #   鏈路＝`version.inc` 宣告 → `libslic3r_version.h.in` 由 configure_file 代換 → `BBLTopbar::SetTitle` 消費。
