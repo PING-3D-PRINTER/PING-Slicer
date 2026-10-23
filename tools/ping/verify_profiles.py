@@ -431,11 +431,15 @@ for name, (kind, d) in presets.items():
                 # ★ Classic 套 F 系新工藝（Eric 2026-07-25 裁）：爬坡品質＋支撐臨界角改與全庫同值
                 #   （原本這裡是豁免的，由 emit_classic 還原成 關/1/30；本裁取消該還原）
                 # 🔴 2026-08-16 Eric 裁「A+C」：F 系關降速，Classic 依「跟進」精神一起關
-                "enable_overhang_speed": "0",
+                # 🆕 2026-10-23 Eric 改裁開關全庫開（牌 c-1023-RIR-01，產生器 4b-8）：Classic 照套
+                "enable_overhang_speed": "1",
                 "overhang_1_4_speed": "50",
                 "overhang_2_4_speed": "50",
                 "overhang_3_4_speed": "25",
                 "overhang_4_4_speed": "25",   # 0816 C：10 → 25（Classic 跟進 F 系）
+                # 🆕 2026-10-23 Eric 裁「減小填充回抽都關掉」「橋接 100%」（同牌，Classic 照套）
+                "reduce_infill_retraction": "0",
+                "internal_bridge_speed": "100%",
                 "bridge_flow": "0.95",
                 "support_threshold_angle": "35",
             } if is_classic else {
@@ -463,6 +467,12 @@ for name, (kind, d) in presets.items():
                 "initial_layer_speed": "60",
                 "initial_layer_infill_speed": "60",
                 "bridge_speed": "100",
+                # 🆕 2026-10-23 Eric 裁（牌 c-1023-RIR-01／-02，產生器 4b-8）：三項照片磚全跟——
+                #    減小填充回抽關（照片磚填充 0%＝本來就不作用）；懸空降速開（四段 ×2 值 160/100/100/100
+                #    不動 ⇒ 幾乎不降速，Eric 知情）；內部橋接 100%（150→100 mm/s，頂面跨空腔那層真的變慢）。
+                "reduce_infill_retraction": "0",
+                "enable_overhang_speed": "1",
+                "internal_bridge_speed": "100%",
             } if "照片磚" in name else {
                 "sparse_infill_acceleration": "5000",
                 "travel_acceleration": "5000",
@@ -474,12 +484,19 @@ for name, (kind, d) in presets.items():
                 # 🔴 2026-08-16 Eric 裁「A+C」推翻降速部分（四段值留著當備援）：
                 #    A＝開關全庫關；C＝最慢階 10 → 25（不取 30：會比 50% 段的 25 更快＝順序反）。
                 #    ⚠ 要放寬回 "1"／"10" 必須是 **Eric 新的一次裁定**，不是實作者順手改這行。
-                "enable_overhang_speed": "0",
+                # 🆕 2026-10-23 Eric 新裁定「懸空處降速打勾」（牌 c-1023-RIR-01，產生器 4b-8）：開關 "1"；
+                #    四段值照 C（最慢階仍 25，不回 10）。
+                "enable_overhang_speed": "1",
                 "overhang_1_4_speed": "50",
                 "overhang_2_4_speed": "50",
                 "overhang_3_4_speed": "25",
                 "overhang_4_4_speed": "25",
                 "bridge_flow": "0.95",
+                # 🆕 2026-10-23 Eric 裁（牌 c-1023-RIR-01，產生器 4b-8）：「減小填充回抽…都關掉好了，
+                #    如果做內部填充，翹起來會撞」（關＝空駛在填充區內也照常回抽＋Z 抬升）；「橋接 100%」
+                #    ＝內部橋接速度，百分比基準是 bridge_speed。
+                "reduce_infill_retraction": "0",
+                "internal_bridge_speed": "100%",
                 # 支撐臨界角 35（Eric 2026-07-25 裁）
                 # 🔴 Orca 基準（= Cura/V2.1 的 55）；兩線相反 Orca = 90 − Cura，見 ping-slicer/orca-sync.md
                 # ⚠ 出貨線從未被 07-24 的 60 汙染（本規則首次新增，原全庫 30＝V3.0 底稿值）
@@ -614,8 +631,10 @@ for name, (kind, d) in presets.items():
                 #      依 0725「Classic 跟進 F 系」的精神，Classic 一起關（DUAL 800 的 0.6／1.0
                 #      同樣是大口徑，滾沸的物理一樣成立）⇒ 本斷言的期望值同步改 "0"。
                 #      ⚠ 這裡改的是「跟進的對象變了」，**不是取消跟進**——其餘四項仍照舊守著。
+                #   🆕 2026-10-23 Eric 改裁「懸空處降速打勾」（牌 c-1023-RIR-01，產生器 4b-8 全庫 post-pass）：
+                #      F 系開關翻回 "1"，Classic 照「跟進」一起翻（最慢階仍是 0816 C 的 25、不回 10）。
                 if _cls_proc:
-                    for key, value in (("enable_overhang_speed", "0"), ("bridge_flow", "0.95"),
+                    for key, value in (("enable_overhang_speed", "1"), ("bridge_flow", "0.95"),
                                        ("support_threshold_angle", "35"),
                                        ("tree_support_branch_angle", "30"),
                                        ("tree_support_branch_diameter", "%g" % min(nz_v * 12, 10.0))):
