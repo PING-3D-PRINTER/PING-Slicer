@@ -467,12 +467,12 @@ for name, (kind, d) in presets.items():
                 "initial_layer_speed": "60",
                 "initial_layer_infill_speed": "60",
                 "bridge_speed": "100",
-                # 🆕 2026-10-23 Eric 裁（牌 c-1023-RIR-01，產生器 4b-8）：減小填充回抽全庫關、照片磚照套；
-                #    懸空降速開關／內部橋接是速度類 ⇒ 延續 07-25「照片磚特調豁免」鎖在現值（待 Eric 確認）。
-                #    要改豁免＝產生器 4b-8 的 PROCESS_UNIFORM_1023_PT_ONLY 與這兩行一起改。
+                # 🆕 2026-10-23 Eric 裁（牌 c-1023-RIR-01／-02，產生器 4b-8）：三項照片磚全跟——
+                #    減小填充回抽關（照片磚填充 0%＝本來就不作用）；懸空降速開（四段 ×2 值 160/100/100/100
+                #    不動 ⇒ 幾乎不降速，Eric 知情）；內部橋接 100%（150→100 mm/s，頂面跨空腔那層真的變慢）。
                 "reduce_infill_retraction": "0",
-                "enable_overhang_speed": "0",
-                "internal_bridge_speed": "150%",
+                "enable_overhang_speed": "1",
+                "internal_bridge_speed": "100%",
             } if "照片磚" in name else {
                 "sparse_infill_acceleration": "5000",
                 "travel_acceleration": "5000",

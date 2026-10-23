@@ -976,7 +976,7 @@ def normalize_unified_values(proc, ff=False):
     #    ⚠ 與開發線 ping/v3.5 的 commit afdddff35a 同一裁定、同一組值，兩線必須一致。
     # 🆕 2026-10-23 Eric 改裁「懸空處降速打勾」（牌 c-1023-RIR-01）＝推翻上面 0816 的 A；C 的四段值照舊。
     #    開關（enable_overhang_speed）改由 4b-8 全庫 post-pass 統一設 "1"，這裡不再寫——單一規則點，
-    #    Classic／照片磚等不走本函式的路徑由 post-pass 一併處理（照片磚的豁免也寫在那裡）。
+    #    Classic／照片磚等不走本函式的路徑由 post-pass 一併處理（照片磚 2026-10-23 也跟，見 4b-8）。
     proc["overhang_1_4_speed"] = "50"
     proc["overhang_2_4_speed"] = "50"
     proc["overhang_3_4_speed"] = "25"
@@ -3680,9 +3680,12 @@ def main(src_base):
     #    最慢階已由 C 拉到 25，本次只把開關打開（Eric 截圖 FF600 同進 0.6＝打勾＋50/50/25/25）。
     # ③ internal_bridge_speed 150% → 100%：百分比的基準是 bridge_speed（PrintConfig.cpp ratio_over），
     #    全庫 bridge_speed 多為 50 ⇒ 內部橋接 75 → 50 mm/s（＝與外部橋接同速）。
-    # ⛔ 照片磚只套 ①：②③是速度類，延續 2026-07-25「爬坡品質＝速度類，照片磚特調豁免」——照片磚整組速度
-    #    是 0912 實印定的 ×2 配方（bridge 100），新裁原話沒點到它；要不要也跟待 Eric 確認。
-    #    verify_profiles.py 的照片磚分支把這兩鍵鎖在現值（0／150%），改豁免要兩邊一起改。
+    # ✅ 照片磚三項全跟（Eric 2026-10-23 16:5x 追裁「照片磚也跟：懸空處降速開、內部橋接 100%」，牌 c-1023-RIR-02）。
+    #    ＝本鍵組不再沿用 07-25「爬坡品質＝速度類，照片磚特調豁免」。照片磚的實際效果與其他製程不同：
+    #    ② 照片磚四段懸空速度是 ×2 配方的 160/100/100/100、外牆 120——引擎把每段夾在不超過原速
+    #      （ExtrusionProcessor.hpp std::min）⇒ **只開開關幾乎不降速**；四段值沒動（Eric 只裁開關，
+    #      要真的降得另裁四段值，Eric 已知情）。
+    #    ③ 照片磚外部橋接 100、填充 0%，頂面第一層就是跨整個空腔的內部橋接 ⇒ 150 → 100 mm/s＝真的變慢。
     # Classic 前代機照套三項（07-25「Classic 跟進 F 系」；三鍵都是切片端行為、不送韌體）。
     # 做成 post-pass＝涵蓋所有 emit 路徑（同 4b-6 的理由）；fdm_* 共通基底不動（SOP_參數入版紀律 §8：
     #    實際製程 100% 明寫這三鍵，基底值永遠被覆蓋）。鍵不在葉檔＝值來自繼承鏈 ⇒ 照樣寫入（明寫＝不靠基底）。
@@ -3691,7 +3694,6 @@ def main(src_base):
         "enable_overhang_speed": "1",
         "internal_bridge_speed": "100%",
     }
-    PROCESS_UNIFORM_1023_PT_ONLY = ("reduce_infill_retraction",)   # 照片磚只套這幾鍵
     u_files = u_keys = u_pt = u_seen = 0
     for pp_path in sorted(glob.glob(os.path.join(PINGDIR, "process", "*.json"))):
         base = os.path.basename(pp_path)
@@ -3699,13 +3701,10 @@ def main(src_base):
             continue
         u_seen += 1
         pdj = json.load(io.open(pp_path, encoding="utf-8"))
-        is_pt = "照片磚" in base
-        if is_pt:
+        if "照片磚" in base:
             u_pt += 1
         hit = 0
         for _k, _v in PROCESS_UNIFORM_1023.items():
-            if is_pt and _k not in PROCESS_UNIFORM_1023_PT_ONLY:
-                continue
             if pdj.get(_k) != _v:
                 pdj[_k] = _v
                 hit += 1
@@ -3713,7 +3712,7 @@ def main(src_base):
             jdump(pp_path, pdj)
             u_files += 1
             u_keys += hit
-    print("  全庫製程三項（減小填充回抽 0／懸空降速 1／內部橋接 100%%）：掃 %d 支｜改 %d 支／%d 個鍵｜照片磚只套回抽 %d 支"
+    print("  全庫製程三項（減小填充回抽 0／懸空降速 1／內部橋接 100%%）：掃 %d 支｜改 %d 支／%d 個鍵｜其中照片磚 %d 支（三項全跟）"
           % (u_seen, u_files, u_keys, u_pt))
 
     # 4c. 封面（cover 以機型名解析——坑#11）：
