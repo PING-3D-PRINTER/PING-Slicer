@@ -1132,8 +1132,9 @@ def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False
 #
 # 只動「絕對值、且屬列印動作」的速度鍵；**百分比相對值一律不動**
 #（`internal_bridge_speed` 150%／`small_perimeter_speed` 50%／`scarf_joint_speed` 100%／
-#  `initial_layer_travel_speed` 100%——它們的基準是 `outer_wall_speed`（`internal_bridge_speed` 的基準是
-#  `bridge_speed`，PrintConfig.cpp ratio_over；同在下面 ×2 清單內），基準翻倍它們自然跟著翻）。
+#  `initial_layer_travel_speed` 100%——各自的基準（PrintConfig.cpp ratio_over）：`small_perimeter_speed`＝
+#  `outer_wall_speed`、`internal_bridge_speed`＝`bridge_speed`（兩個基準都在下面 ×2 清單內＝自然跟著翻）；
+#  `initial_layer_travel_speed`＝`travel_speed`（不動）；`scarf_joint_speed` 沒有 ratio_over、跟各自那道牆的速度算）。
 # 也不動 `travel_speed`（空駛，與流量無關）、`ironing_speed`、`wipe_*`（非磚體表面）。
 PT_2X_SPEED_KEYS = (
     "outer_wall_speed", "inner_wall_speed", "top_surface_speed", "internal_solid_infill_speed",
