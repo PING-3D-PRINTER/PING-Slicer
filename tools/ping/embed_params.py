@@ -1618,7 +1618,7 @@ TREE10_OVERRIDES = {
     "tree_support_angle_slow": "25",
 }
 
-def tree10_pname(lh, model, nz):
+def tree_pname(lh, model, nz):
     return "%smm %s @%s (%s)" % (lh, TREE10_TOKEN, model, nz)
 
 
@@ -1627,7 +1627,11 @@ def tree10_pname(lh, model, nz):
 #   Q1 甲：每台機 0.6「標準名」那支（`<層高>mm @<機型> (0.6)`，非照片磚）各派生一支＝比照 1.0；0.4 不做（沒人試過）。
 #   Q2：與 1.0 樹狀同一組配方，四項取 0.6 值——Z 間距 0.2（1.0＝0.5）、XY 0.6（1.0＝1.5）、
 #       普通支撐延伸 0.5（1.0＝1；樹狀不吃這鍵，SupportMaterial.cpp 才用）、首層擴展 5（1.0＝10）；
-#       頂部接觸面間距不寫＝沿用標準（頂部接觸面 0 層＝用不到）。名稱 token 同 1.0＝「樹狀」。
+#       頂部／底部接觸面間距都不寫＝沿用標準（底部：單料機 0、雙料本體機 0.5——1.0 配方寫死 0，本族刻意不跟）。
+#       ⚠ 這兩鍵對有機樹其實都不作用：頂部接觸面 0 層時引擎把介面密度退成主體密度（SupportParameters.hpp
+#         interface_density＝support_density）⇒ 底部那 2 層接觸面也照主體空心／線距 50 的密度印；
+#         `support_bottom_interface_spacing` 只有 Orca 自家樹（TreeSupport.cpp）會讀，有機樹走 TreeSupport3D 不讀。
+#         要調底部接觸面的疏密，改的是頂部層數／主體線距，不是這兩鍵。名稱 token 同 1.0＝「樹狀」。
 #   Q3：1.0 樹狀不動（同事實調值、還在等實印）。Q4：搭下一班車；先進廠內測試版，實印驗過才進出貨版（同 1.0）。
 #   樣式明寫 organic（同 1.0／易拆樹狀 0919：寫 default 引擎也解成有機樹，但 UI 顯示「預設」會被看成沒選到）。
 #   🔴 派生落點＝4c-4（所有製程 post-pass 之後），理由見該段註解；verify 有同名同值一份（_TREE06_VALUES）。
@@ -2794,7 +2798,8 @@ def main(src_base):
         print("  0.2mm 高速製程：%d 支（主段 PINGP%03d 止）" % (len(abscf_fast_twins), gp - 1))
 
     # 4a-11. 1.0 口徑樹狀製程派生＋emit（Eric 2026-10-16，牌 c-1016-TRE-01）。
-    #        接在 4a-10 之後＝**真正的全庫最尾** ⇒ 既有 preset setting_id 全零位移。⚠ 下一個新增製程族排在本段之後。
+    #        接在 4a-10 之後＝既有 preset setting_id 全零位移（當時的全庫最尾）。
+    #        ⚠ 之後的製程族接在 4c-3（Classic Pro 噴頭）→ 4c-4（0.6 樹狀）——**現在的鏈尾＝4c-4**，新族排在那之後。
     #        🔴 刻意在這裡掃 proc_list、不掛在主迴圈：製程有四條產出路徑（主迴圈／ff_extra／Classic V3.6／
     #        Classic DUAL 變體），只掛主迴圈會漏掉 DUAL 450/600/800 與 FF 同進（同事調參那台就是 DUAL 600 同進）。
     #        來源＝「標準名」那支（`<層高>mm @<機型> (1.0)`，名稱中段沒有任何 token）；照片磚機型名帶「照片磚」排除。
@@ -2805,7 +2810,7 @@ def main(src_base):
             continue
         _src = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % _e["name"]), encoding="utf-8"))
         t10 = dict(_src); t10.update(TREE10_OVERRIDES)
-        t10["name"] = tree10_pname(_m.group(1), _m.group(2), _m.group(3))
+        t10["name"] = tree_pname(_m.group(1), _m.group(2), _m.group(3))
         t10.pop("renamed_from", None)
         tree10_twins.append(t10)
     for t10 in tree10_twins:
@@ -3585,6 +3590,7 @@ def main(src_base):
                         if str(pdj.get("raft_layers", "0")) != "0"
                         else SUPPORT_RAFT_FIRST_LAYER_EXPANSION)
             # 1.0 口徑樹狀（Eric 2026-10-16，牌 c-1016-TRE-01）＝整組套同事實調值，首層擴展 10 豁免本規則。
+            # 0.6 樹狀（1023）不在這裡豁免＝刻意：它在 4c-4（本段之後）才派生，這裡掃不到它。見 4c-4 註解。
             if re.match(r"^\S+mm %s @.+ \(%s\)$" % (TREE10_TOKEN, re.escape(TREE10_NZ)), pdj.get("name", "")):
                 want_exp = TREE10_OVERRIDES["raft_first_layer_expansion"]
             if pdj["raft_first_layer_expansion"] != want_exp:
@@ -3842,6 +3848,10 @@ def main(src_base):
     #        但它在本段之前跑、碰不到這裡的 5）。支撐 Z 最終掃描在其後照常跑（本族 Z＝一般 0.2，不會被它改）。
     #        來源判定同 4a-11（標準名、非照片磚）——掃 proc_list＝主迴圈／ff_extra／Classic 各路徑全涵蓋。
     #        id：接在 4c-3 之後發＝既有 preset setting_id 零位移。⚠ 下一個新增製程族排在本段之後。
+    # 前提守衛：本族不在支撐 Z 最終掃描的豁免裡（那支掃描把一般製程 Z 拉成 0.2）。哪天 TREE06 的 Z 不是 0.2，
+    # 就得先去最終掃描補豁免——否則值會被默默蓋回 0.2。
+    if not (TREE06_OVERRIDES["support_top_z_distance"] == TREE06_OVERRIDES["support_bottom_z_distance"] == "0.2"):
+        raise SystemExit("[停手] TREE06 的 Z 間距不是 0.2：先在『支撐 Z 間距最終掃描』補 0.6 樹狀豁免再改")
     tree06_twins = []
     for _e in list(proc_list):
         _m = re.match(r"^(\d+(?:\.\d+)?)mm @(.+) \((\d+(?:\.\d+)?)\)$", _e["name"])
@@ -3849,7 +3859,7 @@ def main(src_base):
             continue
         _src = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % _e["name"]), encoding="utf-8"))
         t06 = dict(_src); t06.update(TREE06_OVERRIDES)
-        t06["name"] = tree10_pname(_m.group(1), _m.group(2), _m.group(3))
+        t06["name"] = tree_pname(_m.group(1), _m.group(2), _m.group(3))
         t06.pop("renamed_from", None)      # 新品無舊名（同易拆樹狀 0919）
         tree06_twins.append(t06)
     if not tree06_twins:
@@ -4087,6 +4097,7 @@ def main(src_base):
         _easy = ("易拆" in _nm) or ("3in1" in _nm)
         _z = "0" if _easy else "0.2"
         # 1.0 口徑樹狀（Eric 2026-10-16，牌 c-1016-TRE-01）刻意 0.5＝同事實調值，整支豁免本掃描。
+        # 0.6 樹狀（1023）不豁免＝刻意：它的 Z 就是一般 0.2，本掃描不會改它（4c-4 有斷言守這個前提）。
         if re.match(r"^\S+mm %s @.+ \(%s\)$" % (TREE10_TOKEN, re.escape(TREE10_NZ)), _nm):
             _z = TREE10_OVERRIDES["support_top_z_distance"]
         if _d.get("support_top_z_distance") != _z or _d.get("support_bottom_z_distance") != _z:

@@ -85,7 +85,8 @@ _TREE10_VALUES = {
 }
 # 🆕 2026-10-23（Eric「0.6 樹狀製程 4 題全部照建議」，牌 c-1023-T06-01）：0.6 口徑樹狀製程「<層高>mm 樹狀 @<機型> (0.6)」。
 #   ＝1.0 樹狀同一組配方，四項取 0.6 值（Z 0.2／XY 0.6／普通支撐延伸 0.5／首層擴展 5），分支角度 60＝Eric 指定。
-#   頂部接觸面間距不在值鎖內＝沿用標準（由「樹狀族」區塊的「與標準不同的鍵」比對守）。
+#   頂部／底部接觸面間距不在值鎖內＝沿用標準（由「樹狀族」區塊的「與標準不同的鍵」比對守；底部在雙料本體機是 0.5、
+#   1.0 配方寫死 0——本族刻意不跟。兩鍵對有機樹都不作用，理由見 embed_params.TREE06_OVERRIDES 註解）。
 #   值與 embed_params.TREE06_OVERRIDES 同值各一份。
 _TREE06_RE = re.compile(r"^\S+mm 樹狀 @.+ \(0\.6\)$")
 _TREE06_VALUES = {
@@ -565,9 +566,9 @@ for name, (kind, d) in presets.items():
                         ("tree_support_branch_distance", "%g" % (nz_v * 6)),
                         ("support_base_pattern_spacing", _spacing)]
                 _tfam = _tree_family_values(name)   # 樹狀族（1.0／0.6）：本段豁免的鍵由「樹狀族」區塊 exact 鎖
-                _is_t10 = _tfam is not None
+                _is_tree_fam = _tfam is not None
                 for key, value in _geo:
-                    if _is_t10 and key in _tfam:
+                    if _is_tree_fam and key in _tfam:
                         continue
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
@@ -593,12 +594,12 @@ for name, (kind, d) in presets.items():
                     _sis = "0.1"
                 else:
                     _sis = "%g" % round(nz_v * 3 / 7, 2)
-                if not _is_t10 and d.get("support_interface_spacing") != _sis:
+                if not _is_tree_fam and d.get("support_interface_spacing") != _sis:
                     err(f"[支撐介面 70% 等效 0804] {name}: support_interface_spacing={d.get('support_interface_spacing')!r}, expected {_sis!r}")
                 # 支撐首層密度（同鍵服務 raft 首層）＝10% 全庫（0804；主體類規則全庫套＝0722 ×9 先例，
                 # 含 3in1 範本 30%→10%）；raft 機種（ABS 系/棧板 raft_layers≥1）＝貼床抓床維持 100%。
                 _rfd = "100%" if str(d.get("raft_layers", "0")) != "0" else "10%"
-                if not _is_t10 and d.get("raft_first_layer_density") != _rfd:
+                if not _is_tree_fam and d.get("raft_first_layer_density") != _rfd:
                     err(f"[支撐首層密度 0804] {name}: raft_first_layer_density={d.get('raft_first_layer_density')!r}, expected {_rfd!r}")
                 # 普通支撐配方（Eric 2026-07-22 七裁；行為四項同日二裁擴及易拆）
                 expected_recipe = [("support_type", "normal(auto)"),
@@ -633,7 +634,7 @@ for name, (kind, d) in presets.items():
                 elif _ctok not in (COMBO_CAT_EASY, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE) and "3in1" not in name and not is_classic:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz_v * 1.0, 2)))
                 for key, value in expected_recipe:
-                    if _is_t10 and key in _tfam:
+                    if _is_tree_fam and key in _tfam:
                         continue
                     if d.get(key) != value:
                         err(f"[普通支撐配方 0722] {name}: {key}={d.get(key)!r}, expected {value!r}")
@@ -650,7 +651,7 @@ for name, (kind, d) in presets.items():
                                    ("tree_support_wall_count", "0"),
                                    ("tree_support_branch_diameter_organic", "2.6"),
                                    ("tree_support_branch_angle_organic", "40")]:
-                    if _is_t10 and key in _tfam:
+                    if _is_tree_fam and key in _tfam:
                         continue
                     if d.get(key) != value:
                         err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
