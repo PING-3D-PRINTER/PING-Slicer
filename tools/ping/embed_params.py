@@ -1622,6 +1622,31 @@ def tree10_pname(lh, model, nz):
     return "%smm %s @%s (%s)" % (lh, TREE10_TOKEN, model, nz)
 
 
+# ★ 0.6 口徑樹狀製程（Eric 2026-10-23「0.6 樹狀製程 4 題全部照建議」；牌 c-1023-T06-01）
+#   來源＝Eric 在 FF600 同進 0.6 手調的那組（與 1.0 樹狀逐項比對過），再改兩項：首層擴展 0→5、分支角度 40→60。
+#   Q1 甲：每台機 0.6「標準名」那支（`<層高>mm @<機型> (0.6)`，非照片磚）各派生一支＝比照 1.0；0.4 不做（沒人試過）。
+#   Q2：與 1.0 樹狀同一組配方，四項取 0.6 值——Z 間距 0.2（1.0＝0.5）、XY 0.6（1.0＝1.5）、
+#       普通支撐延伸 0.5（1.0＝1；樹狀不吃這鍵，SupportMaterial.cpp 才用）、首層擴展 5（1.0＝10）；
+#       頂部接觸面間距不寫＝沿用標準（頂部接觸面 0 層＝用不到）。名稱 token 同 1.0＝「樹狀」。
+#   Q3：1.0 樹狀不動（同事實調值、還在等實印）。Q4：搭下一班車；先進廠內測試版，實印驗過才進出貨版（同 1.0）。
+#   樣式明寫 organic（同 1.0／易拆樹狀 0919：寫 default 引擎也解成有機樹，但 UI 顯示「預設」會被看成沒選到）。
+#   🔴 派生落點＝4c-4（所有製程 post-pass 之後），理由見該段註解；verify 有同名同值一份（_TREE06_VALUES）。
+TREE06_NZ = "0.6"
+TREE06_OVERRIDES = {
+    "support_type": "tree(auto)", "support_style": "organic",
+    "raft_first_layer_density": "50%", "raft_first_layer_expansion": "5",     # 首層密度／首層擴展（Eric 1023：擴展 5）
+    "support_top_z_distance": "0.2", "support_bottom_z_distance": "0.2",
+    "tree_support_wall_count": "1",
+    "support_base_pattern": "hollow", "support_base_pattern_spacing": "50",
+    "support_interface_top_layers": "0", "support_interface_bottom_layers": "2",
+    "support_expansion": "0.5", "support_object_xy_distance": "0.6",
+    "tree_support_branch_diameter_organic": "5", "tree_support_branch_angle_organic": "60",   # 分支角度 60（Eric 1023）
+    "tree_support_branch_distance_organic": "1", "tree_support_tip_diameter": "1.2",
+    "tree_support_top_rate": "30%", "tree_support_branch_diameter_angle": "5",
+    "tree_support_angle_slow": "25",
+}
+
+
 def pva_overrides(nozzle):
     nz = float(nozzle)
     return {
@@ -3810,6 +3835,32 @@ def main(src_base):
         jdump(os.path.join(PINGDIR, "process", "%s.json" % _d["name"]), _d)
         proc_list.append({"name": _d["name"], "sub_path": "process/%s.json" % _d["name"]})
     print("  Classic DUAL 換 Pro 噴頭製程：%d 支（易拆_PRO／易拆樹狀_PRO，主段 PINGP%03d 止）" % (len(_classic_pro), gp - 1))
+
+    # 4c-4. ★ 0.6 口徑樹狀製程派生＋emit（Eric 2026-10-23，牌 c-1023-T06-01；規則見 TREE06_OVERRIDES 註解）。
+    #        🔴 落點刻意在 4c-3 之後＝所有製程 post-pass（4b-6 支撐首層擴展、4b-7 支撐速度下限、4b-8 全庫三項）都跑完：
+    #        從本輪已收斂的標準那支複製＋TREE06_OVERRIDES，post-pass 不必為本族加豁免（4b-6 會把首層擴展壓回 0，
+    #        但它在本段之前跑、碰不到這裡的 5）。支撐 Z 最終掃描在其後照常跑（本族 Z＝一般 0.2，不會被它改）。
+    #        來源判定同 4a-11（標準名、非照片磚）——掃 proc_list＝主迴圈／ff_extra／Classic 各路徑全涵蓋。
+    #        id：接在 4c-3 之後發＝既有 preset setting_id 零位移。⚠ 下一個新增製程族排在本段之後。
+    tree06_twins = []
+    for _e in list(proc_list):
+        _m = re.match(r"^(\d+(?:\.\d+)?)mm @(.+) \((\d+(?:\.\d+)?)\)$", _e["name"])
+        if not _m or _m.group(3) != TREE06_NZ or "照片磚" in _m.group(2):
+            continue
+        _src = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % _e["name"]), encoding="utf-8"))
+        t06 = dict(_src); t06.update(TREE06_OVERRIDES)
+        t06["name"] = tree10_pname(_m.group(1), _m.group(2), _m.group(3))
+        t06.pop("renamed_from", None)      # 新品無舊名（同易拆樹狀 0919）
+        tree06_twins.append(t06)
+    if not tree06_twins:
+        raise SystemExit("[停手] 0.6 口徑樹狀製程：一支 0.6 標準名製程都沒對到（製程命名格式變了？）")
+    for t06 in tree06_twins:
+        if _ext_proc(t06["name"]): t06["setting_id"] = _ext_take_p()
+        elif _nz_proc(t06["name"]): t06["setting_id"] = _nz_take_p()
+        else: t06["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % t06["name"]), t06)
+        proc_list.append({"name": t06["name"], "sub_path": "process/%s.json" % t06["name"]})
+    print("  0.6 口徑樹狀製程：%d 支（主段 PINGP%03d 止）" % (len(tree06_twins), gp - 1))
 
     # 4d-0. LAY-11（ping-ux）：machine_model_list 同型號變體相鄰成組——
     # 家族依 FAMS 順序，家族內：基本款 → 同進 → 3in1 → 單料頭。

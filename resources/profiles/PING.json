@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.41",
+    "version": "01.00.01.42",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -1921,6 +1921,146 @@
         {
             "name": "0.125mm 易拆樹狀_PRO @DUAL 800 (0.25)",
             "sub_path": "process/0.125mm 易拆樹狀_PRO @DUAL 800 (0.25).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FP300 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FP300 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FP300 關門 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FP300 關門 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD300 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD300 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD300 單料頭 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD300 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD300 同進 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD300 同進 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD300 關門 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD300 Pro (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD300 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD300 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD300 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD300 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD450 Pro (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD450 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD450 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD450 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD450 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD600 Pro (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD600 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD600 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD600 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD600 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD800 Pro (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD800 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD800 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FD800 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FD800 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FF600 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FF600 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @FF800 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @FF800 (0.6).json"
+        },
+        {
+            "name": "0.35mm 樹狀 @FF600 同進 (0.6)",
+            "sub_path": "process/0.35mm 樹狀 @FF600 同進 (0.6).json"
+        },
+        {
+            "name": "0.35mm 樹狀 @FF800 同進 (0.6)",
+            "sub_path": "process/0.35mm 樹狀 @FF800 同進 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @EDU 200 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @EDU 200 (0.6).json"
+        },
+        {
+            "name": "0.25mm 樹狀 @DUAL 450 (0.6)",
+            "sub_path": "process/0.25mm 樹狀 @DUAL 450 (0.6).json"
+        },
+        {
+            "name": "0.25mm 樹狀 @DUAL 600 (0.6)",
+            "sub_path": "process/0.25mm 樹狀 @DUAL 600 (0.6).json"
+        },
+        {
+            "name": "0.25mm 樹狀 @DUAL 800 (0.6)",
+            "sub_path": "process/0.25mm 樹狀 @DUAL 800 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @DUAL 300 同進 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @DUAL 300 同進 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @DUAL 300 單料頭 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @DUAL 300 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @DUAL 450 同進 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @DUAL 450 同進 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @DUAL 450 單料頭 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @DUAL 450 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @DUAL 600 同進 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @DUAL 600 同進 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @DUAL 600 單料頭 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @DUAL 600 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @DUAL 800 同進 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @DUAL 800 同進 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @DUAL 800 單料頭 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @DUAL 800 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @DUAL 300 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @DUAL 300 (0.6).json"
         }
     ],
     "filament_list": [
