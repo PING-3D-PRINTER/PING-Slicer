@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.37",
+    "version": "01.00.01.40",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -1801,6 +1801,126 @@
         {
             "name": "0.5mm 樹狀 @DUAL 800 (1.0)",
             "sub_path": "process/0.5mm 樹狀 @DUAL 800 (1.0).json"
+        },
+        {
+            "name": "0.2mm 易拆_PRO @DUAL 300 (0.4)",
+            "sub_path": "process/0.2mm 易拆_PRO @DUAL 300 (0.4).json"
+        },
+        {
+            "name": "0.2mm 易拆樹狀_PRO @DUAL 300 (0.4)",
+            "sub_path": "process/0.2mm 易拆樹狀_PRO @DUAL 300 (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆_PRO @DUAL 450 (0.6)",
+            "sub_path": "process/0.3mm 易拆_PRO @DUAL 450 (0.6).json"
+        },
+        {
+            "name": "0.3mm 易拆樹狀_PRO @DUAL 450 (0.6)",
+            "sub_path": "process/0.3mm 易拆樹狀_PRO @DUAL 450 (0.6).json"
+        },
+        {
+            "name": "0.3mm 易拆_PRO @DUAL 600 (0.6)",
+            "sub_path": "process/0.3mm 易拆_PRO @DUAL 600 (0.6).json"
+        },
+        {
+            "name": "0.3mm 易拆樹狀_PRO @DUAL 600 (0.6)",
+            "sub_path": "process/0.3mm 易拆樹狀_PRO @DUAL 600 (0.6).json"
+        },
+        {
+            "name": "0.3mm 易拆_PRO @DUAL 800 (0.6)",
+            "sub_path": "process/0.3mm 易拆_PRO @DUAL 800 (0.6).json"
+        },
+        {
+            "name": "0.3mm 易拆樹狀_PRO @DUAL 800 (0.6)",
+            "sub_path": "process/0.3mm 易拆樹狀_PRO @DUAL 800 (0.6).json"
+        },
+        {
+            "name": "0.125mm 易拆_PRO @DUAL 300 (0.25)",
+            "sub_path": "process/0.125mm 易拆_PRO @DUAL 300 (0.25).json"
+        },
+        {
+            "name": "0.125mm 易拆樹狀_PRO @DUAL 300 (0.25)",
+            "sub_path": "process/0.125mm 易拆樹狀_PRO @DUAL 300 (0.25).json"
+        },
+        {
+            "name": "0.3mm 易拆_PRO @DUAL 300 (0.6)",
+            "sub_path": "process/0.3mm 易拆_PRO @DUAL 300 (0.6).json"
+        },
+        {
+            "name": "0.3mm 易拆樹狀_PRO @DUAL 300 (0.6)",
+            "sub_path": "process/0.3mm 易拆樹狀_PRO @DUAL 300 (0.6).json"
+        },
+        {
+            "name": "0.2mm 易拆_PRO @DUAL 450 (0.4)",
+            "sub_path": "process/0.2mm 易拆_PRO @DUAL 450 (0.4).json"
+        },
+        {
+            "name": "0.2mm 易拆樹狀_PRO @DUAL 450 (0.4)",
+            "sub_path": "process/0.2mm 易拆樹狀_PRO @DUAL 450 (0.4).json"
+        },
+        {
+            "name": "0.5mm 易拆_PRO @DUAL 450 (1.0)",
+            "sub_path": "process/0.5mm 易拆_PRO @DUAL 450 (1.0).json"
+        },
+        {
+            "name": "0.5mm 易拆樹狀_PRO @DUAL 450 (1.0)",
+            "sub_path": "process/0.5mm 易拆樹狀_PRO @DUAL 450 (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆_PRO @DUAL 450 (0.25)",
+            "sub_path": "process/0.125mm 易拆_PRO @DUAL 450 (0.25).json"
+        },
+        {
+            "name": "0.125mm 易拆樹狀_PRO @DUAL 450 (0.25)",
+            "sub_path": "process/0.125mm 易拆樹狀_PRO @DUAL 450 (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆_PRO @DUAL 600 (0.4)",
+            "sub_path": "process/0.2mm 易拆_PRO @DUAL 600 (0.4).json"
+        },
+        {
+            "name": "0.2mm 易拆樹狀_PRO @DUAL 600 (0.4)",
+            "sub_path": "process/0.2mm 易拆樹狀_PRO @DUAL 600 (0.4).json"
+        },
+        {
+            "name": "0.5mm 易拆_PRO @DUAL 600 (1.0)",
+            "sub_path": "process/0.5mm 易拆_PRO @DUAL 600 (1.0).json"
+        },
+        {
+            "name": "0.5mm 易拆樹狀_PRO @DUAL 600 (1.0)",
+            "sub_path": "process/0.5mm 易拆樹狀_PRO @DUAL 600 (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆_PRO @DUAL 600 (0.25)",
+            "sub_path": "process/0.125mm 易拆_PRO @DUAL 600 (0.25).json"
+        },
+        {
+            "name": "0.125mm 易拆樹狀_PRO @DUAL 600 (0.25)",
+            "sub_path": "process/0.125mm 易拆樹狀_PRO @DUAL 600 (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆_PRO @DUAL 800 (0.4)",
+            "sub_path": "process/0.2mm 易拆_PRO @DUAL 800 (0.4).json"
+        },
+        {
+            "name": "0.2mm 易拆樹狀_PRO @DUAL 800 (0.4)",
+            "sub_path": "process/0.2mm 易拆樹狀_PRO @DUAL 800 (0.4).json"
+        },
+        {
+            "name": "0.5mm 易拆_PRO @DUAL 800 (1.0)",
+            "sub_path": "process/0.5mm 易拆_PRO @DUAL 800 (1.0).json"
+        },
+        {
+            "name": "0.5mm 易拆樹狀_PRO @DUAL 800 (1.0)",
+            "sub_path": "process/0.5mm 易拆樹狀_PRO @DUAL 800 (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆_PRO @DUAL 800 (0.25)",
+            "sub_path": "process/0.125mm 易拆_PRO @DUAL 800 (0.25).json"
+        },
+        {
+            "name": "0.125mm 易拆樹狀_PRO @DUAL 800 (0.25)",
+            "sub_path": "process/0.125mm 易拆樹狀_PRO @DUAL 800 (0.25).json"
         }
     ],
     "filament_list": [
