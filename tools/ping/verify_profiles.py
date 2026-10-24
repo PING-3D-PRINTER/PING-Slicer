@@ -181,6 +181,11 @@ def strip_cxx_comments(src):
             out.append(src[i]); i += 1
     return "".join(out)
 
+def is_classic_dual_body(name):
+    """Classic DUAL 雙料本體製程（@DUAL 300/450/600/800、非同進非單料頭）＝易拆家族（Z 0、介面 0.1）。
+    產生器同名判準＝embed_params.is_classic_dual_body_process；兩邊要一起改。"""
+    return ("@DUAL" in name) and ("同進" not in name) and ("單料頭" not in name)
+
 def combo_kind(name, d):
     """回傳製程的功能歸類（三 token 之一，或兩個無 token 雙料代號）；非組合製程回 None。
     0811 起一般雙料／雙料筏層沒有 token（與單料/四料同形）⇒ 改以 renamed_from 鏈尾判定：
@@ -2473,11 +2478,15 @@ _Z_CENSUS = {"易拆0": 0, "一般0.2": 0}
 for _name, (_kind, _d) in presets.items():
     if _kind != "process" or _name.startswith("fdm_"):
         continue
-    _easy = ("易拆" in _name) or ("3in1" in _name)
+    # 1024（Eric 2026-10-24，回報中心 #194；牌 c-1024-CDZ-01）：Classic DUAL 雙料本體（@DUAL、非同進非單料頭）＝易拆家族——
+    #   從 Fast PLA+SUP 母檔複製、槽 2 預設 Classic SupPLA（0726 裁），名字沒帶「易拆」token；0817 本檢查第一版只看名字，
+    #   把 15 支鎖在一般 0.2（支撐料印的支撐被留隙＝拆不乾淨）。判準與上方「支撐介面 70% 等效」對 @DUAL 本體的例外同一句。
+    _easy = ("易拆" in _name) or ("3in1" in _name) or is_classic_dual_body(_name)
     _want = "0" if _easy else "0.2"
     _fam  = "易拆" if _easy else "一般"
-    if _tree_family_values(_name) is not None:
-        continue   # 樹狀族（1.0 刻意 0.5；0.6＝0.2）由「樹狀族」區塊 exact 鎖
+    if _tree_family_values(_name) is not None and not is_classic_dual_body(_name):
+        continue   # 樹狀族（1.0 刻意 0.5；0.6＝0.2）由「樹狀族」區塊 exact 鎖；Classic DUAL 本體的樹狀（1.0 ×3、0.6 ×4）
+                   # 支撐料＝SupPLA＝易拆 0（1024 CDZ-02；0.6 四支 T096 併車照同一句），照本檢查、樹狀族區塊也鎖 0＝雙鎖
     for _k in ("support_top_z_distance", "support_bottom_z_distance"):
         if _k not in _d:
             err(f"[支撐Z間距] {_name}: 缺鍵 {_k}（{_fam}家族應顯式寫 {_want}，不可靠繼承）")
@@ -2503,6 +2512,11 @@ for _fnz, _fre, _fvals, _fday in _TREE_FAMILIES:
         if _fre.match(_name):
             _t_have.add(_name)
             for _k, _v in _fvals.items():
+                # Classic DUAL 雙料本體的樹狀（1.0：DUAL 450／600／800；0.6：DUAL 300／450／600／800）：
+                # 支撐料槽 2＝SupPLA - Classic＝易拆 ⇒ Z 兩鍵鎖 0（Eric 2026-10-24；牌 c-1024-CDZ-02／T096 併車同句）；
+                # DUAL 同進／單料頭（support_filament=1 同料）仍鎖族值（1.0＝0.5、0.6＝0.2）。
+                if _k in ("support_top_z_distance", "support_bottom_z_distance") and is_classic_dual_body(_name):
+                    _v = "0"
                 if _d.get(_k) != _v:
                     err(f"[{_tag}] {_name}: {_k}={_d.get(_k)!r}, expected {_v!r}")
             if "renamed_from" in _d:

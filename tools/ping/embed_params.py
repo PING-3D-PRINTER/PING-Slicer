@@ -1029,6 +1029,14 @@ EASY_COMBOS = ("PLA+SUP", "ABS+SUP", "PLA+PVA")
 # 🔴 順帶修掉一個真缺陷：FF600 三口徑＋FF800 0.6／1.0 那 5 支原本是 0——0813 裁1 把第 4 槽由
 #   SupPLA 改成 PLA（＝支撐變同料、會相熔）卻沒同步改幾何值，Z 仍留在易拆的 0 ⇒ 支撐熔在件上拆不下來。
 #   教訓與 0816「改名＝改分類鍵」同型：**改了分類的依據，就要改跟著分類走的值**，而 verify 不會紅。
+# ★ Classic DUAL 雙料本體（@DUAL 300/450/600/800、非同進非單料頭）＝易拆家族（Eric 2026-10-24，回報中心 #194；牌 c-1024-CDZ-01）
+#   它們從 Fast PLA+SUP 母檔複製、槽 2 預設 `PING SupPLA - Classic`（0726 裁「Classic 用它實際的模式：雙料→易拆」），
+#   但名字沒帶「易拆」token（`0.2mm @DUAL 300 (0.4)`），0817 的檔尾最終掃描只看名字 ⇒ 15 支被誤掃成一般 0.2。
+#   判準與 verify「支撐介面 70% 等效」那條對 @DUAL 本體的既有例外同一句，Z 這條補齊。
+#   易拆_PRO／易拆樹狀_PRO 本就帶 token；1.0 樹狀（TREE10）在最終掃描另有整支豁免、不受本判準影響。
+def is_classic_dual_body_process(name):
+    return ("@DUAL" in name) and ("同進" not in name) and ("單料頭" not in name)
+
 def normalize_support_z(proc, easy_release):
     z = "0" if easy_release else "0.2"
     proc["support_top_z_distance"]    = z
@@ -4094,11 +4102,17 @@ def main(src_base):
             continue
         _d = json.load(io.open(_p, encoding="utf-8"))
         _nm   = _d.get("name", "")
-        _easy = ("易拆" in _nm) or ("3in1" in _nm)
+        _easy = ("易拆" in _nm) or ("3in1" in _nm) or is_classic_dual_body_process(_nm)   # 1024：Classic DUAL 本體＝易拆（#194）
         _z = "0" if _easy else "0.2"
         # 1.0 口徑樹狀（Eric 2026-10-16，牌 c-1016-TRE-01）刻意 0.5＝同事實調值，整支豁免本掃描。
         # 0.6 樹狀（1023）不豁免＝刻意：它的 Z 就是一般 0.2，本掃描不會改它（4c-4 有斷言守這個前提）。
-        if re.match(r"^\S+mm %s @.+ \(%s\)$" % (TREE10_TOKEN, re.escape(TREE10_NZ)), _nm):
+        #   ⚠ 但 Classic DUAL 雙料本體的樹狀（1.0：DUAL 450／600／800 ×3；0.6：DUAL 300／450／600／800 ×4）
+        #     支撐料槽 2＝SupPLA - Classic＝易拆 ⇒ Z 0（Eric 2026-10-24「材料是易拆嗎？如果不是易拆維持 0.5；
+        #     如果是易拆，要 0」，牌 c-1024-CDZ-02；0.6 那 4 支＝T096 併車時照同一句判，牌 c-1024-T096-01）；
+        #     DUAL 同進／單料頭的樹狀 support_filament=1 同料 ⇒ 1.0 維持 0.5、0.6 維持 0.2。
+        #     ⇒ 本判準走 is_classic_dual_body_process（看名字＝@DUAL 且非同進非單料頭），樹狀雙生同名規則一併命中。
+        if (re.match(r"^\S+mm %s @.+ \(%s\)$" % (TREE10_TOKEN, re.escape(TREE10_NZ)), _nm)
+                and not is_classic_dual_body_process(_nm)):
             _z = TREE10_OVERRIDES["support_top_z_distance"]
         if _d.get("support_top_z_distance") != _z or _d.get("support_bottom_z_distance") != _z:
             _d["support_top_z_distance"] = _d["support_bottom_z_distance"] = _z
