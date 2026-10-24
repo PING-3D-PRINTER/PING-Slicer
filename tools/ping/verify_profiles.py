@@ -2453,8 +2453,8 @@ for _name, (_kind, _d) in presets.items():
     _easy = ("易拆" in _name) or ("3in1" in _name) or is_classic_dual_body(_name)
     _want = "0" if _easy else "0.2"
     _fam  = "易拆" if _easy else "一般"
-    if _TREE10_RE.match(_name):
-        continue   # 1.0 樹狀族（1016）刻意 0.5，由「1.0 樹狀族」區塊 exact 鎖
+    if _TREE10_RE.match(_name) and not is_classic_dual_body(_name):
+        continue   # 1.0 樹狀族（1016）刻意 0.5，由「1.0 樹狀族」區塊 exact 鎖；Classic DUAL 本體的 3 支支撐料＝SupPLA＝易拆 0（1024 CDZ-02），照本檢查
     for _k in ("support_top_z_distance", "support_bottom_z_distance"):
         if _k not in _d:
             err(f"[支撐Z間距] {_name}: 缺鍵 {_k}（{_fam}家族應顯式寫 {_want}，不可靠繼承）")
@@ -2477,6 +2477,10 @@ for _name, (_kind, _d) in presets.items():
     if _TREE10_RE.match(_name):
         _t10_have.add(_name)
         for _k, _v in _TREE10_VALUES.items():
+            # Classic DUAL 雙料本體（DUAL 450／600／800）：支撐料槽 2＝SupPLA - Classic＝易拆 ⇒ Z 兩鍵鎖 0
+            # （Eric 2026-10-24；牌 c-1024-CDZ-02）；DUAL 同進（support_filament=1 同料）仍鎖 0.5。
+            if _k in ("support_top_z_distance", "support_bottom_z_distance") and is_classic_dual_body(_name):
+                _v = "0"
             if _d.get(_k) != _v:
                 err(f"[1.0 樹狀族 1016] {_name}: {_k}={_d.get(_k)!r}, expected {_v!r}")
         if "renamed_from" in _d:

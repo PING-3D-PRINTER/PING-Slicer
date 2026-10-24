@@ -4044,7 +4044,11 @@ def main(src_base):
         _easy = ("易拆" in _nm) or ("3in1" in _nm) or is_classic_dual_body_process(_nm)   # 1024：Classic DUAL 本體＝易拆（#194）
         _z = "0" if _easy else "0.2"
         # 1.0 口徑樹狀（Eric 2026-10-16，牌 c-1016-TRE-01）刻意 0.5＝同事實調值，整支豁免本掃描。
-        if re.match(r"^\S+mm %s @.+ \(%s\)$" % (TREE10_TOKEN, re.escape(TREE10_NZ)), _nm):
+        #   ⚠ 但 Classic DUAL 雙料本體的樹狀 1.0（DUAL 450／600／800 ×3）支撐料槽 2＝SupPLA - Classic＝易拆 ⇒ Z 0
+        #     （Eric 2026-10-24「材料是易拆嗎？如果不是易拆維持 0.5；如果是易拆，要 0」，牌 c-1024-CDZ-02）；
+        #     DUAL 同進的樹狀 1.0 support_filament=1 同料 ⇒ 維持 0.5。
+        if (re.match(r"^\S+mm %s @.+ \(%s\)$" % (TREE10_TOKEN, re.escape(TREE10_NZ)), _nm)
+                and not is_classic_dual_body_process(_nm)):
             _z = TREE10_OVERRIDES["support_top_z_distance"]
         if _d.get("support_top_z_distance") != _z or _d.get("support_bottom_z_distance") != _z:
             _d["support_top_z_distance"] = _d["support_bottom_z_distance"] = _z
