@@ -83,6 +83,35 @@ _TREE10_VALUES = {
     "tree_support_top_rate": "30%", "tree_support_branch_diameter_angle": "5",
     "tree_support_angle_slow": "25",
 }
+# 🆕 2026-10-23（Eric「0.6 樹狀製程 4 題全部照建議」，牌 c-1023-T06-01）：0.6 口徑樹狀製程「<層高>mm 樹狀 @<機型> (0.6)」。
+#   ＝1.0 樹狀同一組配方，四項取 0.6 值（Z 0.2／XY 0.6／普通支撐延伸 0.5／首層擴展 5），分支角度 60＝Eric 指定。
+#   頂部／底部接觸面間距不在值鎖內＝沿用標準（由「樹狀族」區塊的「與標準不同的鍵」比對守；底部在雙料本體機是 0.5、
+#   1.0 配方寫死 0——本族刻意不跟。兩鍵對有機樹都不作用，理由見 embed_params.TREE06_OVERRIDES 註解）。
+#   值與 embed_params.TREE06_OVERRIDES 同值各一份。
+_TREE06_RE = re.compile(r"^\S+mm 樹狀 @.+ \(0\.6\)$")
+_TREE06_VALUES = {
+    "support_type": "tree(auto)", "support_style": "organic",
+    "raft_first_layer_density": "50%", "raft_first_layer_expansion": "5",
+    "support_top_z_distance": "0.2", "support_bottom_z_distance": "0.2",
+    "tree_support_wall_count": "1",
+    "support_base_pattern": "hollow", "support_base_pattern_spacing": "50",
+    "support_interface_top_layers": "0", "support_interface_bottom_layers": "2",
+    "support_expansion": "0.5", "support_object_xy_distance": "0.6",
+    "tree_support_branch_diameter_organic": "5", "tree_support_branch_angle_organic": "60",
+    "tree_support_branch_distance_organic": "1", "tree_support_tip_diameter": "1.2",
+    "tree_support_top_rate": "30%", "tree_support_branch_diameter_angle": "5",
+    "tree_support_angle_slow": "25",
+}
+# 樹狀族一覽（口徑, 名稱 regex, 值鎖, 裁定日）：下方各條家規的豁免與「樹狀族」區塊都走這張表。
+_TREE_FAMILIES = (("1.0", _TREE10_RE, _TREE10_VALUES, "1016"),
+                  ("0.6", _TREE06_RE, _TREE06_VALUES, "1023"))
+
+def _tree_family_values(name):
+    """製程屬某口徑的「樹狀」族 ⇒ 回傳該族值鎖；否則 None。"""
+    for _fnz, _fre, _fvals, _fday in _TREE_FAMILIES:
+        if _fre.match(name):
+            return _fvals
+    return None
 # 照片磚系線材（冷卻降速 0910 的例外名單）；與 embed_params 的 PT_FIL_PLA／PT_FIL_PLA_FD 同值，
 # 兩支檔各自宣告＝既有慣例（verify 刻意不 import 產生器，避免驗證對象驗自己）。
 PT_FIL_PLA_V, PT_FIL_PLA_FD_V = "PING PLA(照片磚)", "PING PLA(照片磚 FD300)"
@@ -536,9 +565,10 @@ for name, (kind, d) in presets.items():
                 _geo = [("tree_support_branch_diameter", "%g" % min(nz_v * 12, 10.0)),
                         ("tree_support_branch_distance", "%g" % (nz_v * 6)),
                         ("support_base_pattern_spacing", _spacing)]
-                _is_t10 = bool(_TREE10_RE.match(name))   # 1.0 樹狀族：本段豁免的鍵由「1.0 樹狀族」區塊 exact 鎖
+                _tfam = _tree_family_values(name)   # 樹狀族（1.0／0.6）：本段豁免的鍵由「樹狀族」區塊 exact 鎖
+                _is_tree_fam = _tfam is not None
                 for key, value in _geo:
-                    if _is_t10 and key in _TREE10_VALUES:
+                    if _is_tree_fam and key in _tfam:
                         continue
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
@@ -564,12 +594,12 @@ for name, (kind, d) in presets.items():
                     _sis = "0.1"
                 else:
                     _sis = "%g" % round(nz_v * 3 / 7, 2)
-                if not _is_t10 and d.get("support_interface_spacing") != _sis:
+                if not _is_tree_fam and d.get("support_interface_spacing") != _sis:
                     err(f"[支撐介面 70% 等效 0804] {name}: support_interface_spacing={d.get('support_interface_spacing')!r}, expected {_sis!r}")
                 # 支撐首層密度（同鍵服務 raft 首層）＝10% 全庫（0804；主體類規則全庫套＝0722 ×9 先例，
                 # 含 3in1 範本 30%→10%）；raft 機種（ABS 系/棧板 raft_layers≥1）＝貼床抓床維持 100%。
                 _rfd = "100%" if str(d.get("raft_layers", "0")) != "0" else "10%"
-                if not _is_t10 and d.get("raft_first_layer_density") != _rfd:
+                if not _is_tree_fam and d.get("raft_first_layer_density") != _rfd:
                     err(f"[支撐首層密度 0804] {name}: raft_first_layer_density={d.get('raft_first_layer_density')!r}, expected {_rfd!r}")
                 # 普通支撐配方（Eric 2026-07-22 七裁；行為四項同日二裁擴及易拆）
                 expected_recipe = [("support_type", "normal(auto)"),
@@ -604,7 +634,7 @@ for name, (kind, d) in presets.items():
                 elif _ctok not in (COMBO_CAT_EASY, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE) and "3in1" not in name and not is_classic:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz_v * 1.0, 2)))
                 for key, value in expected_recipe:
-                    if _is_t10 and key in _TREE10_VALUES:
+                    if _is_tree_fam and key in _tfam:
                         continue
                     if d.get(key) != value:
                         err(f"[普通支撐配方 0722] {name}: {key}={d.get(key)!r}, expected {value!r}")
@@ -621,7 +651,7 @@ for name, (kind, d) in presets.items():
                                    ("tree_support_wall_count", "0"),
                                    ("tree_support_branch_diameter_organic", "2.6"),
                                    ("tree_support_branch_angle_organic", "40")]:
-                    if _is_t10 and key in _TREE10_VALUES:
+                    if _is_tree_fam and key in _tfam:
                         continue
                     if d.get(key) != value:
                         err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
@@ -721,9 +751,9 @@ for name, (kind, d) in presets.items():
             # PA-CF 樹狀版（Eric 2026-08-26 追裁「增加一個製程參數，是樹狀支撐」）：整支的存在意義就是換支撐類型。
             # 機型預設（FD300/FF600＝普通(自動)，0722 七裁）對它不適用；PA-CF **一般版**仍照機型預設查。
             # 易拆樹狀（0919）同理：整支的存在意義就是換成樹狀，機型預設不適用（類型/樣式另由上方配方斷言 exact 鎖）。
-            # 1.0 樹狀族（1016）同理，類型由「1.0 樹狀族」區塊 exact 鎖。
+            # 樹狀族（1.0＝1016、0.6＝1023）同理，類型由「樹狀族」區塊 exact 鎖。
             support_expected = set() if (" PA-CF 樹狀 @" in name or _ctok == COMBO_CAT_EASYTREE
-                                         or _TREE10_RE.match(name)) else                {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
+                                         or _tree_family_values(name) is not None) else                {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
             support_expected.discard(None)
             if len(support_expected) > 1:
                 err(f"[support mode ambiguous] {name}: expected candidates={sorted(support_expected)!r}")
@@ -733,7 +763,7 @@ for name, (kind, d) in presets.items():
                     err(f"[support mode default] {name}: support_type={d.get('support_type')!r}, expected {value!r}")
             # PA-CF 樹狀版（Eric 2026-08-26）：整支的存在意義就是換支撐類型，Classic 機同理豁免；
             # **PA-CF 一般版仍被要求 normal(auto)**，閘門沒關（與上面 support mode default 同款處理）。
-            if (is_classic and " PA-CF 樹狀 @" not in name and not _TREE10_RE.match(name)
+            if (is_classic and " PA-CF 樹狀 @" not in name and _tree_family_values(name) is None
                     and not _is_classic_pro_tree(name)          # 1023 Classic Pro 樹狀（類型由「Classic Pro 噴頭族」比對 FD 鎖）
                     and d.get("support_type") != "normal(auto)"):
                 err(f"[Classic support mode] {name}: support_type={d.get('support_type')!r}, expected 'normal(auto)'")
@@ -2382,8 +2412,9 @@ for _name, (_kind, _d) in presets.items():
     if "raft_first_layer_expansion" in _d:
         _is_raft = str(_d.get("raft_layers", "0")) != "0"
         _want = "6" if _is_raft else "0"
-        if _TREE10_RE.match(_name):
-            _want = _TREE10_VALUES["raft_first_layer_expansion"]   # 1.0 樹狀族（1016）＝同事實調 10
+        _tfv = _tree_family_values(_name)
+        if _tfv is not None:
+            _want = _tfv["raft_first_layer_expansion"]   # 樹狀族：1.0＝同事實調 10（1016）、0.6＝Eric 指定 5（1023）
         if _d["raft_first_layer_expansion"] != _want:
             err(f"[支撐首層擴展] {_name}: raft_first_layer_expansion="
                 f"{_d['raft_first_layer_expansion']!r} ≠ {_want!r}"
@@ -2445,8 +2476,8 @@ for _name, (_kind, _d) in presets.items():
     _easy = ("易拆" in _name) or ("3in1" in _name)
     _want = "0" if _easy else "0.2"
     _fam  = "易拆" if _easy else "一般"
-    if _TREE10_RE.match(_name):
-        continue   # 1.0 樹狀族（1016）刻意 0.5，由「1.0 樹狀族」區塊 exact 鎖
+    if _tree_family_values(_name) is not None:
+        continue   # 樹狀族（1.0 刻意 0.5；0.6＝0.2）由「樹狀族」區塊 exact 鎖
     for _k in ("support_top_z_distance", "support_bottom_z_distance"):
         if _k not in _d:
             err(f"[支撐Z間距] {_name}: 缺鍵 {_k}（{_fam}家族應顯式寫 {_want}，不可靠繼承）")
@@ -2457,41 +2488,45 @@ for _name, (_kind, _d) in presets.items():
 if _Z_CENSUS["易拆0"] == 0:
     err("[支撐Z間距] 全庫找不到任何易拆家族製程 ⇒ 易拆家族消失或判定失效")
 
-# ★ 1.0 樹狀族（Eric 2026-10-16 三題照建議，牌 c-1016-TRE-01）：上面幾條家規對本族豁免，這裡補回 exact 鎖。
-#   ①值鎖：_TREE10_VALUES 每一鍵 exact；②新品不得帶 renamed_from（同易拆樹狀 0919 理由）；
-#   ③範圍鎖：每支「標準名」1.0 製程（`<層高>mm @<機型> (1.0)`、非照片磚）恰有一支樹狀雙生，反之亦然
+# ★ 樹狀族（1.0：Eric 2026-10-16 三題照建議，牌 c-1016-TRE-01；0.6：Eric 2026-10-23 四題照建議，牌 c-1023-T06-01）：
+#   上面幾條家規對本族豁免，這裡補回 exact 鎖。每個口徑各自：
+#   ①值鎖：該族值鎖每一鍵 exact；②新品不得帶 renamed_from（同易拆樹狀 0919 理由）；
+#   ③範圍鎖：每支「標準名」該口徑製程（`<層高>mm @<機型> (<口徑>)`、非照片磚）恰有一支樹狀雙生，反之亦然
 #     ＝新機型自動涵蓋、也抓「多派生到不該派生的地方」；④其餘鍵＝同機標準那支（只准差在值鎖的鍵與身分鍵）。
-_T10_PLAIN_RE = re.compile(r"^(\S+)mm @(.+) \(1\.0\)$")
-_t10_have, _t10_want = set(), set()
-for _name, (_kind, _d) in presets.items():
-    if _kind != "process" or _name.startswith("fdm_"):
-        continue
-    if _TREE10_RE.match(_name):
-        _t10_have.add(_name)
-        for _k, _v in _TREE10_VALUES.items():
-            if _d.get(_k) != _v:
-                err(f"[1.0 樹狀族 1016] {_name}: {_k}={_d.get(_k)!r}, expected {_v!r}")
-        if "renamed_from" in _d:
-            err(f"[1.0 樹狀族 1016・不得有 renamed_from] {_name}: {_d.get('renamed_from')!r}")
-        _src_name = _name.replace("mm 樹狀 @", "mm @", 1)
-        _src = presets.get(_src_name, (None, None))[1]
-        if _src is None:
-            err(f"[1.0 樹狀族 1016] {_name}: 找不到來源標準製程 {_src_name!r}")
+for _fnz, _fre, _fvals, _fday in _TREE_FAMILIES:
+    _tag = "%s 樹狀族 %s" % (_fnz, _fday)
+    _plain_re = re.compile(r"^(\S+)mm @(.+) \(%s\)$" % re.escape(_fnz))
+    _t_have, _t_want = set(), set()
+    for _name, (_kind, _d) in presets.items():
+        if _kind != "process" or _name.startswith("fdm_"):
+            continue
+        if _fre.match(_name):
+            _t_have.add(_name)
+            for _k, _v in _fvals.items():
+                if _d.get(_k) != _v:
+                    err(f"[{_tag}] {_name}: {_k}={_d.get(_k)!r}, expected {_v!r}")
+            if "renamed_from" in _d:
+                err(f"[{_tag}・不得有 renamed_from] {_name}: {_d.get('renamed_from')!r}")
+            _src_name = _name.replace("mm 樹狀 @", "mm @", 1)
+            _src = presets.get(_src_name, (None, None))[1]
+            if _src is None:
+                err(f"[{_tag}] {_name}: 找不到來源標準製程 {_src_name!r}")
+            else:
+                _allowed = set(_fvals) | {"name", "setting_id", "renamed_from"}
+                for _k in sorted((set(_d) | set(_src)) - _allowed):
+                    if _d.get(_k) != _src.get(_k):
+                        err(f"[{_tag}・與標準不同的鍵] {_name}: {_k}={_d.get(_k)!r} ≠ 標準 {_src.get(_k)!r}")
         else:
-            _allowed = set(_TREE10_VALUES) | {"name", "setting_id", "renamed_from"}
-            for _k in sorted((set(_d) | set(_src)) - _allowed):
-                if _d.get(_k) != _src.get(_k):
-                    err(f"[1.0 樹狀族 1016・與標準不同的鍵] {_name}: {_k}={_d.get(_k)!r} ≠ 標準 {_src.get(_k)!r}")
-    else:
-        _m10 = _T10_PLAIN_RE.match(_name)
-        if _m10 and "照片磚" not in _m10.group(2):
-            _t10_want.add("%smm 樹狀 @%s (1.0)" % (_m10.group(1), _m10.group(2)))
-for _n in sorted(_t10_want - _t10_have):
-    err(f"[1.0 樹狀族 1016・範圍] 缺 {_n}（標準名 1.0 製程都要有樹狀雙生）")
-for _n in sorted(_t10_have - _t10_want):
-    err(f"[1.0 樹狀族 1016・範圍] 多出 {_n}（找不到對應的標準名 1.0 製程）")
-if not _t10_have:
-    err("[1.0 樹狀族 1016] 全庫找不到任何 1.0 樹狀製程 ⇒ 產生器沒派生或判定失效")
+            _mp = _plain_re.match(_name)
+            if _mp and "照片磚" not in _mp.group(2):
+                _t_want.add("%smm 樹狀 @%s (%s)" % (_mp.group(1), _mp.group(2), _fnz))
+    for _n in sorted(_t_want - _t_have):
+        err(f"[{_tag}・範圍] 缺 {_n}（標準名 {_fnz} 製程都要有樹狀雙生）")
+    for _n in sorted(_t_have - _t_want):
+        err(f"[{_tag}・範圍] 多出 {_n}（找不到對應的標準名 {_fnz} 製程）")
+    if not _t_have:
+        err(f"[{_tag}] 全庫找不到任何 {_fnz} 樹狀製程 ⇒ 產生器沒派生或判定失效")
+    print(f"{_fnz} 樹狀族：{len(_t_have)} 支（標準名 {_fnz} 製程 {len(_t_want)} 支，一對一）")
 
 # ── 另存列印設備的預設名＝printer_model + " " + printer_variant（2026-09-15 Eric 裁「A」）──────
 #   PhysicalPrinterDialog 建構子（src/slic3r/GUI/PhysicalPrinterDialog.cpp）用這兩個鍵組出
