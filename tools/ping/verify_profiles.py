@@ -933,7 +933,8 @@ for name, (kind, d) in presets.items():
                 err(f"[ABS 懸空風扇 30% 0908] {name}: overhang_fan_speed={d.get('overhang_fan_speed')!r} 應 ['30']")
             # 🆕 Eric 2026-09-10 裁（牌 c-0910-ABS-01）：ABS 拆 PEI／玻璃。`PING ABS` 名不動＝PEI 版
             #   （C++ Tab.cpp 組合連動硬寫此名，不改名＝不 build）；玻璃版首層床溫 60、其它層 100。
-            if name == "PING ABS(玻璃)" and (d.get("hot_plate_temp_initial_layer") != ["60"] or d.get("hot_plate_temp") != ["100"]):
+            # 🆕 Eric 2026-10-25（牌 c-1025-AGC-01）：Classic 也拆玻璃版 `PING ABS(玻璃) - Classic`，床溫同 F 系玻璃版。
+            if name in ("PING ABS(玻璃)", "PING ABS(玻璃) - Classic") and (d.get("hot_plate_temp_initial_layer") != ["60"] or d.get("hot_plate_temp") != ["100"]):
                 err(f"[ABS 玻璃床溫 0910] {name}: 首層={d.get('hot_plate_temp_initial_layer')!r} 應 60、其它層={d.get('hot_plate_temp')!r} 應 100")
             # 線材回抽統一（Eric 2026-07-23 三裁 → 0819 一般流量改寫）
             # 🔴 Classic 前代豁免：赤兔不能吃韌體回抽（Eric 0807）⇒ 材料層不得覆蓋回抽，
@@ -1131,7 +1132,8 @@ for model, nzs in CLASSIC_VARIANT_NOZZLES.items():
 # 下面逐支斷言：PA 全關（Marlin 無 PA）＋ start gcode 不得帶 Klipper 的 SET_RETRACTION。
 classic_filaments = ("PING PLA - Classic 210", "PING PLA - Classic 220",
                      "PING SupPLA - Classic", "PING PLA - EDU Classic",
-                     "PING ABS - Classic", "PING SupABS - Classic", "PING PETG - Classic",
+                     "PING ABS - Classic", "PING ABS(玻璃) - Classic",
+                     "PING SupABS - Classic", "PING PETG - Classic",
                      "PING PA-CF - Classic", "PING PVA - Classic",
                      "PING TPE - Classic 210", "PING SupTPE - Classic")
 for name in classic_filaments:
@@ -2364,7 +2366,7 @@ for _name, (_kind, _d) in presets.items():
 #   0809 那條「全庫 100%」當時是對的（因為只有 SupABS 兩支是 99.7%＝異常值），但它把
 #   **引擎約束**寫成了**比引擎更嚴的規則**，於是擋住了今天這個合法的族別設定。
 #   ⚠ 這裡與產生器 4b-5b 的 ABS_SHRINK_FAMILY 是同一份名單，改一邊要改兩邊。
-_ABS_SHRINK_FAMILY = ("PING ABS", "PING ABS(玻璃)", "PING ABS - Classic",
+_ABS_SHRINK_FAMILY = ("PING ABS", "PING ABS(玻璃)", "PING ABS - Classic", "PING ABS(玻璃) - Classic",
                       "PING SupABS", "PING SupABS - Classic")
 _SHRINK_EXPECT = {"filament_shrink": {True: "99.75%", False: "100%"},
                   "filament_shrinkage_compensation_z": {True: "100%", False: "100%"}}
