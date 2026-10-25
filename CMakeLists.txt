@@ -950,6 +950,8 @@ else ()
 endif ()
 
 install(FILES ${CMAKE_SOURCE_DIR}/LICENSE.txt DESTINATION ".")
+# PING：給客戶 AI 助理的使用說明，放在 exe 旁邊（portable 與安裝版都會帶到）
+install(FILES ${CMAKE_SOURCE_DIR}/README_AI.md DESTINATION ".")
 configure_file(${LIBDIR}/dev-utils/platform/unix/fhs.hpp.in ${LIBDIR_BIN}/dev-utils/platform/unix/fhs.hpp)
 
 # PING 2026-09-24（Eric 裁，版本治理第 4 件；牌 c-0924-DR-01）：測試版（PING_TEST_BUILD 非空＝T0xx／DEV）
