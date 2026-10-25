@@ -1851,6 +1851,10 @@ CLASSIC_SUP_PLA = "PING SupPLA - Classic"
 CLASSIC_EDU_PLA = "PING PLA - EDU Classic"
 # ★ Classic 全套（Eric 2026-08-07 裁「全套跟 Fast 對齊」）——命名沿用既有「PING <材料> - Classic」型
 CLASSIC_ABS     = "PING ABS - Classic"
+# 🆕 Eric 2026-10-25 走 A 案（牌 c-1025-AGC-01）：Classic 也拆玻璃版，改 0910 裁第 4 點「Classic 不拆」。
+#   理由＝Classic 實際有人在玻璃板印 ABS：首層 60 度上口紅膠、往上才開到 100；PEI 板才是 100 到底。
+#   命名照「PING <材料> - Classic」型、母檔用 F 系 `PING ABS(玻璃)`；SupABS - Classic 不拆（同 Klipper）。
+CLASSIC_ABS_GLASS = "PING ABS(玻璃) - Classic"
 CLASSIC_SUP_ABS = "PING SupABS - Classic"
 CLASSIC_PETG    = "PING PETG - Classic"
 CLASSIC_PACF    = "PING PA-CF - Classic"
@@ -1881,7 +1885,8 @@ def _fill_array(d, key, value):
     old = d.get(key)
     d[key] = [str(value)] * (len(old) if isinstance(old, list) and old else 1)
 
-def _classic_filament(base_name, name, setting_id, temperature, bed_temperature, is_support=False):
+def _classic_filament(base_name, name, setting_id, temperature, bed_temperature, is_support=False,
+                      bed_temperature_initial=None):
     d = json.load(io.open(os.path.join(PINGDIR, "filament", "%s.json" % base_name), encoding="utf-8"))
     # 母檔的舊名相容標記不得帶進衍生支（0728 基礎支改名首驗抓到：Classic 210/EDU 跟著母檔
     # 帶 renamed_from "PING PLA" ＝兩支搶同一舊名、引擎解析任挑一支＝地雷；verify 有唯一性護欄）
@@ -1927,7 +1932,10 @@ def _classic_filament(base_name, name, setting_id, temperature, bed_temperature,
                 "cool_plate_temp_initial_layer", "textured_plate_temp", "textured_plate_temp_initial_layer",
                 "eng_plate_temp", "eng_plate_temp_initial_layer"):
         if key in d or bed_temperature == 0:
-            d[key] = [str(bed_temperature)]
+            # 首層床溫可另給（玻璃版首層 60、其它層 100）；沒給＝首層同其它層（既有各支照舊）
+            _bt = (bed_temperature_initial if key.endswith("_initial_layer")
+                   and bed_temperature_initial is not None else bed_temperature)
+            d[key] = [str(_bt)]
     if is_support:
         d["filament_is_support"] = ["1"]
     return d
@@ -1948,6 +1956,8 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         #   （⇒ 回抽全部由 Classic machine preset 控制，材料層不覆蓋）、start gcode 換成不帶
         #   Klipper 指令的註解行、PA 全關。溫度／床溫**照母檔實值**不另訂（＝「跟 Fast 對齊」）。
         _classic_filament("PING ABS",       CLASSIC_ABS,     "PINGFILCLASSICABS",    250, 100),
+        _classic_filament("PING ABS(玻璃)", CLASSIC_ABS_GLASS, "PINGFILCLASSICABSGL", 250, 100,
+                          bed_temperature_initial=60),
         _classic_filament("PING SupABS",    CLASSIC_SUP_ABS, "PINGFILCLASSICSUPABS", 250, 100, True),
         _classic_filament("PING PETG",      CLASSIC_PETG,    "PINGFILCLASSICPETG",   235, 75),
         _classic_filament("PING PA-CF",     CLASSIC_PACF,    "PINGFILCLASSICPACF",   245, 60),
@@ -3492,7 +3502,7 @@ def main(src_base):
     #      吃引擎預設 100%），否則族內不一致 ⇒ 引擎把整個補償關掉＝等於沒改。
     SHRINK_UNIFORM = "100%"      # 非 ABS 族的統一值
     SHRINK_ABS = "99.75%"        # ABS 族 XY（Z 不動＝吃引擎預設 100%，族內本就一致）
-    ABS_SHRINK_FAMILY = ("PING ABS", "PING ABS(玻璃)", "PING ABS - Classic",
+    ABS_SHRINK_FAMILY = ("PING ABS", "PING ABS(玻璃)", "PING ABS - Classic", "PING ABS(玻璃) - Classic",
                          "PING SupABS", "PING SupABS - Classic")
     shr_fixed = 0
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "*.json")):
