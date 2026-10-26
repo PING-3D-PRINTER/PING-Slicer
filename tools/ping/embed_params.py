@@ -638,6 +638,40 @@ CLASSIC_SPECS = [
      "retract":"3", "retract_speed":"30", "dual":True,  "heated_bed":True,  "speed_class":"dual06"},
 ]
 CLASSIC_MODELS = [s["name"] for s in CLASSIC_SPECS]
+
+# ★ Classic 床邊預擠線（#193 第二階段；牌 c-1026-P193-03）。
+#   條數（Eric 2026-10-24 21:1x／22:4x）：雙料本體 3 條＝同進 M6050 S0.5 → 第 2 路 M6050 S0 P0
+#   → 第 1 路 M6050 S1 P0（末條第 1 路＝起印不多換一次）；同進 2 條（全程 S0.5）；單料頭 1 條。
+#   位置（Eric 2026-10-26）：DUAL 300／450／600／800 分別是 FD300／450／600／800 Pro 的前身、
+#   同一套機構 ⇒ 預擠位置照抄 FD Pro（正前方、不撞門）；赤兔板吃開印前的 M6050（Eric 同日確認）。
+#   形狀照 FD Pro 直線：Y 起點往內每條 +2、X ±50 來回、Z＝首層高、每條 E 照 FD 同口徑；
+#   第一個接近 travel F8000、其餘 F800（07-12）；末條 `G1 Z1 E(E−1)` 抬升兼回抽 1 mm。
+#   不寫裸 T（07-29 Classic 出檔鐵律）、不用 G2/G3（赤兔吃不吃弧線沒驗過）。
+#   ⚠ 本表＝白名單：先只開 DUAL 300（九台），450／600／800 等實印過再加（Y＝−215／−280／−359）；
+#     不在表上的 Classic 機照舊原地擠 `G1 F200 E<n>`（EDU 200／PING 200／270／300+ 依 Q1 不做）。
+CLASSIC_PRIME_LINE_Y = {"DUAL 300": -140}
+CLASSIC_PRIME_LINE_E = {"0.2": 16, "0.25": 20, "0.4": 30, "0.6": 45, "1.0": 75}
+CLASSIC_PRIME_LINE_Z = {"0.2": "0.15", "0.25": "0.15", "0.4": "0.25", "0.6": "0.35", "1.0": "0.55"}
+def classic_prime_lines(model, nz, mode):
+    """回傳 G28 之後的預擠段（list of lines）；None＝此機型不在白名單、沿用原地擠。
+    mode：'dual'（雙料本體 3 條）｜'sync'（同進 2 條，S0.5 由呼叫端放在前面）｜'single'（1 條）。"""
+    y0 = CLASSIC_PRIME_LINE_Y.get(model)
+    if y0 is None:
+        return None
+    e, z = CLASSIC_PRIME_LINE_E[nz], CLASSIC_PRIME_LINE_Z[nz]
+    heads = {"dual": ["M6050 S0.5", "M6050 S0 P0", "M6050 S1 P0"],
+             "sync": [None, None], "single": [None]}[mode]
+    out = []
+    for i, head in enumerate(heads):
+        y = y0 + 2 * i
+        x0, x1 = (-50, 50) if i % 2 == 0 else (50, -50)
+        if head:
+            out.append(head)
+        out += ["%s X%d Y%d Z%s" % ("G0 F8000" if i == 0 else "G0 F800", x0, y, z),
+                "G92 E0", "G1 F800 X%d Y%d E%d" % (x1, y, e)]
+        if i < len(heads) - 1:
+            out.append("G92 E0")
+    return out + ["G1 Z1 E%d" % (e - 1), "G92 E0"]
 # Marlin 隔離：Classic 製程這兩組鍵一律 "0"＝交給機台韌體預設（不送 M204／抖動）。
 #   emit_classic 與下方 Classic DUAL Pro 噴頭製程共用這一份（2026-10-23 從 emit_classic 區域變數搬出來，值一字未動）。
 CLASSIC_ACCEL_KEYS = ("default_acceleration", "outer_wall_acceleration", "inner_wall_acceleration",
@@ -2035,8 +2069,11 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
                 "M190 S[bed_temperature_initial_layer_single]"]
         heat += ["M109 S[nozzle_temperature_initial_layer]"]
         prime_e = "5" if spec["dual"] else "3"
+        # #193：白名單機型（CLASSIC_PRIME_LINE_Y）改床邊預擠線，其餘照舊原地擠
+        prime = (classic_prime_lines(name, nz, "dual" if spec["dual"] else "single")
+                 or ["G92 E0", "G1 F200 E%s" % prime_e, "G92 E0"])
         mac["machine_start_gcode"] = "\n".join(
-            ["G21", "G90", "M82"] + heat + ["G28 ;Home", "G92 E0", "G1 F200 E%s" % prime_e, "G92 E0"])
+            ["G21", "G90", "M82"] + heat + ["G28 ;Home"] + prime)
         if spec["dual"]:
             # Classic 雙料換刀＝M6050 原生輸出（0729 同步單硬規則）：S=第一路比例（S1=工具0全開、
             # S0=工具1）、P0 常規檔固定帶。模板含 M6050 ⇒ C++ custom_gcode_changes_tool 認定已換刀
@@ -2156,7 +2193,8 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
     #   同進混色＝M6050 S 舊格式（前代 Marlin 韌體只認 M6050）：start gcode 於 G28 後插 M6050 S0.5
     #  （對應 FD 同進 start 的同款行＝預擠兩邊同進）；逐層插碼由 BackgroundSlicingProcess 判
     #   printer_model「DUAL」開頭改傳 M6050（兩線 C++ 對稱；PingColorMix 剝除規則本就含 M6050＝不雙插）。
-    #   預擠沿用 Classic 原地擠法（G1 F200 E<n>），不搬 FD 的床邊預擠線（那是 Klipper 床幾何）。
+    #   預擠：原沿用 Classic 原地擠法（G1 F200 E<n>）；#193 起白名單機型（CLASSIC_PRIME_LINE_Y）改床邊
+    #   預擠線——Eric 2026-10-26 確認 DUAL 即 FD Pro 前身、同一套床幾何，「那是 Klipper 床幾何」的顧慮不成立。
     vm = vp = vmm = 0
     for spec in CLASSIC_SPECS:
         if not spec["dual"]:
@@ -2211,9 +2249,11 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
                 # 同進＝兩馬達同動各半（先 M6050 S0.5 再擠 5）；單料頭＝實體單頭擠 3（同 Classic 單料機）
                 sync = ["M6050 S0.5"] if variant == "同進" else []
                 prime_e = "5" if variant == "同進" else "3"
+                # #193：白名單機型改床邊預擠線（同進 2 條／單料頭 1 條），其餘照舊原地擠
+                prime = (classic_prime_lines(spec["name"], nz, "sync" if variant == "同進" else "single")
+                         or ["G92 E0", "G1 F200 E%s" % prime_e, "G92 E0"])
                 mac["machine_start_gcode"] = "\n".join(
-                    ["G21", "G90", "M82"] + heat + ["G28 ;Home"] + sync
-                    + ["G92 E0", "G1 F200 E%s" % prime_e, "G92 E0"])
+                    ["G21", "G90", "M82"] + heat + ["G28 ;Home"] + sync + prime)
                 end = ["G91", "G1 Z10 E-1 F9000", "M104 S0"]
                 if spec["heated_bed"]:
                     end.append("M140 S0")

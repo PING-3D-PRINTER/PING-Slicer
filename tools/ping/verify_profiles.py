@@ -255,6 +255,12 @@ CLASSIC_VARIANT_NOZZLES = {
 }
 CLASSIC_VARIANTS = ("同進", "單料頭")
 
+# #193 Classic 床邊預擠線（牌 c-1026-P193-03）：與 embed_params.py CLASSIC_PRIME_LINE_* 同名同值各一份，
+# 這裡**獨立重算**期望的預擠段（不 import 產生器）。白名單外的 Classic 必須仍是原地擠 `G1 F200 E`。
+_P193_Y = {"DUAL 300": -140}
+_P193_E = {"0.2": 16, "0.25": 20, "0.4": 30, "0.6": 45, "1.0": 75}
+_P193_Z = {"0.2": "0.15", "0.25": "0.15", "0.4": "0.25", "0.6": "0.35", "1.0": "0.55"}
+
 _CLASSIC_MACHINE_RE = re.compile(r"^(.+?) ([0-9.]+) nozzle$")
 
 
@@ -1080,8 +1086,9 @@ for model, spec in CLASSIC.items():
     machine = f"{model} {spec['nozzle']} nozzle"
     if machine not in machines:
         err(f"[Classic machine missing] {machine}")
-    elif "M605" in presets[machine][1].get("machine_start_gcode", ""):
+    elif model not in _P193_Y and "M605" in presets[machine][1].get("machine_start_gcode", ""):
         # 本體（雙料/單料）start 不得有任何混色指令——M6050 只屬同進變體的預擠同進
+        # （#193 白名單機型例外：預擠線本來就要切路，由下方〈Classic 床邊預擠線〉逐行鎖）
         err(f"[Classic 本體 start 不應有 M605x] {machine}")
     if model.startswith("DUAL") and machine in machines:
         # 0728「變體預設跟 210」的對向鎖：DUAL 本體＝雙料 → 首槽維持 Classic 220
@@ -1128,6 +1135,57 @@ for model, nzs in CLASSIC_VARIANT_NOZZLES.items():
                 err(f"[Classic 變體 no-T 0729] {mname}: machine_start_gcode 帶 T")
             if d.get("change_filament_gcode", ""):
                 err(f"[Classic 變體 change_filament 應空 0729] {mname}")
+# ★ #193 Classic 床邊預擠線（Eric 2026-10-24 條數裁示；2026-10-26 確認 DUAL＝FD Pro 前身、預擠位置照抄、
+#   赤兔吃開印前 M6050）。逐台鎖「G28 之後」那一段＝期望值逐行相等：
+#   雙料本體 3 條（S0.5 → S0 P0 → S1 P0）／同進 2 條（前置 M6050 S0.5、中間不切路）／單料頭 1 條；
+#   Y 起點每條 +2、X ±50 來回、Z＝首層高、E 照 FD 同口徑、第一個 travel F8000 其餘 F800、末行 G1 Z1 E(E−1)。
+#   白名單外的 Classic 機 ⇒ 必須仍是原地擠（防預擠線靜默外溢到還沒實印過的機型）。
+def _p193_expect(model, nz, mode):
+    y0, e, z = _P193_Y[model], _P193_E[nz], _P193_Z[nz]
+    n = {"dual": 3, "sync": 2, "single": 1}[mode]
+    cut = {0: "M6050 S0.5", 1: "M6050 S0 P0", 2: "M6050 S1 P0"}
+    out = ["M6050 S0.5"] if mode == "sync" else []
+    for i in range(n):
+        y = y0 + 2 * i
+        xa, xb = (-50, 50) if i % 2 == 0 else (50, -50)
+        if mode == "dual":
+            out.append(cut[i])
+        out.append(f"{'G0 F8000' if i == 0 else 'G0 F800'} X{xa} Y{y} Z{z}")
+        out += ["G92 E0", f"G1 F800 X{xb} Y{y} E{e}"]
+        if i < n - 1:
+            out.append("G92 E0")
+    return out + [f"G1 Z1 E{e - 1}", "G92 E0"]
+
+_p193_census = {"預擠線": 0, "原地擠": 0}
+for _mn, (_k, _d) in presets.items():
+    if _k != "machine" or _d.get("instantiation") != "true":
+        continue
+    _cm = classic_model_for_machine(_mn)
+    if not _cm:
+        continue
+    _nz = _d.get("printer_variant", "")
+    _sg = _d.get("machine_start_gcode", "")
+    _after = _sg.split("G28 ;Home\n", 1)[1].split("\n") if "G28 ;Home\n" in _sg else None
+    if _cm in _P193_Y:
+        _mode = "sync" if " 同進 " in _mn else "single" if " 單料頭 " in _mn else "dual"
+        if _nz not in _P193_E:
+            err(f"[Classic 預擠線 #193] {_mn}: 口徑 {_nz!r} 沒有 E／Z 對照")
+            continue
+        if _after != _p193_expect(_cm, _nz, _mode):
+            err(f"[Classic 預擠線 #193] {_mn}: G28 之後與期望不符（{_mode}）：{_after!r}")
+        elif "F200 E" in _sg:
+            err(f"[Classic 預擠線 #193] {_mn}: 原地擠沒拿掉")
+        else:
+            _p193_census["預擠線"] += 1
+    else:
+        if not re.search(r"(?m)^G1 F200 E\d", _sg) or re.search(r"(?m)^G1 F800 X", _sg):
+            err(f"[Classic 預擠線 #193 白名單外] {_mn}: 應維持原地擠 G1 F200 E<n>")
+        else:
+            _p193_census["原地擠"] += 1
+if _p193_census["預擠線"] != 9:
+    err(f"[Classic 預擠線 #193] DUAL 300 應恰 9 台（本體／同進／單料頭 × 0.25／0.4／0.6），實得 {_p193_census['預擠線']}")
+print(f"Classic 預擠線（#193）：床邊預擠線 {_p193_census['預擠線']} 台｜原地擠 {_p193_census['原地擠']} 台")
+
 # Classic 全套 11 支（Eric 2026-08-07 裁「全套跟 Fast 對齊」：原 4 支 ＋ 新 7 支）。
 # 下面逐支斷言：PA 全關（Marlin 無 PA）＋ start gcode 不得帶 Klipper 的 SET_RETRACTION。
 classic_filaments = ("PING PLA - Classic 210", "PING PLA - Classic 220",
