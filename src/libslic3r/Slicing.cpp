@@ -121,7 +121,9 @@ SlicingParameters SlicingParameters::create_from_config(
         params.gap_support_object = object_config.support_top_z_distance.value;
 
         if (!print_config.independent_support_layer_height) {
-            params.gap_raft_object = std::round(params.gap_raft_object / object_config.layer_height + EPSILON) * object_config.layer_height;
+            // PING(2026-10-27 Eric 裁，牌 c-1027-RFG-01)：筏層 Z 間距不取整成層高倍數。
+            // 筏層整層墊在模型底下，旁邊沒有模型層要對齊；取整會把 0.1 吃成 0、0.2 撐成 0.3（層高 0.3 時）。
+            // 支撐頂／底間距仍要和模型層對齊，下面兩行照舊取整。
             params.gap_object_support = std::round(params.gap_object_support / object_config.layer_height + EPSILON) * object_config.layer_height;
             params.gap_support_object = std::round(params.gap_support_object / object_config.layer_height + EPSILON) * object_config.layer_height;
         }
