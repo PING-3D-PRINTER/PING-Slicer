@@ -306,16 +306,34 @@ BASE_PLA_OLD, BASE_PLA_NEW = "PING PLA", "PING PLA - 210"
 #   ⚠ 這是**改分類鍵**不是改顯示字串：家族判定點一律明文列「雙料同進」（is_hf／PA 豁免），
 #     不靠新名碰巧含某字；setting_id／filament_id 不變；舊名走 renamed_from（字串，T004 鐵則）；
 #     C++ `Tab.cpp` 硬寫的 PING_PLA_HF／PING_SUP_HF 同步改（find_preset 不走 renamed_from）。
-HFN_PLA = "PING PLA - 雙料同進噴頭"
-HFN_SUP = "PING SupPLA - 雙料同進噴頭"
-HFN_PETG = "PING PETG - 雙料同進噴頭"   # 2026-07-18 Eric：PETG 也開高流量支
+# 🔁 2026-10-27 Eric 再改名：「雙料同進噴頭」→「**雙料高流量噴頭**」（牌 c-1027-FSP-01；Q1～Q5「照建議」）。
+#   理由＝FD300／FD300 Pro 的噴頭也是兩進一出，「雙料同進」分不出一般流量與高流量；
+#   FD 雙料噴頭有兩種＝**雙料高流量**（FD450／600／800 Pro）與**雙料一般流量**（FD300／FD300 Pro）。
+#   renamed_from 仍指 `- 高流量噴頭`（字串只能接一個舊名；出貨版 V3.6.3 是這個名字，
+#   「雙料同進」只出現在 T090～T099 廠內測試版）⇒ HFN_PREV 只做殘檔清除＋filament_list 就地改名。
+HFN_PLA = "PING PLA - 雙料高流量噴頭"
+HFN_SUP = "PING SupPLA - 雙料高流量噴頭"
+HFN_PETG = "PING PETG - 雙料高流量噴頭"   # 2026-07-18 Eric：PETG 也開高流量支
 HFN_OLD = {HFN_PLA: "PING PLA - 高流量噴頭", HFN_SUP: "PING SupPLA - 高流量噴頭",
            HFN_PETG: "PING PETG - 高流量噴頭"}
+HFN_PREV = {HFN_PLA: "PING PLA - 雙料同進噴頭", HFN_SUP: "PING SupPLA - 雙料同進噴頭",
+            HFN_PETG: "PING PETG - 雙料同進噴頭"}
+# 🆕 2026-10-27 Eric（牌 c-1027-FSP-01）：FD 線材按「噴頭 × 模式」拆支，三支只開 PLA。
+#   - 同進模式＝兩顆馬達一起推、擠出阻力分攤 ⇒ 上限可比單路高（PLA 卡在擠出、不是加熱；10-03 量法結論）。
+#     上限 40／18 是**暫定、沒量過**：18＝FD300 一般流量單路實測值（0.4 約 17～18）、40＝介於單路 30 與四料同進 50。
+#   - FD 單料頭＝另一顆**火山口**噴頭、FD 全系列都一樣（Eric 原話「單料頭的話，FD 系列的是用火山口，
+#     然後 Classic 那些機器用的是一般的」）⇒ 一支通用、值照雙料高流量（火山口＝高流量）。
+#     FP 系列也是火山口，但 Eric Q5 裁「這次不動 FP」；Classic DUAL 單料頭走 Classic 線材、不在範圍。
+HFS_PLA = "PING PLA - 雙料高流量噴頭(同進)"      # FD450／600／800 Pro 同進
+NFS_PLA = "PING PLA - 雙料一般流量噴頭(同進)"    # FD300／FD300 Pro 同進
+VOLC_PLA = "PING PLA - 火山口噴頭"               # FD 全系列單料頭
+HFS_FLOW, NFS_FLOW = "40", "18"
 # 🆕 2026-10-21 Eric：FF 分開進四槽＝「單通道高流量」（牌 c-1021-SCH-01；Q1～Q4「全部照建議」）。
 #   分開進＝四顆噴頭各自一個通道、各自出料 ⇒ 硬體是**單通道高流量噴頭**，不是雙料同進。
 #   一套三支（PLA／SupPLA／PETG），值**照抄**對應的雙料同進支（回抽 3/30/30、PA 0.2、清料 30／Sup 60、
 #   流量 PLA 30／PETG 25）；新 id、不掛 renamed_from；**只給 FF600／FF800 分開進**（非同進／3in1／照片磚）。
-#   雙料同進三支可見範圍不變（FF 也能裝雙料同進頭）；FD 單料頭維持雙料同進（FD 只能裝雙料同進頭）。
+#   雙料同進三支可見範圍不變（FF 也能裝雙料同進頭）。
+#   ⛔ 1021 原寫「FD 單料頭維持雙料同進（FD 只能裝雙料同進頭）」——**1027 推翻**：FD 單料頭是另一顆火山口噴頭（見 VOLC_PLA）。
 SCH_FIL = {HFN_PLA: ("PING PLA - 單通道高流量噴頭", "PINGFILSCHPLA"),
            HFN_SUP: ("PING SupPLA - 單通道高流量噴頭", "PINGFILSCHSUP"),
            HFN_PETG: ("PING PETG - 單通道高流量噴頭", "PINGFILSCHPETG")}
@@ -343,6 +361,12 @@ def def_fil_single_for(base):
     if base == "P200+":
         return DEF_FIL_SINGLE   # 客戶版不在 0728 連動範圍＝維持 220（待裁）
     return [BASE_PLA_NEW]   # 0728 v2 連動：FP300＋FD300 系單一出料（單料頭/同進）＝210
+# 🆕 2026-10-27 Eric（牌 c-1027-FSP-01）：FD 雙料族的單料頭／同進變體改吃各自噴頭的線材。
+#   kind=single（FP300 等）與 P200+ 仍走 def_fil_single_for（Q5 裁 FP 不動）。
+def def_fil_fd_mode_for(base, mode):
+    if mode == "單料頭":
+        return [VOLC_PLA]
+    return [HFS_PLA] if tier_of(base) == "450" else [NFS_PLA]
 # FF 四料線材改名（同裁定：綁機型＝錯）：「高流量 @FF」→「四料高流量噴頭」系、解除機型綁定。
 # setting_id/filament_id 不變（同一支材料身份）；3in1 專用支不動。
 # ★ 2026-08-16 Eric 二次改名：「四料高流量噴頭」→「**四料同進噴頭**」。
@@ -2588,8 +2612,8 @@ def main(src_base):
         cfgs = parse_dir(src_base, dirname)
         if kind == "dual":
             modes = [("PLA+SUP", base, def_fil_dual_for(base), False),   # 雙料機母檔=PLA+SUP；製程另出 4 組合
-                     ("單料頭", base + " 單料頭", def_fil_single_for(base), True),
-                     ("同進",   base + " 同進",   def_fil_single_for(base), True)]
+                     ("單料頭", base + " 單料頭", def_fil_fd_mode_for(base, "單料頭"), True),
+                     ("同進",   base + " 同進",   def_fil_fd_mode_for(base, "同進"), True)]
         elif kind == "dual1":   # 衍生雙料機只出本體（FD300 關門——Eric 裁不出 關門 同進/單料頭）
             modes = [("PLA+SUP", base, def_fil_dual_for(base), False)]
         elif kind == "single":
@@ -2974,9 +2998,34 @@ def main(src_base):
         fd_["renamed_from"] = HFN_OLD[new_name]   # 🆕 1021 改名接舊名（⚠ 字串，T004 鐵則）
         jdump(os.path.join(PINGDIR, "filament", "%s.json" % new_name), fd_)
         fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
-        _oldp = os.path.join(PINGDIR, "filament", "%s.json" % HFN_OLD[new_name])
-        if os.path.isfile(_oldp):
-            os.remove(_oldp); print("  filament 移除(1021 改名):", HFN_OLD[new_name])
+        for _old_nm in (HFN_OLD[new_name], HFN_PREV[new_name]):   # 1021 第一代＋1027 第二代舊名
+            _oldp = os.path.join(PINGDIR, "filament", "%s.json" % _old_nm)
+            if os.path.isfile(_oldp):
+                os.remove(_oldp); print("  filament 移除(改名):", _old_nm)
+        # 🆕 4b-1b-4. FD 按噴頭×模式拆的三支 PLA（Eric 2026-10-27，牌 c-1027-FSP-01）：
+        #   雙料高流量(同進)／火山口＝深拷本支（高流量值）；雙料一般流量(同進)＝深拷 PING PLA - 210（一般流量值）。
+        #   名字家族：前兩支含「高流量」或「火山口」＝落 is_hf（回抽 3、PA 0.2 豁免）；一般流量那支**不含**＝一般流量（回抽 2、PA 0.08）。
+        #   新 id、不掛 renamed_from；可見範圍明寫 compatible_printers（只給該噴頭的機型模式）。
+        if new_name == HFN_PLA:
+            _base210 = json.load(io.open(os.path.join(PINGDIR, "filament", "%s.json" % BASE_PLA_NEW), encoding="utf-8"))
+            _fd_tiers = ("FD450 Pro", "FD600 Pro", "FD800 Pro")
+            for _nm, _sid, _src, _flow, _pick in (
+                    (HFS_PLA, "PINGFILHFSPLA", fd_, HFS_FLOW,
+                     lambda n: n.startswith(_fd_tiers) and " 同進 " in n and "照片磚" not in n),
+                    (NFS_PLA, "PINGFILNFSPLA", _base210, NFS_FLOW,
+                     lambda n: n.startswith(("FD300 同進 ", "FD300 Pro 同進 ")) and "照片磚" not in n),
+                    (VOLC_PLA, "PINGFILVOLCPLA", fd_, None,
+                     lambda n: n.startswith("FD") and " 單料頭 " in n)):
+                _x = json.loads(json.dumps(_src))          # 深拷貝
+                for _k in ("renamed_from", "compatible_printers_condition"):
+                    _x.pop(_k, None)
+                _x.update({"name": _nm, "alias": _nm, "setting_id": _sid, "filament_id": _sid})
+                if _flow:
+                    _x["filament_max_volumetric_speed"] = [_flow]
+                _x["compatible_printers"] = sorted(x["name"] for x in mac_list if _pick(x["name"]))
+                assert _x["compatible_printers"], _nm
+                jdump(os.path.join(PINGDIR, "filament", "%s.json" % _nm), _x)
+                fil_new.append({"name": _nm, "sub_path": "filament/%s.json" % _nm})
         # 🆕 4b-1b-2. PETG 四料同進支（Eric 2026-10-21「複製一套到 PETG」＋Q2「照建議」；牌 c-1021-HFR-01）：
         #   以雙料同進 PETG 為底（床 75／風扇 50），清料 120（下行明寫；4b-3 對「四料同進噴頭」是**跳過不寫**、不會補 120）、
         #   回抽 0.8（4b-2e `_is_ff_only` 依名字）。可見範圍＝FF600／FF800 同進（同 PLA／SupPLA 四料支）。
@@ -3207,7 +3256,8 @@ def main(src_base):
         #    「四料高流量噴頭」→「四料同進噴頭」後掉出 is_hf ⇒ 回抽 3/30/30 與額外回填 0.6
         #    會靜默退回一般流量值。照片磚專用支同屬同進硬體，一併納入。
         # 🆕 1021：「高流量噴頭」→「雙料同進噴頭」改名，明文補「雙料同進」（不靠新名碰巧含字；牌 c-1021-HFR-01）
-        is_hf = ("高流量" in bn) or ("單通道高流量" in bn) or ("雙料同進" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
+        # 🆕 1027：「雙料同進」→「雙料高流量」再改名＋新增火山口支，兩者明文列入（牌 c-1027-FSP-01）
+        is_hf = ("高流量" in bn) or ("單通道高流量" in bn) or ("雙料高流量" in bn) or ("火山口" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
         # 🆕 FF600／FF800 **專屬**線材（2026-09-15 Eric 裁回抽 0.8 的範圍）＝is_hf 的真子集。
         #   四支：PING PLA／SupPLA - 四料同進噴頭、PING PLA(3in1)／SupPLA(3in1) - 高流量噴頭。
         #   ⛔ 不含「- 高流量噴頭」那三支（白名單空、走 condition，FD 全系列也吃得到）；
@@ -3276,7 +3326,8 @@ def main(src_base):
         #    Eric 0728 原裁本來就寫「不是高流量跟火山口**或四料**」＝四料本來就在豁免內，
         #    這裡把「四料同進」與照片磚專用支明文列出，不再靠名字碰巧含「高流量」。
         # 🆕 1021 改名連坐：「雙料同進」明文列入（原「高流量噴頭」三支靠「高流量」拿豁免；牌 c-1021-HFR-01）
-        if any(t in bn for t in ("Classic", "高流量", "單通道高流量", "雙料同進", "四料同進", "(照片磚)", "(3in1)", "TPE", "PA-CF")):
+        # 🆕 1027：改名「雙料高流量」＋新增「火山口」明文列入（牌 c-1027-FSP-01）
+        if any(t in bn for t in ("Classic", "高流量", "單通道高流量", "雙料高流量", "火山口", "四料同進", "(照片磚)", "(3in1)", "TPE", "PA-CF")):
             continue
         if fd.get("enable_pressure_advance") != ["1"] or fd.get("pressure_advance") != ["0.08"]:
             fd["enable_pressure_advance"] = ["1"]
@@ -3987,6 +4038,7 @@ def main(src_base):
     _renamed_0728 = {BASE_PLA_OLD: BASE_PLA_NEW, "PING TPE": "PING TPE - 210"}
     # 🆕 1021 改名批（高流量噴頭→雙料同進噴頭）同一條路：就地改指新名、保序
     _renamed_0728.update({_o: _n for _n, _o in HFN_OLD.items()})
+    _renamed_0728.update({_o: _n for _n, _o in HFN_PREV.items()})   # 🆕 1027 第二代舊名（雙料同進→雙料高流量）
     for x in pj["filament_list"]:
         if x["name"] in _renamed_0728:
             x["name"] = _renamed_0728[x["name"]]

@@ -20,7 +20,7 @@
         "#808080"
     ],
     "default_filament_profile": [
-        "PING PLA - 210"
+        "PING PLA - 火山口噴頭"
     ],
     "default_print_profile": "0.3mm @FD300 單料頭 (0.6)",
     "deretraction_speed": [
