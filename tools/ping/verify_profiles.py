@@ -124,11 +124,18 @@ TI_FIL_PLA = "PING PLA(3in1) - 高流量噴頭"
 TI_FIL_SUP = "PING SupPLA(3in1) - 高流量噴頭"
 # 🆕 2026-10-21 Eric 改名：「高流量噴頭」→「雙料同進噴頭」三支＋新增 PETG 四料同進支（牌 c-1021-HFR-01）。
 #   名字集中在這裡（§N 第 3 條：別內聯複製）；舊名只能待在 renamed_from。
-HFN_PLA_V = "PING PLA - 雙料同進噴頭"
-HFN_SUP_V = "PING SupPLA - 雙料同進噴頭"
-HFN_PETG_V = "PING PETG - 雙料同進噴頭"
+# 🔁 2026-10-27 再改名「雙料同進噴頭」→「雙料高流量噴頭」（牌 c-1027-FSP-01）；renamed_from 仍接第一代舊名，
+#   第二代舊名（雙料同進）只出現過在測試版，不得復活。
+HFN_PLA_V = "PING PLA - 雙料高流量噴頭"
+HFN_SUP_V = "PING SupPLA - 雙料高流量噴頭"
+HFN_PETG_V = "PING PETG - 雙料高流量噴頭"
 HFN_OLD_V = {HFN_PLA_V: "PING PLA - 高流量噴頭", HFN_SUP_V: "PING SupPLA - 高流量噴頭",
              HFN_PETG_V: "PING PETG - 高流量噴頭"}
+HFN_PREV_V = {"PING PLA - 雙料同進噴頭", "PING SupPLA - 雙料同進噴頭", "PING PETG - 雙料同進噴頭"}
+# 🆕 2026-10-27 Eric：FD 按噴頭×模式拆的三支 PLA（上限 40／18 暫定未量）
+HFS_PLA_V = "PING PLA - 雙料高流量噴頭(同進)"
+NFS_PLA_V = "PING PLA - 雙料一般流量噴頭(同進)"
+VOLC_PLA_V = "PING PLA - 火山口噴頭"
 FF_FIL_PETG_V = "PING PETG - 四料同進噴頭"
 # 🆕 2026-10-21 Eric：FF 分開進四槽＝「單通道高流量」三支（牌 c-1021-SCH-01）；值照抄雙料同進對應支。
 SCH_V = {HFN_PLA_V: "PING PLA - 單通道高流量噴頭", HFN_SUP_V: "PING SupPLA - 單通道高流量噴頭",
@@ -363,6 +370,15 @@ for name, (kind, d) in presets.items():
             #      1021 Eric：名字改對上硬體＝單通道高流量，值同雙料同進）
             if _dfp and set(_dfp) != {SCH_PLA_V}:
                 err(f"[四料本體機四槽必為單通道高流量噴頭支 1021] {name} -> {sorted(set(_dfp))!r}")
+        if name.startswith("FD") and _dfp and "照片磚" not in name:
+            # 🆕 12-e（Eric 2026-10-27，牌 c-1027-FSP-01）：FD 單料頭＝火山口支；FD 同進＝各自噴頭的同進支
+            _want_fd = None
+            if " 單料頭 " in name:
+                _want_fd = {VOLC_PLA_V}
+            elif " 同進 " in name:
+                _want_fd = {NFS_PLA_V} if name.startswith("FD300") else {HFS_PLA_V}
+            if _want_fd and set(_dfp) != _want_fd:
+                err(f"[FD 單料頭／同進預設線材 1027] {name} -> {sorted(set(_dfp))!r}, expected {sorted(_want_fd)!r}")
         if "同進照片磚" in name and name.startswith(("FF600", "FF800")):
             # 12-d 照片磚機＝照片磚專用支（0816 裁「甲」＝照片磚維持舊值、不吃流量 50）
             if _dfp and set(_dfp) != {"PING PLA(照片磚)"}:
@@ -855,6 +871,16 @@ for name, (kind, d) in presets.items():
                         HFN_PETG_V: {"filament_minimal_purge_on_wipe_tower": "30", "filament_retraction_length": "3",
                                      "filament_retract_restart_extra": "0", "pressure_advance": "0.2",
                                      "nozzle_temperature": "230", "hot_plate_temp": "75"},
+                        # 🆕 1027 FD 按噴頭×模式拆支（牌 c-1027-FSP-01）
+                        HFS_PLA_V:  {"filament_minimal_purge_on_wipe_tower": "30", "filament_retraction_length": "3",
+                                     "pressure_advance": "0.2", "nozzle_temperature": "210",
+                                     "nozzle_temperature_initial_layer": "210", "filament_max_volumetric_speed": "40"},
+                        NFS_PLA_V:  {"filament_minimal_purge_on_wipe_tower": "30", "filament_retraction_length": "2",
+                                     "pressure_advance": "0.08", "nozzle_temperature": "210",
+                                     "nozzle_temperature_initial_layer": "210", "filament_max_volumetric_speed": "18"},
+                        VOLC_PLA_V: {"filament_minimal_purge_on_wipe_tower": "30", "filament_retraction_length": "3",
+                                     "pressure_advance": "0.2", "nozzle_temperature": "210",
+                                     "nozzle_temperature_initial_layer": "210", "filament_max_volumetric_speed": "30"},
                         # 🔴 1023 實測定案（Eric；牌 c-1023-PG4-01）：噴溫 230→220（兩鍵）、PA 0.4→0.3、流量比 1→1.03、流量上限 25→30；回抽 0.8 不動
                         FF_FIL_PETG_V: {"filament_minimal_purge_on_wipe_tower": "120", "filament_retraction_length": "0.8",
                                         "filament_retract_restart_extra": "0", "pressure_advance": "0.3",
@@ -895,7 +921,19 @@ for name, (kind, d) in presets.items():
                 if "renamed_from" in d:
                     err(f"[PETG 四料同進是新支、不得有 renamed_from 1021] {name}: {d.get('renamed_from')!r}")
             if name in HFN_OLD_V.values():
-                err(f"[高流量噴頭舊名不得復活 1021] {name}: 已改名雙料同進噴頭，舊名只能待在 renamed_from")
+                err(f"[高流量噴頭舊名不得復活 1021] {name}: 已改名雙料高流量噴頭，舊名只能待在 renamed_from")
+            if name in HFN_PREV_V:
+                err(f"[雙料同進舊名不得復活 1027] {name}: 已改名雙料高流量噴頭")
+            # 🆕 13e（1027）：三支新 PLA 的可見範圍＋新支無 renamed_from
+            _fd_scope = {HFS_PLA_V: lambda c: c.startswith(("FD450 Pro", "FD600 Pro", "FD800 Pro")) and " 同進 " in c and "照片磚" not in c,
+                         NFS_PLA_V: lambda c: c.startswith(("FD300 同進 ", "FD300 Pro 同進 ")) and "照片磚" not in c,
+                         VOLC_PLA_V: lambda c: c.startswith("FD") and " 單料頭 " in c}.get(name)
+            if _fd_scope:
+                _cp = d.get("compatible_printers") or []
+                if not _cp or not all(_fd_scope(c) for c in _cp):
+                    err(f"[FD 拆支可見範圍 1027] {name}: {_cp!r}")
+                if "renamed_from" in d or d.get("compatible_printers_condition"):
+                    err(f"[FD 拆支是新支、不得有 renamed_from／condition 1027] {name}")
             if name in TI_FIL_OLD:
                 err(f"[3in1 舊名不得復活 0907] {name}: 已於 #153 改名，舊名只能待在 renamed_from")
             # 檢查 11：降速層時間一律 10 秒（Eric 2026-07-18 裁「擴及所有材料」）＋
@@ -958,7 +996,8 @@ for name, (kind, d) in presets.items():
                 #    照片磚專用支同理（它就是同進支的照片磚分身）。
                 # ⚠ 「PING PLA(照片磚 FD300)」不含「(照片磚)」⇒ 刻意落在一般流量側（FD300＝雙料一般流量）。
                 # 🆕 1021：「雙料同進」明文列入（原「高流量噴頭」三支改名；不靠新名碰巧含字）
-                is_hf = (("高流量" in name) or ("雙料同進" in name) or ("四料同進" in name)
+                # 🆕 1027：改名「雙料高流量」＋新增「火山口」明文列入（牌 c-1027-FSP-01）
+                is_hf = (("高流量" in name) or ("雙料高流量" in name) or ("火山口" in name) or ("四料同進" in name)
                          or ("(照片磚)" in name) or ("(3in1)" in name))
                 # 🆕 FF600／FF800 **專屬**線材（2026-09-15 Eric 裁回抽 0.8 的範圍）＝is_hf 的真子集。
                 #   四支：PING PLA／SupPLA - 四料同進噴頭、PING PLA(3in1)／SupPLA(3in1) - 高流量噴頭。
@@ -1334,7 +1373,9 @@ else:
 # 🆕 2026-08-19：FD300 同進照片磚**移出**本集合——它改吃 `PING PLA(照片磚 FD300)` 專用支
 #   （Eric 0819 裁「給它專用支」，理由＝零回抽必須靠線材端 nil 才不被覆蓋；見下方專屬護欄）。
 #   噴溫仍是 210（專用支從 PLA-210 整支派生），0728 v2 的意旨沒有被推翻，只是落點換到專用支。
-_single_out_210 = {"FD300 單料頭", "FD300 Pro 單料頭", "FD300 同進", "FD300 Pro 同進"}
+# 🔁 2026-10-27 Eric（牌 c-1027-FSP-01）：FD300 系單料頭改吃 `PING PLA - 火山口噴頭`、同進改吃
+#   `PING PLA - 雙料一般流量噴頭(同進)` ⇒ 四台移出本集合，改由檢查 12-e 釘預設、13c 釘噴溫 210（0728 v2 的 210 意旨不變）。
+_single_out_210 = set()
 _pt_fd_model = "FD300 同進照片磚"
 _PT_FIL_FD = "PING PLA(照片磚 FD300)"
 _dual_keep_220 = {"FD300", "FD300 Pro", "FD300 關門"}

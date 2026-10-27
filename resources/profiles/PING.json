@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.46",
+    "version": "01.00.01.47",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -2105,8 +2105,8 @@
             "sub_path": "filament/PING SupABS.json"
         },
         {
-            "name": "PING PETG - 雙料同進噴頭",
-            "sub_path": "filament/PING PETG - 雙料同進噴頭.json"
+            "name": "PING PETG - 雙料高流量噴頭",
+            "sub_path": "filament/PING PETG - 雙料高流量噴頭.json"
         },
         {
             "name": "PING PETG",
@@ -2129,12 +2129,12 @@
             "sub_path": "filament/PING PLA - 220.json"
         },
         {
-            "name": "PING PLA - 雙料同進噴頭",
-            "sub_path": "filament/PING PLA - 雙料同進噴頭.json"
+            "name": "PING PLA - 雙料高流量噴頭",
+            "sub_path": "filament/PING PLA - 雙料高流量噴頭.json"
         },
         {
-            "name": "PING SupPLA - 雙料同進噴頭",
-            "sub_path": "filament/PING SupPLA - 雙料同進噴頭.json"
+            "name": "PING SupPLA - 雙料高流量噴頭",
+            "sub_path": "filament/PING SupPLA - 雙料高流量噴頭.json"
         },
         {
             "name": "PING PLA - Classic 210",
@@ -2259,6 +2259,18 @@
         {
             "name": "PING ABS(玻璃) - Classic",
             "sub_path": "filament/PING ABS(玻璃) - Classic.json"
+        },
+        {
+            "name": "PING PLA - 雙料高流量噴頭(同進)",
+            "sub_path": "filament/PING PLA - 雙料高流量噴頭(同進).json"
+        },
+        {
+            "name": "PING PLA - 雙料一般流量噴頭(同進)",
+            "sub_path": "filament/PING PLA - 雙料一般流量噴頭(同進).json"
+        },
+        {
+            "name": "PING PLA - 火山口噴頭",
+            "sub_path": "filament/PING PLA - 火山口噴頭.json"
         }
     ],
     "machine_list": [

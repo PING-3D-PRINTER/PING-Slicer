@@ -20,7 +20,7 @@
         "#808080"
     ],
     "default_filament_profile": [
-        "PING PLA - 雙料同進噴頭"
+        "PING PLA - 火山口噴頭"
     ],
     "default_print_profile": "0.5mm @FD450 Pro 單料頭 (1.0)",
     "deretraction_speed": [

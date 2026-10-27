@@ -267,16 +267,34 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING PLA - 雙料同進噴頭",
+    "name": "PING PLA - 火山口噴頭",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFILHFNPLA",
-    "filament_id": "PINGFILHFNPLA",
+    "setting_id": "PINGFILVOLCPLA",
+    "filament_id": "PINGFILVOLCPLA",
     "inherits": "fdm_filament_common",
     "default_filament_colour": [
         "#EA4E16"
     ],
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes!~/.*CLASSIC.*/",
-    "alias": "PING PLA - 雙料同進噴頭",
-    "renamed_from": "PING PLA - 高流量噴頭"
+    "alias": "PING PLA - 火山口噴頭",
+    "compatible_printers": [
+        "FD300 Pro 單料頭 0.25 nozzle",
+        "FD300 Pro 單料頭 0.4 nozzle",
+        "FD300 Pro 單料頭 0.6 nozzle",
+        "FD300 單料頭 0.25 nozzle",
+        "FD300 單料頭 0.4 nozzle",
+        "FD300 單料頭 0.6 nozzle",
+        "FD450 Pro 單料頭 0.2 nozzle",
+        "FD450 Pro 單料頭 0.4 nozzle",
+        "FD450 Pro 單料頭 0.6 nozzle",
+        "FD450 Pro 單料頭 1.0 nozzle",
+        "FD600 Pro 單料頭 0.2 nozzle",
+        "FD600 Pro 單料頭 0.4 nozzle",
+        "FD600 Pro 單料頭 0.6 nozzle",
+        "FD600 Pro 單料頭 1.0 nozzle",
+        "FD800 Pro 單料頭 0.2 nozzle",
+        "FD800 Pro 單料頭 0.4 nozzle",
+        "FD800 Pro 單料頭 0.6 nozzle",
+        "FD800 Pro 單料頭 1.0 nozzle"
+    ]
 }

@@ -1,0 +1,99 @@
+{
+    "type": "filament",
+    "name": "PING PETG - 雙料高流量噴頭",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGFILHFNPETG",
+    "filament_id": "PINGFILHFNPETG",
+    "inherits": "fdm_filament_pet",
+    "filament_vendor": [
+        "PING"
+    ],
+    "filament_type": [
+        "PETG"
+    ],
+    "nozzle_temperature": [
+        "230"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "230"
+    ],
+    "hot_plate_temp": [
+        "75"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "75"
+    ],
+    "cool_plate_temp": [
+        "75"
+    ],
+    "cool_plate_temp_initial_layer": [
+        "75"
+    ],
+    "fan_max_speed": [
+        "50"
+    ],
+    "fan_min_speed": [
+        "50"
+    ],
+    "filament_retraction_length": [
+        "3"
+    ],
+    "filament_minimal_purge_on_wipe_tower": [
+        "30"
+    ],
+    "filament_start_gcode": [
+        "; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
+    ],
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "pressure_advance": [
+        "0.2"
+    ],
+    "slow_down_for_layer_cooling": [
+        "1"
+    ],
+    "slow_down_layer_time": [
+        "10"
+    ],
+    "filament_retraction_minimum_travel": [
+        "3"
+    ],
+    "filament_wipe": [
+        "1"
+    ],
+    "filament_wipe_distance": [
+        "5"
+    ],
+    "filament_retract_before_wipe": [
+        "100%"
+    ],
+    "filament_retract_restart_extra": [
+        "0"
+    ],
+    "overhang_fan_threshold": [
+        "25%"
+    ],
+    "default_filament_colour": [
+        "#EA4E16"
+    ],
+    "filament_is_support": [
+        "0"
+    ],
+    "filament_soluble": [
+        "0"
+    ],
+    "filament_retraction_speed": [
+        "30"
+    ],
+    "filament_deretraction_speed": [
+        "30"
+    ],
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes!~/.*CLASSIC.*/",
+    "slow_down_min_speed": [
+        "25"
+    ],
+    "alias": "PING PETG - 雙料高流量噴頭",
+    "renamed_from": "PING PETG - 高流量噴頭"
+}

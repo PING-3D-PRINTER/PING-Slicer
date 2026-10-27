@@ -20,7 +20,7 @@
         "#808080"
     ],
     "default_filament_profile": [
-        "PING PLA - 210"
+        "PING PLA - 雙料一般流量噴頭(同進)"
     ],
     "default_print_profile": "0.2mm @FD300 Pro 同進 (0.4)",
     "deretraction_speed": [
