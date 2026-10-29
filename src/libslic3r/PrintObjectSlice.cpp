@@ -261,43 +261,77 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
 
     std::vector<std::vector<ExPolygons>> slices_by_region(print_object_regions.all_regions.size(), std::vector<ExPolygons>(zs.size(), ExPolygons()));
 
-    // PING (CFB 2026-09-22): area a part flagged ping_keep_clear_of_parts must never take, per region id.
-    // It is the footprint of the OTHER model parts over ALL layers, grown by one nozzle diameter -- not just their
-    // slice at the current layer. A per-layer rule leaves the flagged part free above the other parts' top, where it
-    // re-expands and prints on top of them (found on a block taller than the body, 2026-09-22).
-    std::vector<std::pair<int, ExPolygons>> keep_clear_masks;
+    // PING (CFB 2026-09-22, reworked 2026-10-29 c-1029-CFG-01): area a part flagged ping_keep_clear_of_parts must never
+    // take, per region id and per layer ("Z overrides X/Y", same idea as the support Z distance):
+    //   at layer i the flagged part yields to the footprint of the OTHER model parts at every layer from the bed up to
+    //   the highest layer whose gap to layer i is still smaller than support_top_z_distance, grown by 0.75 x nozzle.
+    // * a vertical wall: the gap is 0.75 x nozzle at every layer (it was 1 x nozzle, Eric 2026-10-29: too wide).
+    // * a body leaning outwards over the block: the block follows its outline layer by layer and stops below the
+    //   overhang with the Z gap. The 09-22 rule took the footprint of ALL layers, which pushed the block away from a
+    //   narrow bottom (5 deg lean: 2.14 mm at the first layer) and erased a 12 mm block entirely from 15 deg on.
+    // * the footprint is cumulative from the bed up, thus above the top of the other parts (block taller than the
+    //   body, 2026-09-22) or above a lower, wider part the block still never prints on top of them.
+    static constexpr double keep_clear_nozzle_factor = 0.75;
+    std::vector<std::pair<int, std::vector<ExPolygons>>> keep_clear_masks;
     {
         std::vector<ObjectID> others;
         bool                  any_flagged = false;
+        double                flagged_top = 0.;
         for (const PrintObjectRegions::LayerRangeRegions &layer_range : print_object_regions.layer_ranges)
             for (const PrintObjectRegions::VolumeRegion &region : layer_range.volume_regions)
                 if (region.model_volume->is_model_part()) {
-                    if (keeps_clear_of_parts(region))
+                    if (keeps_clear_of_parts(region)) {
                         any_flagged = true;
-                    else
+                        flagged_top = std::max(flagged_top, double(region.bbox->max().z()));
+                    } else
                         others.emplace_back(region.model_volume->id());
                 }
-        if (any_flagged && ! others.empty()) {
+        if (any_flagged && ! others.empty() && ! zs.empty()) {
             std::sort(others.begin(), others.end());
             others.erase(std::unique(others.begin(), others.end()), others.end());
-            Polygons footprint;
-            for (const VolumeSlices &vs : volume_slices)
-                if (std::binary_search(others.begin(), others.end(), vs.volume_id))
-                    for (const ExPolygons &slice : vs.slices)
-                        polygons_append(footprint, slice);
-            if (! footprint.empty()) {
-                const ExPolygons merged = union_ex(footprint);
-                for (const PrintObjectRegions::LayerRangeRegions &layer_range : print_object_regions.layer_ranges)
-                    for (const PrintObjectRegions::VolumeRegion &region : layer_range.volume_regions)
-                        if (keeps_clear_of_parts(region)) {
-                            const int id = region.region->print_object_region_id();
-                            if (std::none_of(keep_clear_masks.begin(), keep_clear_masks.end(),
-                                             [id](const auto &m) { return m.first == id; })) {
-                                const double nozzle_diameter = print_config.nozzle_diameter.get_at(region.region->config().wall_filament.value - 1);
-                                keep_clear_masks.emplace_back(id, offset_ex(merged, float(scale_(nozzle_diameter))));
-                            }
-                        }
+            const double z_gap  = std::max(0., print_object.config().support_top_z_distance.value);
+            // Layer thickness around zs[i] (zs are mid-layer heights).
+            auto thickness = [&zs](size_t i) {
+                return i + 1 < zs.size() ? double(zs[i + 1] - zs[i]) : i > 0 ? double(zs[i] - zs[i - 1]) : 2. * double(zs[i]);
+            };
+            // Highest layer the flagged parts may reach, plus the layers the Z gap looks above it.
+            size_t n_layers = 0;
+            while (n_layers < zs.size() && zs[n_layers] <= flagged_top + EPSILON)
+                ++ n_layers;
+            size_t n_needed = n_layers;
+            if (n_layers > 0)
+                while (n_needed < zs.size() && zs[n_needed] - zs[n_layers - 1] < z_gap + thickness(n_layers - 1) - EPSILON)
+                    ++ n_needed;
+            // Footprint of the other parts accumulated from the bed up to layer k.
+            std::vector<ExPolygons> cumulative(n_needed);
+            for (size_t k = 0; k < n_needed; ++ k) {
+                Polygons layer;
+                if (k > 0)
+                    polygons_append(layer, to_polygons(cumulative[k - 1]));
+                for (const VolumeSlices &vs : volume_slices)
+                    if (k < vs.slices.size() && std::binary_search(others.begin(), others.end(), vs.volume_id))
+                        polygons_append(layer, to_polygons(vs.slices[k]));
+                cumulative[k] = union_ex(layer);
             }
+            for (const PrintObjectRegions::LayerRangeRegions &layer_range : print_object_regions.layer_ranges)
+                for (const PrintObjectRegions::VolumeRegion &region : layer_range.volume_regions)
+                    if (keeps_clear_of_parts(region)) {
+                        const int id = region.region->print_object_region_id();
+                        if (std::none_of(keep_clear_masks.begin(), keep_clear_masks.end(),
+                                         [id](const auto &m) { return m.first == id; })) {
+                            const double nozzle_diameter = print_config.nozzle_diameter.get_at(region.region->config().wall_filament.value - 1);
+                            const float  grow            = float(scale_(keep_clear_nozzle_factor * nozzle_diameter));
+                            std::vector<ExPolygons> masks(zs.size());
+                            for (size_t i = 0; i < n_layers; ++ i) {
+                                size_t upper = i;
+                                while (upper + 1 < n_needed && zs[upper + 1] - zs[i] < z_gap + thickness(i) - EPSILON)
+                                    ++ upper;
+                                if (! cumulative[upper].empty())
+                                    masks[i] = offset_ex(cumulative[upper], grow);
+                            }
+                            keep_clear_masks.emplace_back(id, std::move(masks));
+                        }
+                    }
         }
     }
 
@@ -428,10 +462,10 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                             temp_slices.push_back({ std::move(slices->slices[z_idx]), volume_region.region ? volume_region.region->print_object_region_id() : -1, volume_region.model_volume->id() });
                         }
                     }
-                    // PING: parts flagged ping_keep_clear_of_parts give way to the other model parts and stay one nozzle
-                    // diameter away from their whole footprint, however the user moved, scaled or stretched them. Trimmed
-                    // up front, so that the clipping below takes nothing from the other parts and the modifiers attached
-                    // to the flagged part see the trimmed shape.
+                    // PING: parts flagged ping_keep_clear_of_parts give way to the other model parts (per layer mask, see
+                    // keep_clear_masks above), however the user moved, scaled or stretched them. Trimmed up front, so that the
+                    // clipping below takes nothing from the other parts and the modifiers attached to the flagged part see
+                    // the trimmed shape.
                     if (! keep_clear_masks.empty())
                         for (size_t idx_region = 0; idx_region < temp_slices.size(); ++ idx_region)
                             if (const PrintObjectRegions::VolumeRegion &region = layer_range.volume_regions[idx_region];
@@ -439,7 +473,8 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                                 const int id = region.region->print_object_region_id();
                                 for (const auto &mask : keep_clear_masks)
                                     if (mask.first == id) {
-                                        temp_slices[idx_region].expolygons = diff_ex(temp_slices[idx_region].expolygons, mask.second);
+                                        if (z_idx < mask.second.size() && ! mask.second[z_idx].empty())
+                                            temp_slices[idx_region].expolygons = diff_ex(temp_slices[idx_region].expolygons, mask.second[z_idx]);
                                         break;
                                     }
                             }
