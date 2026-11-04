@@ -5,6 +5,8 @@
 
 #include <wx/sizer.h>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/algorithm/string/predicate.hpp>
+#include <algorithm>
 #include <boost/log/trivial.hpp>
 
 #include "GUI.hpp"
@@ -550,7 +552,13 @@ std::vector<wxBitmap*> get_extruder_color_icons(bool thin_icon/* = false*/)
         for (const auto &colors : readable_color_info) {
             auto label = std::to_string(++index);
             bool is_gradient = ctype[index-1] == "0";
-            if (colors.size() == 1) {
+            // PING (2026-11-04, 回報中心 #210): a "multi colour" pack whose colours are all the same is a single colour.
+            // It used to take the multi-colour path below, whose label is drawn differently (white + outline, and on
+            // some displays a bigger font) ⇒ in the object list "1" and "2" did not match.
+            bool same_colour = !colors.empty() && std::all_of(colors.begin(), colors.end(), [&colors](const std::string &c) {
+                return boost::iequals(c, colors.front());
+            });
+            if (colors.size() == 1 || same_colour) {
                 bmps.push_back(get_extruder_color_icon(colors[0], label, icon_width, icon_height));
             } else {
                 bmps.push_back(get_extruder_color_icon(colors, is_gradient, label, icon_width, icon_height));
@@ -651,15 +659,23 @@ wxBitmap *get_extruder_color_icon(std::vector<std::string> colors, bool is_gradi
             return nullptr;
         }
 
-        // add text label directly on base_bitmap
+        // PING (2026-11-04, 回報中心 #210): draw the label on a fresh bitmap set up exactly like the single-colour icon
+        // (same size, same DC setup) and blit the colour pattern into it first. Drawing straight on base_bitmap measured
+        // and drew the label in a different DC context, so the digit came out bigger and off-centre on some displays.
         if (!label.empty()) {
-#ifndef __WXMSW__
-            wxMemoryDC dc(base_bitmap);
-#else
+            wxBitmap canvas(icon_width, icon_height);
+#ifdef __WXOSX__
+            canvas.UseAlpha();
+            wxMemoryDC dc(canvas);
+#elif defined(__WXMSW__)
             wxClientDC cdc((wxWindow *) Slic3r::GUI::wxGetApp().mainframe);
             wxMemoryDC dc(&cdc);
-            dc.SelectObject(base_bitmap);
+            dc.SelectObject(canvas);
+#else
+            wxMemoryDC dc;
+            dc.SelectObject(canvas);
 #endif
+            dc.DrawBitmap(base_bitmap, 0, 0);
 
             // Ensure no background contamination
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
@@ -689,6 +705,7 @@ wxBitmap *get_extruder_color_icon(std::vector<std::string> colors, bool is_gradi
             dc.DrawText(label, text_x, text_y);
 
             dc.SelectObject(wxNullBitmap);
+            base_bitmap = canvas;
         }
 
         // cache result
