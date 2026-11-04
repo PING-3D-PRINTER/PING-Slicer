@@ -2355,6 +2355,13 @@ _CLASSIC_PRO_MARLIN_KEYS = {"default_acceleration", "outer_wall_acceleration", "
                             "top_surface_jerk", "initial_layer_jerk", "travel_jerk",
                             "accel_to_decel_enable"}
 _CLASSIC_PRO_ALLOWED = {"name", "setting_id", "compatible_printers"} | _CLASSIC_PRO_MARLIN_KEYS
+# 1104（#207）：Classic 列印速度上限 60——_PRO 的速度鍵被壓到 60 時准許與 FD 來源不同（值由下方「Classic 速度上限」區塊鎖）。
+CLASSIC_SPEED_CAP = 60.0
+CLASSIC_SPEED_CAP_KEYS = ("outer_wall_speed", "inner_wall_speed", "sparse_infill_speed", "internal_solid_infill_speed",
+                          "top_surface_speed", "gap_infill_speed", "support_speed", "support_interface_speed",
+                          "bridge_speed", "initial_layer_speed", "initial_layer_infill_speed",
+                          "overhang_1_4_speed", "overhang_2_4_speed", "overhang_3_4_speed", "overhang_4_4_speed",
+                          "skirt_speed", "ironing_speed", "wipe_tower_max_purge_speed")
 _cp_want = {}
 for _n, (_k, _d) in presets.items():
     if _k != "machine":
@@ -2393,12 +2400,45 @@ for _n in sorted(_cp_have & set(_cp_want)):
         err(f"[Classic Pro 噴頭・FD 來源不存在] {_n}：找不到 {_src!r}")
         continue
     _dk = sorted(k for k in set(_d) | set(_se[1])
-                 if _d.get(k) != _se[1].get(k) and k not in _CLASSIC_PRO_ALLOWED and k != "renamed_from")
+                 if _d.get(k) != _se[1].get(k) and k not in _CLASSIC_PRO_ALLOWED and k != "renamed_from"
+                 and not (k in CLASSIC_SPEED_CAP_KEYS and _d.get(k) == "%g" % CLASSIC_SPEED_CAP))
     if _dk:
         err(f"[Classic Pro 噴頭・與 FD 來源的差異超出允許] {_n}: {_dk[:6]}（只准差名字／id／相容機型／Marlin 隔離鍵）")
 if not _cp_want:
     err("[Classic Pro 噴頭・防空轉] 一台 DUAL 雙料本體都沒掃到 ⇒ 機型名格式變了或判定壞了")
 print("Classic Pro 噴頭族：%d 支（%d 台×口徑×易拆／易拆樹狀，逐支與 FD Pro 來源比對）" % (len(_cp_have & set(_cp_want)), len(_cp_want) // 2))
+
+# ★ Classic 列印速度上限 60（回報中心 #207，Eric 2026-11-04「全部照建議」，牌 c-1104-QA-01）：
+#   所有 Classic 製程（@DUAL／@PING ／@EDU）的列印移動速度實際值（葉檔沒寫就沿 inherits）一律 ≤ 60；百分比不判；
+#   空駛不在範圍。鍵表與 embed_params 同名同值各一份。另反向斷言：Fast 系仍要有稀疏填充 100（只限 Classic，別漏到 Fast）。
+def _proc_eff(_d, _k):
+    _seen = 0
+    while _d is not None and _seen < 10:
+        if _k in _d:
+            return _d[_k]
+        _par = _d.get("inherits")
+        _pe = presets.get(_par) if _par else None
+        _d = _pe[1] if _pe and _pe[0] == "process" else None
+        _seen += 1
+    return None
+_cs_n = 0
+for _n, (_k, _d) in sorted(presets.items()):
+    if _k != "process" or not any(_t in _n for _t in ("@DUAL", "@PING ", "@EDU")):
+        continue
+    _cs_n += 1
+    for _key in CLASSIC_SPEED_CAP_KEYS:
+        _v = _proc_eff(_d, _key)
+        if _v is None or str(_v).strip().endswith("%"):
+            continue
+        if float(_v) > CLASSIC_SPEED_CAP:
+            err(f"[Classic 列印速度上限 60 #207] {_n}: {_key}={_v!r}（經典版超過 60 會錯位）")
+if _cs_n == 0:
+    err("[Classic 列印速度上限・防空轉] 一支 Classic 製程都沒掃到")
+_fast100 = sum(1 for _n, (_k, _d) in presets.items()
+               if _k == "process" and "@FD" in _n and _d.get("sparse_infill_speed") == "100")
+if _fast100 == 0:
+    err("[Classic 列印速度上限・範圍外溢] Fast 系 FD 製程一支稀疏填充 100 都不剩 ⇒ 上限掃描漏到 Fast 了")
+print("Classic 列印速度上限 60：%d 支全數 ≤60｜Fast FD 稀疏填充 100 仍在 %d 支" % (_cs_n, _fast100))
 
 # ★ 跨層護欄：標題列的廠內測試版版次（Eric 2026-08-12 裁「標題列顯示 Beta T0xx」）
 #   鏈路＝`version.inc` 宣告 → `libslic3r_version.h.in` 由 configure_file 代換 → `BBLTopbar::SetTitle` 消費。
