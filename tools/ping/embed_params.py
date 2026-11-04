@@ -1656,6 +1656,22 @@ EASY_TREE_TOKEN = "易拆樹狀"
 EASY_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "organic",
                        "support_speed": "50", "support_interface_speed": "50"}
 
+# ★ 0.6 口徑易拆樹狀的樹狀七鍵（回報中心 #206，Eric 2026-11-04 派工；牌 c-1104-QA-01）
+#   來源＝同事在 FD300 Pro 0.6「0.3mm 易拆樹狀 - 複製」手調的樹狀支撐整組（截圖藍框七項逐格判讀，無模糊）：
+#   末端直徑 3／分支距離 5／分支密度 30%／分支直徑 3／分支直徑角度 5／分支角度 40／偏好分支角度 25。
+#   相對現值實際有變的只有三鍵（末端 1.2→3、分支距離 1→5、分支直徑 2.6→3）；其餘四鍵＝現值，照截圖明寫鎖住。
+#   範圍＝0.6 口徑（＝「0.3mm 易拆樹狀」那組）：FD300／FD300 Pro／FD300 關門／FD450／600／800 Pro；
+#   Classic DUAL 的「易拆樹狀_PRO」在 4c-3 從 FD Pro 來源檔複製 ⇒ 自動跟著。其他口徑不動（回報只講 0.3mm 那組）。
+#   引擎檢查（Print.cpp 有機樹）：末端 ≥ 支撐線寬 0.5、分支直徑 ≥ 2×線寬且 ≥ 末端 ⇒ 3／3 都過。
+#   verify 有同名同值一份（EASY_TREE06_VALUES）。
+EASY_TREE06_NZ = "0.6"
+EASY_TREE06_OVERRIDES = {
+    "tree_support_tip_diameter": "3", "tree_support_branch_distance_organic": "5",
+    "tree_support_top_rate": "30%", "tree_support_branch_diameter_organic": "3",
+    "tree_support_branch_diameter_angle": "5", "tree_support_branch_angle_organic": "40",
+    "tree_support_angle_slow": "25",
+}
+
 def easy_tree_pname(lh, model, nz):
     return "%smm %s @%s (%s)" % (lh, EASY_TREE_TOKEN, model, nz)
 
@@ -2724,6 +2740,8 @@ def main(src_base):
                         # 易拆樹狀雙生（Eric 2026-09-19，牌 c-0919-ETR-01）：同口徑「易拆」只換支撐類型／樣式／速度。
                         # 新品無舊名 ⇒ 拿掉複製來的 renamed_from（留著會讓「易拆」的舊名在 rename map 撞成 1:2）。
                         et = dict(proc); et.update(EASY_TREE_OVERRIDES)
+                        if nz == EASY_TREE06_NZ:   # #206（1104）：0.6 口徑換同事手調的樹狀七鍵
+                            et.update(EASY_TREE06_OVERRIDES)
                         et["name"] = easy_tree_pname(lh, model, nz)
                         et.pop("renamed_from", None)
                         easy_tree_twins.append(et)
@@ -4225,6 +4243,56 @@ def main(src_base):
         _zg += 1 if _easy else 0
     print("  支撐 Z 間距最終掃描（易拆 0／一般 0.2）：掃 %d 支｜易拆 %d 支｜補正 %d 支"
           % (len(proc_list), _zg, _zt))
+
+    # ★ Classic 經典版列印速度上限 60 最終掃描（回報中心 #207；Eric 2026-11-04「全部照建議」；牌 c-1104-QA-01）
+    #   起因：同事回報經典版（舊版 Marlin／赤兔機）列印速度超過 60 會錯位（DUAL 600 同進 0.3mm 稀疏填充 100）。
+    #   範圍＝所有 Classic 製程（@DUAL／@PING ／@EDU，含同進／單料頭／雙料本體／易拆_PRO／易拆樹狀_PRO）。
+    #   做法＝列印移動速度鍵（CLASSIC_SPEED_CAP_KEYS）的實際值（葉檔沒寫就沿 inherits 找）> 60 ⇒ 葉檔寫 "60"；
+    #   百分比值不動（相對值）；空駛 travel_speed 不在範圍（移動不是列印，Eric 同日照建議）。
+    #   實際會動到的只有內牆 80 與稀疏填充 100（1104 盤點：131 支裡 95 支）。
+    #   ⚠ 這條推翻 0812「不得順手改稀疏填充 100／內牆 80」**僅限 Classic**；Fast 系照舊 100／80。
+    #   為什麼放最後掃：Classic 製程有四條產出路徑（Classic V3.6 併入／DUAL 變體／4c-3 從 FD Pro 複製的 _PRO），
+    #   和上面支撐 Z 最終掃描同理，只改某一條會漏。verify 有同名鍵表一份（CLASSIC_SPEED_CAP_KEYS）。
+    CLASSIC_SPEED_CAP = 60.0
+    CLASSIC_SPEED_CAP_KEYS = ("outer_wall_speed", "inner_wall_speed", "sparse_infill_speed", "internal_solid_infill_speed",
+                           "top_surface_speed", "gap_infill_speed", "support_speed", "support_interface_speed",
+                           "bridge_speed", "initial_layer_speed", "initial_layer_infill_speed",
+                           "overhang_1_4_speed", "overhang_2_4_speed", "overhang_3_4_speed", "overhang_4_4_speed",
+                           "skirt_speed", "ironing_speed", "wipe_tower_max_purge_speed")
+    def _eff(_d, _k):
+        _cur = _d
+        while _cur is not None:
+            if _k in _cur:
+                return _cur[_k]
+            _par = _cur.get("inherits")
+            _pp = os.path.join(PINGDIR, "process", "%s.json" % _par) if _par else None
+            _cur = json.load(io.open(_pp, encoding="utf-8")) if _pp and os.path.exists(_pp) else None
+        return None
+    _cs_n = _cs_fix = _cs_keys = 0
+    for _e in proc_list:
+        _nm = _e["name"]
+        if not any(_t in _nm for _t in ("@DUAL", "@PING ", "@EDU")):
+            continue
+        _p = os.path.join(PINGDIR, _e["sub_path"].replace("process/", "process" + os.sep))
+        if not os.path.exists(_p):
+            continue
+        _d = json.load(io.open(_p, encoding="utf-8"))
+        _cs_n += 1
+        _chg = False
+        for _k in CLASSIC_SPEED_CAP_KEYS:
+            _v = _eff(_d, _k)
+            if _v is None or str(_v).strip().endswith("%"):
+                continue
+            if float(_v) > CLASSIC_SPEED_CAP:
+                _d[_k] = "%g" % CLASSIC_SPEED_CAP
+                _chg = True
+                _cs_keys += 1
+        if _chg:
+            jdump(_p, _d)
+            _cs_fix += 1
+    if _cs_n == 0:
+        raise SystemExit("[停手] Classic 速度上限掃描一支 Classic 製程都沒掃到（名字格式變了？）")
+    print("  Classic 列印速度上限 60：掃 %d 支｜補正 %d 支／%d 鍵" % (_cs_n, _cs_fix, _cs_keys))
 
     # 🔴 保留號段守衛（2026-09-11，牌 c-0911-MCH-01）：EXT_RESERVED_MODELS 的 id 必須真的落在 950-999。
     #   為什麼要有：950 段只接在 main() 的 emit 點上，emit_classic／emit_ff_extra 沒接。

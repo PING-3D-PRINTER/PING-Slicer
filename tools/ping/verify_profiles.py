@@ -53,6 +53,15 @@ COMBO_CAT_EASYTREE                   = "易拆樹狀"
 EASY_TREE_ALLOWED_DIFF = {"name", "setting_id", "renamed_from", "support_type", "support_style",
                           "support_speed", "support_interface_speed"}
 COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE}
+# 🆕 2026-11-04（回報中心 #206，牌 c-1104-QA-01）：0.6 口徑易拆樹狀換同事手調的樹狀七鍵。
+#   與 embed_params.EASY_TREE06_OVERRIDES 同值各一份；「易拆樹狀族」區塊 exact 鎖、並准許與易拆雙生差這七鍵。
+EASY_TREE06_NZ = "0.6"
+EASY_TREE06_VALUES = {
+    "tree_support_tip_diameter": "3", "tree_support_branch_distance_organic": "5",
+    "tree_support_top_rate": "30%", "tree_support_branch_diameter_organic": "3",
+    "tree_support_branch_diameter_angle": "5", "tree_support_branch_angle_organic": "40",
+    "tree_support_angle_slow": "25",
+}
 # 🆕 2026-10-23（Eric，牌 c-1023-CDP-01）：Classic DUAL 雙料機換 Pro 噴頭用的製程
 #   「<層高>mm 易拆_PRO／易拆樹狀_PRO @DUAL N (<口徑>)」。底線**刻意**讓 Tab.cpp 認不得 token（歸一般家族＝不連動、不過濾），
 #   ⇒ combo_token() 回 None，不能靠 token 認，用這支 regex。樹狀那支的支撐類型／樣式＝FD 易拆樹狀同值（tree(auto)／organic），
@@ -672,6 +681,9 @@ for name, (kind, d) in presets.items():
                 #    FF 系 1.0 口徑線寬 1.02 需 ≥2.04，舊值 2 會讓那 4 支勾樹狀即切片報錯。
                 # wall_count 0＝Eric 2026-07-27 裁「支撐牆數改零」（UI 支撐牆數＝此鍵、普通/樹狀共用：
                 # 普通支撐 0=無牆 with_sheath=false；樹狀 0=auto——0725「維持一圈」同鍵被上蓋）
+                # 1104（#206）：0.6 易拆樹狀（含 Classic「易拆樹狀_PRO」）的 _organic 鍵由「易拆樹狀族」區塊 exact 鎖
+                _et06 = ((_ctok == COMBO_CAT_EASYTREE or _is_classic_pro_tree(name))
+                         and name.endswith("(%s)" % EASY_TREE06_NZ))
                 for key, value in [("tree_support_branch_angle", "30"),
                                    ("tree_support_auto_brim", "0"),
                                    ("tree_support_brim_width", "10"),
@@ -679,6 +691,8 @@ for name, (kind, d) in presets.items():
                                    ("tree_support_branch_diameter_organic", "2.6"),
                                    ("tree_support_branch_angle_organic", "40")]:
                     if _is_tree_fam and key in _tfam:
+                        continue
+                    if _et06 and key in EASY_TREE06_VALUES:
                         continue
                     if d.get(key) != value:
                         err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
@@ -2311,7 +2325,13 @@ for _n, (_k, _d) in sorted(presets.items()):
         err(f"[易拆樹狀・雙生對象不存在] {_n}：找不到 {_sib!r}")
         continue
     _sd = _se[1]
-    _dk = sorted(k for k in set(_d) | set(_sd) if _d.get(k) != _sd.get(k) and k not in EASY_TREE_ALLOWED_DIFF)
+    _allow = set(EASY_TREE_ALLOWED_DIFF)
+    if _n.endswith("(%s)" % EASY_TREE06_NZ):   # 1104（#206）：0.6 口徑另准差樹狀七鍵，且值 exact 鎖
+        _allow |= set(EASY_TREE06_VALUES)
+        for _key, _val in EASY_TREE06_VALUES.items():
+            if _d.get(_key) != _val:
+                err(f"[易拆樹狀・0.6 樹狀七鍵 #206] {_n}: {_key}={_d.get(_key)!r}, expected {_val!r}")
+    _dk = sorted(k for k in set(_d) | set(_sd) if _d.get(k) != _sd.get(k) and k not in _allow)
     if _dk:
         err(f"[易拆樹狀・與易拆雙生的差異超出允許] {_n}: {_dk[:6]}"
             f"（只准差 support_type／support_style／兩個支撐速度）")
@@ -2335,6 +2355,13 @@ _CLASSIC_PRO_MARLIN_KEYS = {"default_acceleration", "outer_wall_acceleration", "
                             "top_surface_jerk", "initial_layer_jerk", "travel_jerk",
                             "accel_to_decel_enable"}
 _CLASSIC_PRO_ALLOWED = {"name", "setting_id", "compatible_printers"} | _CLASSIC_PRO_MARLIN_KEYS
+# 1104（#207）：Classic 列印速度上限 60——_PRO 的速度鍵被壓到 60 時准許與 FD 來源不同（值由下方「Classic 速度上限」區塊鎖）。
+CLASSIC_SPEED_CAP = 60.0
+CLASSIC_SPEED_CAP_KEYS = ("outer_wall_speed", "inner_wall_speed", "sparse_infill_speed", "internal_solid_infill_speed",
+                          "top_surface_speed", "gap_infill_speed", "support_speed", "support_interface_speed",
+                          "bridge_speed", "initial_layer_speed", "initial_layer_infill_speed",
+                          "overhang_1_4_speed", "overhang_2_4_speed", "overhang_3_4_speed", "overhang_4_4_speed",
+                          "skirt_speed", "ironing_speed", "wipe_tower_max_purge_speed")
 _cp_want = {}
 for _n, (_k, _d) in presets.items():
     if _k != "machine":
@@ -2373,12 +2400,45 @@ for _n in sorted(_cp_have & set(_cp_want)):
         err(f"[Classic Pro 噴頭・FD 來源不存在] {_n}：找不到 {_src!r}")
         continue
     _dk = sorted(k for k in set(_d) | set(_se[1])
-                 if _d.get(k) != _se[1].get(k) and k not in _CLASSIC_PRO_ALLOWED and k != "renamed_from")
+                 if _d.get(k) != _se[1].get(k) and k not in _CLASSIC_PRO_ALLOWED and k != "renamed_from"
+                 and not (k in CLASSIC_SPEED_CAP_KEYS and _d.get(k) == "%g" % CLASSIC_SPEED_CAP))
     if _dk:
         err(f"[Classic Pro 噴頭・與 FD 來源的差異超出允許] {_n}: {_dk[:6]}（只准差名字／id／相容機型／Marlin 隔離鍵）")
 if not _cp_want:
     err("[Classic Pro 噴頭・防空轉] 一台 DUAL 雙料本體都沒掃到 ⇒ 機型名格式變了或判定壞了")
 print("Classic Pro 噴頭族：%d 支（%d 台×口徑×易拆／易拆樹狀，逐支與 FD Pro 來源比對）" % (len(_cp_have & set(_cp_want)), len(_cp_want) // 2))
+
+# ★ Classic 列印速度上限 60（回報中心 #207，Eric 2026-11-04「全部照建議」，牌 c-1104-QA-01）：
+#   所有 Classic 製程（@DUAL／@PING ／@EDU）的列印移動速度實際值（葉檔沒寫就沿 inherits）一律 ≤ 60；百分比不判；
+#   空駛不在範圍。鍵表與 embed_params 同名同值各一份。另反向斷言：Fast 系仍要有稀疏填充 100（只限 Classic，別漏到 Fast）。
+def _proc_eff(_d, _k):
+    _seen = 0
+    while _d is not None and _seen < 10:
+        if _k in _d:
+            return _d[_k]
+        _par = _d.get("inherits")
+        _pe = presets.get(_par) if _par else None
+        _d = _pe[1] if _pe and _pe[0] == "process" else None
+        _seen += 1
+    return None
+_cs_n = 0
+for _n, (_k, _d) in sorted(presets.items()):
+    if _k != "process" or not any(_t in _n for _t in ("@DUAL", "@PING ", "@EDU")):
+        continue
+    _cs_n += 1
+    for _key in CLASSIC_SPEED_CAP_KEYS:
+        _v = _proc_eff(_d, _key)
+        if _v is None or str(_v).strip().endswith("%"):
+            continue
+        if float(_v) > CLASSIC_SPEED_CAP:
+            err(f"[Classic 列印速度上限 60 #207] {_n}: {_key}={_v!r}（經典版超過 60 會錯位）")
+if _cs_n == 0:
+    err("[Classic 列印速度上限・防空轉] 一支 Classic 製程都沒掃到")
+_fast100 = sum(1 for _n, (_k, _d) in presets.items()
+               if _k == "process" and "@FD" in _n and _d.get("sparse_infill_speed") == "100")
+if _fast100 == 0:
+    err("[Classic 列印速度上限・範圍外溢] Fast 系 FD 製程一支稀疏填充 100 都不剩 ⇒ 上限掃描漏到 Fast 了")
+print("Classic 列印速度上限 60：%d 支全數 ≤60｜Fast FD 稀疏填充 100 仍在 %d 支" % (_cs_n, _fast100))
 
 # ★ 跨層護欄：標題列的廠內測試版版次（Eric 2026-08-12 裁「標題列顯示 Beta T0xx」）
 #   鏈路＝`version.inc` 宣告 → `libslic3r_version.h.in` 由 configure_file 代換 → `BBLTopbar::SetTitle` 消費。
