@@ -53,6 +53,15 @@ COMBO_CAT_EASYTREE                   = "易拆樹狀"
 EASY_TREE_ALLOWED_DIFF = {"name", "setting_id", "renamed_from", "support_type", "support_style",
                           "support_speed", "support_interface_speed"}
 COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE}
+# 🆕 2026-11-04（回報中心 #206，牌 c-1104-QA-01）：0.6 口徑易拆樹狀換同事手調的樹狀七鍵。
+#   與 embed_params.EASY_TREE06_OVERRIDES 同值各一份；「易拆樹狀族」區塊 exact 鎖、並准許與易拆雙生差這七鍵。
+EASY_TREE06_NZ = "0.6"
+EASY_TREE06_VALUES = {
+    "tree_support_tip_diameter": "3", "tree_support_branch_distance_organic": "5",
+    "tree_support_top_rate": "30%", "tree_support_branch_diameter_organic": "3",
+    "tree_support_branch_diameter_angle": "5", "tree_support_branch_angle_organic": "40",
+    "tree_support_angle_slow": "25",
+}
 # 🆕 2026-10-23（Eric，牌 c-1023-CDP-01）：Classic DUAL 雙料機換 Pro 噴頭用的製程
 #   「<層高>mm 易拆_PRO／易拆樹狀_PRO @DUAL N (<口徑>)」。底線**刻意**讓 Tab.cpp 認不得 token（歸一般家族＝不連動、不過濾），
 #   ⇒ combo_token() 回 None，不能靠 token 認，用這支 regex。樹狀那支的支撐類型／樣式＝FD 易拆樹狀同值（tree(auto)／organic），
@@ -672,6 +681,9 @@ for name, (kind, d) in presets.items():
                 #    FF 系 1.0 口徑線寬 1.02 需 ≥2.04，舊值 2 會讓那 4 支勾樹狀即切片報錯。
                 # wall_count 0＝Eric 2026-07-27 裁「支撐牆數改零」（UI 支撐牆數＝此鍵、普通/樹狀共用：
                 # 普通支撐 0=無牆 with_sheath=false；樹狀 0=auto——0725「維持一圈」同鍵被上蓋）
+                # 1104（#206）：0.6 易拆樹狀（含 Classic「易拆樹狀_PRO」）的 _organic 鍵由「易拆樹狀族」區塊 exact 鎖
+                _et06 = ((_ctok == COMBO_CAT_EASYTREE or _is_classic_pro_tree(name))
+                         and name.endswith("(%s)" % EASY_TREE06_NZ))
                 for key, value in [("tree_support_branch_angle", "30"),
                                    ("tree_support_auto_brim", "0"),
                                    ("tree_support_brim_width", "10"),
@@ -679,6 +691,8 @@ for name, (kind, d) in presets.items():
                                    ("tree_support_branch_diameter_organic", "2.6"),
                                    ("tree_support_branch_angle_organic", "40")]:
                     if _is_tree_fam and key in _tfam:
+                        continue
+                    if _et06 and key in EASY_TREE06_VALUES:
                         continue
                     if d.get(key) != value:
                         err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
@@ -2311,7 +2325,13 @@ for _n, (_k, _d) in sorted(presets.items()):
         err(f"[易拆樹狀・雙生對象不存在] {_n}：找不到 {_sib!r}")
         continue
     _sd = _se[1]
-    _dk = sorted(k for k in set(_d) | set(_sd) if _d.get(k) != _sd.get(k) and k not in EASY_TREE_ALLOWED_DIFF)
+    _allow = set(EASY_TREE_ALLOWED_DIFF)
+    if _n.endswith("(%s)" % EASY_TREE06_NZ):   # 1104（#206）：0.6 口徑另准差樹狀七鍵，且值 exact 鎖
+        _allow |= set(EASY_TREE06_VALUES)
+        for _key, _val in EASY_TREE06_VALUES.items():
+            if _d.get(_key) != _val:
+                err(f"[易拆樹狀・0.6 樹狀七鍵 #206] {_n}: {_key}={_d.get(_key)!r}, expected {_val!r}")
+    _dk = sorted(k for k in set(_d) | set(_sd) if _d.get(k) != _sd.get(k) and k not in _allow)
     if _dk:
         err(f"[易拆樹狀・與易拆雙生的差異超出允許] {_n}: {_dk[:6]}"
             f"（只准差 support_type／support_style／兩個支撐速度）")

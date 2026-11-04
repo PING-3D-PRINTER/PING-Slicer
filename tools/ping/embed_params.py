@@ -1656,6 +1656,22 @@ EASY_TREE_TOKEN = "易拆樹狀"
 EASY_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "organic",
                        "support_speed": "50", "support_interface_speed": "50"}
 
+# ★ 0.6 口徑易拆樹狀的樹狀七鍵（回報中心 #206，Eric 2026-11-04 派工；牌 c-1104-QA-01）
+#   來源＝同事在 FD300 Pro 0.6「0.3mm 易拆樹狀 - 複製」手調的樹狀支撐整組（截圖藍框七項逐格判讀，無模糊）：
+#   末端直徑 3／分支距離 5／分支密度 30%／分支直徑 3／分支直徑角度 5／分支角度 40／偏好分支角度 25。
+#   相對現值實際有變的只有三鍵（末端 1.2→3、分支距離 1→5、分支直徑 2.6→3）；其餘四鍵＝現值，照截圖明寫鎖住。
+#   範圍＝0.6 口徑（＝「0.3mm 易拆樹狀」那組）：FD300／FD300 Pro／FD300 關門／FD450／600／800 Pro；
+#   Classic DUAL 的「易拆樹狀_PRO」在 4c-3 從 FD Pro 來源檔複製 ⇒ 自動跟著。其他口徑不動（回報只講 0.3mm 那組）。
+#   引擎檢查（Print.cpp 有機樹）：末端 ≥ 支撐線寬 0.5、分支直徑 ≥ 2×線寬且 ≥ 末端 ⇒ 3／3 都過。
+#   verify 有同名同值一份（EASY_TREE06_VALUES）。
+EASY_TREE06_NZ = "0.6"
+EASY_TREE06_OVERRIDES = {
+    "tree_support_tip_diameter": "3", "tree_support_branch_distance_organic": "5",
+    "tree_support_top_rate": "30%", "tree_support_branch_diameter_organic": "3",
+    "tree_support_branch_diameter_angle": "5", "tree_support_branch_angle_organic": "40",
+    "tree_support_angle_slow": "25",
+}
+
 def easy_tree_pname(lh, model, nz):
     return "%smm %s @%s (%s)" % (lh, EASY_TREE_TOKEN, model, nz)
 
@@ -2724,6 +2740,8 @@ def main(src_base):
                         # 易拆樹狀雙生（Eric 2026-09-19，牌 c-0919-ETR-01）：同口徑「易拆」只換支撐類型／樣式／速度。
                         # 新品無舊名 ⇒ 拿掉複製來的 renamed_from（留著會讓「易拆」的舊名在 rename map 撞成 1:2）。
                         et = dict(proc); et.update(EASY_TREE_OVERRIDES)
+                        if nz == EASY_TREE06_NZ:   # #206（1104）：0.6 口徑換同事手調的樹狀七鍵
+                            et.update(EASY_TREE06_OVERRIDES)
                         et["name"] = easy_tree_pname(lh, model, nz)
                         et.pop("renamed_from", None)
                         easy_tree_twins.append(et)
