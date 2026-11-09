@@ -983,7 +983,12 @@ void ping_quote_generate_all_plates(Plater *plater, const PingQuoteOptions &opts
         }
         path = into_u8(dlg.GetPath());
     }
-    const boost::filesystem::path p = boost::filesystem::path(from_u8(path).ToStdWstring());
+    // 對話框那條給的是 UTF-8；smoke 那條是 getenv 原樣（Windows＝系統字碼頁，例 Big5）。UTF-8 解不出來就照系統字碼頁解，
+    // 否則中文路徑會變成空字串、檔案寫到工作目錄去（2026-11-09 本機 smoke 實撞）。
+    wxString wpath = from_u8(path);
+    if (wpath.empty() && !path.empty())
+        wpath = wxString(path.c_str(), wxConvLocal);
+    const boost::filesystem::path p = boost::filesystem::path(wpath.ToStdWstring());
     run->ext  = p.has_extension() ? into_u8(wxString(p.extension().wstring())) : std::string(".pingquote");
     run->stem = into_u8(wxString((p.parent_path() / p.stem()).wstring()));
 
