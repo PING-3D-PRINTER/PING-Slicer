@@ -90,6 +90,10 @@
 namespace Slic3r {
 namespace GUI {
 
+// PING #219 (2026-11-09): the File > Import submenu, kept so the unattended smoke (PING_IMPORT_OFFICIAL_SMOKE) can log
+// what is actually on it. Set every time the menu bar is (re)built; only read by that smoke.
+static wxMenu *s_ping_import_menu = nullptr;
+
 wxDEFINE_EVENT(EVT_SELECT_TAB, wxCommandEvent);
 wxDEFINE_EVENT(EVT_HTTP_ERROR, wxCommandEvent);
 wxDEFINE_EVENT(EVT_USER_LOGIN, wxCommandEvent);
@@ -821,6 +825,25 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     // PING 報價包：設了 PING_QUOTE_SMOKE 就自動載模型→產包→自己關閉（無人值守驗證）。
     // 同樣的理由與同樣的掛牌保護——見 PingQuoteSmoke.hpp 檔頭與上面 0803 事故註解。
     run_ping_quote_smoke(this);
+
+    // PING #219（2026-11-09，牌 c-1109-QA-01）：設了 PING_IMPORT_OFFICIAL_SMOKE（只有測試版理會）就在啟動後
+    // 把「檔案→匯入」子選單的項目寫進 log，再叫出「從正式版匯入我的參數」（跟選單那一項同一個函式）。
+    // 理由同上兩個 smoke：選單是自繪的，訊息式點擊點不到，讓 AI 不用人點就能驗。
+    // 延後毫秒＝環境變數的值（不是數字就 8000），讓 app 自己的初始化先做完；之後兩個對話框照常要人（或訊息式點擊）按。
+    if (const char *smoke = ::getenv("PING_IMPORT_OFFICIAL_SMOKE"); smoke != nullptr && *PING_TEST_BUILD) {
+        int delay_ms = ::atoi(smoke);
+        if (delay_ms <= 0)
+            delay_ms = 8000;
+        auto *t = new wxTimer(this);
+        this->Bind(wxEVT_TIMER, [this, t](wxTimerEvent &) {
+            t->Stop();
+            if (s_ping_import_menu != nullptr)
+                for (wxMenuItem *it : s_ping_import_menu->GetMenuItems())
+                    BOOST_LOG_TRIVIAL(warning) << "PING #219 smoke：檔案→匯入 子選單＝" << into_u8(it->GetItemLabelText());
+            ping_import_user_presets_from_official();
+        }, t->GetId());
+        t->StartOnce(delay_ms);
+    }
 }
 
 /* C-2 第 7 項：閘門/守夜掛牌的單一來源（宣告處有完整說明）。
@@ -830,7 +853,8 @@ wxString MainFrame::ping_gate_title_prefix()
     /* PING 報價包 smoke 一併納入：Eric 的正式 Slicer 常常整天開著，兩個視窗長得
        一模一樣時他會分不出哪個是自動化在跑的——那正是 0803 事故的成因。
        任何無人值守模式都必須掛牌，不能只有照片磚那條線有。 */
-    if (::getenv("PING_PHOTOTILE_SMOKE") == nullptr && ::getenv("PING_QUOTE_SMOKE") == nullptr)
+    if (::getenv("PING_PHOTOTILE_SMOKE") == nullptr && ::getenv("PING_QUOTE_SMOKE") == nullptr &&
+        ::getenv("PING_IMPORT_OFFICIAL_SMOKE") == nullptr)   // PING #219：無人值守模式一律掛牌
         return wxString();
     return wxString::FromUTF8("⚠【壓測中・勿操作】");
 }
@@ -3204,6 +3228,7 @@ void MainFrame::init_menubar_as_editor()
                 []() { return true; }, this);
 
         append_submenu(fileMenu, import_menu, wxID_ANY, _L("Import"), "");
+        s_ping_import_menu = import_menu;   // PING #219：只給 PING_IMPORT_OFFICIAL_SMOKE 讀
 
 
         wxMenu* export_menu = new wxMenu();
