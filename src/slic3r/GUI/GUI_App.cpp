@@ -8652,11 +8652,10 @@ bool GUI_App::load_language(wxString language, bool initial)
 	    wxFileTranslationsLoader::AddCatalogLookupPathPrefix(from_u8(localization_dir()));
     	// Get the active language from PrusaSlicer.ini, or empty string if the key does not exist.
         language = app_config->get("language");
-        if (language.empty()) {
-            // PING Slicer: default UI language to Traditional Chinese (zh_TW) on first run.
-            language = "zh_TW";
-            app_config->set("language", "zh_TW");
-        }
+        // PING Slicer（Eric 2026-11-09 裁「跟系統語言走」）：第一次開（設定檔沒有 language）
+        // 不再寫死 zh_TW，改走下面 Orca 原生的系統語言偵測；只多一步——繁中地區
+        // （zh_TW／zh_HK／zh_MO／zh_Hant…）一律對到 zh_TW，因為只有 zh_TW 有翻譯檔。
+        // 已經開過的電腦設定檔裡有 language，不受影響。
         if (! language.empty())
         	BOOST_LOG_TRIVIAL(info) << boost::format("language provided by OrcaSlicer.conf: %1%") % language;
         else {
@@ -8672,6 +8671,14 @@ bool GUI_App::load_language(wxString language, bool initial)
                 if (auto info = wxLocale::FindLanguageInfo(lang))
                     m_language_info_system = info;
 #endif
+                // PING Slicer：繁中地區對到 zh_TW（只有 zh_TW 有翻譯檔；zh_CN／zh_SG 照原樣走簡中）。
+                {
+                    const wxString sys = m_language_info_system->CanonicalName;
+                    if (sys.StartsWith("zh") && sys != "zh_CN" && sys != "zh_SG" && !sys.StartsWith("zh_Hans")) {
+                        if (auto info = wxLocale::FindLanguageInfo("zh_TW"))
+                            m_language_info_system = info;
+                    }
+                }
                 BOOST_LOG_TRIVIAL(info) << boost::format("System language detected (user locales and such): %1%") % m_language_info_system->CanonicalName.ToUTF8().data();
                 // BBS set language to app config
                 app_config->set("language", m_language_info_system->CanonicalName.ToUTF8().data());
