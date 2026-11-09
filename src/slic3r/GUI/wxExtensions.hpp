@@ -74,9 +74,11 @@ wxBitmap create_scaled_bitmap(const std::string& bmp_name, wxWindow *win = nullp
 #endif
 
 wxBitmap* get_default_extruder_color_icon(bool thin_icon = false);
-std::vector<wxBitmap *> get_extruder_color_icons(bool thin_icon = false);
-wxBitmap * get_extruder_color_icon(std::string color, std::string label, int icon_width, int icon_height);
-wxBitmap * get_extruder_color_icon(std::vector<std::string> colors, bool is_gradient, std::string label, int icon_width, int icon_height);
+// PING (2026-11-09, 回報中心 #221): text_sized_label = draw the slot number with the combo-box text font (Body_14)
+// instead of growing it to fill the icon height. Only for icons shown next to text inside parameter combo boxes.
+std::vector<wxBitmap *> get_extruder_color_icons(bool thin_icon = false, bool text_sized_label = false);
+wxBitmap * get_extruder_color_icon(std::string color, std::string label, int icon_width, int icon_height, bool text_sized_label = false);
+wxBitmap * get_extruder_color_icon(std::vector<std::string> colors, bool is_gradient, std::string label, int icon_width, int icon_height, bool text_sized_label = false);
 std::vector<std::vector<std::string>> read_color_pack(std::vector<std::string> color_pack);
 wxColourData show_sys_picker_dialog(wxWindow *parent, const wxColourData &clr_data);
 

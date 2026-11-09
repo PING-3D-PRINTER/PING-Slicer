@@ -13,6 +13,8 @@
 #include <wx/filename.h>
 #include <wx/debug.h>
 #include <wx/utils.h>
+#include <wx/stdpaths.h>
+#include <boost/filesystem.hpp>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/log/trivial.hpp>
@@ -87,6 +89,10 @@
 
 namespace Slic3r {
 namespace GUI {
+
+// PING #219 (2026-11-09): the File > Import submenu, kept so the unattended smoke (PING_IMPORT_OFFICIAL_SMOKE) can log
+// what is actually on it. Set every time the menu bar is (re)built; only read by that smoke.
+static wxMenu *s_ping_import_menu = nullptr;
 
 wxDEFINE_EVENT(EVT_SELECT_TAB, wxCommandEvent);
 wxDEFINE_EVENT(EVT_HTTP_ERROR, wxCommandEvent);
@@ -819,6 +825,25 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     // PING 報價包：設了 PING_QUOTE_SMOKE 就自動載模型→產包→自己關閉（無人值守驗證）。
     // 同樣的理由與同樣的掛牌保護——見 PingQuoteSmoke.hpp 檔頭與上面 0803 事故註解。
     run_ping_quote_smoke(this);
+
+    // PING #219（2026-11-09，牌 c-1109-QA-01）：設了 PING_IMPORT_OFFICIAL_SMOKE（只有測試版理會）就在啟動後
+    // 把「檔案→匯入」子選單的項目寫進 log，再叫出「從正式版匯入我的參數」（跟選單那一項同一個函式）。
+    // 理由同上兩個 smoke：選單是自繪的，訊息式點擊點不到，讓 AI 不用人點就能驗。
+    // 延後毫秒＝環境變數的值（不是數字就 8000），讓 app 自己的初始化先做完；之後兩個對話框照常要人（或訊息式點擊）按。
+    if (const char *smoke = ::getenv("PING_IMPORT_OFFICIAL_SMOKE"); smoke != nullptr && *PING_TEST_BUILD) {
+        int delay_ms = ::atoi(smoke);
+        if (delay_ms <= 0)
+            delay_ms = 8000;
+        auto *t = new wxTimer(this);
+        this->Bind(wxEVT_TIMER, [this, t](wxTimerEvent &) {
+            t->Stop();
+            if (s_ping_import_menu != nullptr)
+                for (wxMenuItem *it : s_ping_import_menu->GetMenuItems())
+                    BOOST_LOG_TRIVIAL(warning) << "PING #219 smoke：檔案→匯入 子選單＝" << into_u8(it->GetItemLabelText());
+            ping_import_user_presets_from_official();
+        }, t->GetId());
+        t->StartOnce(delay_ms);
+    }
 }
 
 /* C-2 第 7 項：閘門/守夜掛牌的單一來源（宣告處有完整說明）。
@@ -828,7 +853,8 @@ wxString MainFrame::ping_gate_title_prefix()
     /* PING 報價包 smoke 一併納入：Eric 的正式 Slicer 常常整天開著，兩個視窗長得
        一模一樣時他會分不出哪個是自動化在跑的——那正是 0803 事故的成因。
        任何無人值守模式都必須掛牌，不能只有照片磚那條線有。 */
-    if (::getenv("PING_PHOTOTILE_SMOKE") == nullptr && ::getenv("PING_QUOTE_SMOKE") == nullptr)
+    if (::getenv("PING_PHOTOTILE_SMOKE") == nullptr && ::getenv("PING_QUOTE_SMOKE") == nullptr &&
+        ::getenv("PING_IMPORT_OFFICIAL_SMOKE") == nullptr)   // PING #219：無人值守模式一律掛牌
         return wxString();
     return wxString::FromUTF8("⚠【壓測中・勿操作】");
 }
@@ -3192,8 +3218,17 @@ void MainFrame::init_menubar_as_editor()
         append_menu_item(import_menu, wxID_ANY, _L("Import Configs") + dots /*+ "\t" + ctrl + "I"*/, _L("Load configs"),
             [this](wxCommandEvent&) { load_config_file(); }, "menu_import", nullptr,
             [this](){return true; }, this);
+        // PING (2026-11-09, 回報中心 #219): test builds keep their own data folder (version governance D-07), seeded from the
+        // official one only once ⇒ presets made in the official version afterwards are not visible here. This item copies
+        // them over on demand. Shipping builds (PING_TEST_BUILD empty) do not get the item.
+        if (*PING_TEST_BUILD)
+            append_menu_item(import_menu, wxID_ANY, wxString::FromUTF8("從正式版匯入我的參數") + dots,
+                wxString::FromUTF8("把正式版 PING Slicer 裡自己建的機器／線材／製程參數抄進測試版（同名的不覆蓋）"),
+                [this](wxCommandEvent&) { ping_import_user_presets_from_official(); }, "menu_import", nullptr,
+                []() { return true; }, this);
 
         append_submenu(fileMenu, import_menu, wxID_ANY, _L("Import"), "");
+        s_ping_import_menu = import_menu;   // PING #219：只給 PING_IMPORT_OFFICIAL_SMOKE 讀
 
 
         wxMenu* export_menu = new wxMenu();
@@ -4200,6 +4235,99 @@ void MainFrame::load_config_file()
     MessageDialog dlg2(this,msg ,
                         _L("Import result"), wxOK);
     dlg2.ShowModal();
+}
+
+// PING (2026-11-09, 回報中心 #219; 牌 c-1109-QA-01)
+// Why: a test build uses its own data folder "<APP_KEY>-Internal" and copies the official one only the first time it starts
+// (version governance D-07, Eric 2026-09-24 Q2/Q3). Presets the user creates in the official version after that never show
+// up in the test build — reported as "升級到 T102 後，自訂切片參數未被保留".
+// What: read-only scan of <official>/user/<any user folder>/{machine,filament,process}/**.json and feed them to the same
+// import path as File > Import > Import Configs (PresetBundle::import_presets). Printers first so filament/process presets
+// that depend on a user printer find it. A preset whose name already exists here is skipped (never overwritten). The
+// official folder is never written.
+void MainFrame::ping_import_user_presets_from_official()
+{
+    namespace fs = boost::filesystem;
+    const wxString title = wxString::FromUTF8("從正式版匯入我的參數");
+
+    // Same rule as ping_seed_test_data_dir() in GUI_App.cpp: official = sibling of the test-build folder named APP_KEY.
+#ifndef __linux__
+    const fs::path internal_dir(wxStandardPaths::Get().GetUserDataDir().ToUTF8().data());
+#else
+    wxString cfg_home;
+    if (!wxGetEnv(wxS("XDG_CONFIG_HOME"), &cfg_home) || cfg_home.empty())
+        cfg_home = wxFileName::GetHomeDir() + wxS("/.config");
+    const fs::path internal_dir((cfg_home + "/" + wxGetApp().GetAppName()).ToUTF8().data());
+#endif
+    const fs::path official = internal_dir.parent_path() / SLIC3R_APP_KEY;
+    boost::system::error_code ec;
+    if (fs::equivalent(official, fs::path(data_dir()), ec)) {   // never import a folder into itself
+        MessageDialog(this, wxString::FromUTF8("目前用的就是正式版的設定資料夾，不需要匯入。"), title, wxOK | wxICON_INFORMATION).ShowModal();
+        return;
+    }
+
+    // Collect, grouped by kind so printers go first.
+    const char *kinds[] = {"machine", "filament", "process"};
+    std::vector<std::string> files_by_kind[3];
+    const fs::path user_root = official / PRESET_USER_DIR;
+    if (fs::is_directory(user_root, ec)) {
+        for (fs::directory_iterator uit(user_root, ec), uend; !ec && uit != uend; uit.increment(ec)) {
+            if (!fs::is_directory(uit->path(), ec))
+                continue;
+            for (int k = 0; k < 3; ++k) {
+                const fs::path kind_dir = uit->path() / kinds[k];
+                if (!fs::is_directory(kind_dir, ec))
+                    continue;
+                for (fs::recursive_directory_iterator it(kind_dir, ec), end; !ec && it != end; it.increment(ec)) {
+                    if (fs::is_regular_file(it->path(), ec) && boost::iequals(it->path().extension().string(), ".json"))
+                        files_by_kind[k].push_back(it->path().string());
+                }
+                ec.clear();
+            }
+        }
+    }
+    const size_t total = files_by_kind[0].size() + files_by_kind[1].size() + files_by_kind[2].size();
+    if (total == 0) {
+        MessageDialog(this, wxString::FromUTF8("正式版裡沒有找到自己建的參數。\n\n找的位置：") + from_path(user_root), title,
+                      wxOK | wxICON_INFORMATION).ShowModal();
+        return;
+    }
+
+    // Two-stage: show what will be imported, then do it.
+    wxString ask = wxString::Format(wxString::FromUTF8("在正式版找到自己建的參數 %d 支：\n機器 %d／線材 %d／製程 %d\n\n"
+                                                       "要匯入測試版嗎？測試版裡已經有同名的會跳過、不會被蓋掉；正式版不會被改動。"),
+                                    (int) total, (int) files_by_kind[0].size(), (int) files_by_kind[1].size(), (int) files_by_kind[2].size());
+    MessageDialog confirm(this, ask, title, wxYES_NO | wxICON_QUESTION);
+    confirm.SetButtonLabel(wxID_YES, wxString::Format(wxString::FromUTF8("匯入 %d 支"), (int) total), true);
+    confirm.SetButtonLabel(wxID_NO, wxString::FromUTF8("取消"));
+    if (confirm.ShowModal() != wxID_YES)
+        return;
+
+    size_t imported = 0, skipped_same_name = 0;
+    for (auto &files : files_by_kind) {
+        if (files.empty())
+            continue;
+        // 0 = "no" for this one only. Do not return 2 ("no to all"): import_json_presets keeps that state and would then
+        // skip every following preset too, including ones that do not exist here yet.
+        wxGetApp().preset_bundle->import_presets(files, [&skipped_same_name](std::string const &) { ++skipped_same_name; return 0; },
+                                                 ForwardCompatibilitySubstitutionRule::Enable);
+        imported += files.size();   // import_presets leaves only the successfully imported files in the vector
+    }
+    const size_t failed = total >= imported + skipped_same_name ? total - imported - skipped_same_name : 0;
+    BOOST_LOG_TRIVIAL(warning) << "PING #219 從正式版匯入我的參數：" << official.string() << " 找到 " << total << "，匯入 " << imported
+                               << "，同名略過 " << skipped_same_name << "，其他未匯入 " << failed;
+
+    if (imported > 0)
+        wxGetApp().load_current_presets();
+    wxGetApp().preset_bundle->update_compatible(PresetSelectCompatibleType::Always);
+    update_side_preset_ui();
+
+    wxString done = wxString::Format(wxString::FromUTF8("匯入 %d 支。"), (int) imported);
+    if (skipped_same_name > 0)
+        done += wxString::Format(wxString::FromUTF8("\n已經有同名的、跳過 %d 支。"), (int) skipped_same_name);
+    if (failed > 0)
+        done += wxString::Format(wxString::FromUTF8("\n%d 支沒匯入（跟系統參數同名，或它依附的機器／系統參數在這一版不存在）。"), (int) failed);
+    MessageDialog(this, done, title, wxOK | wxICON_INFORMATION).ShowModal();
 }
 
 // Load a config file containing a Print, Filament & Printer preset from command line.

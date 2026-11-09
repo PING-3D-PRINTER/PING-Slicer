@@ -811,7 +811,8 @@ struct DynamicFilamentList : DynamicList
         items.clear();
         if (!force && m_choices.empty())
             return;
-        auto icons = get_extruder_color_icons(true);
+        // PING（2026-11-09，回報中心 #221）：料槽編號改用跟下拉框文字同一號字（Body_14），不再放大到填滿色塊
+        auto icons = get_extruder_color_icons(true, true);
         auto presets = wxGetApp().preset_bundle->filament_presets;
         for (int i = 0; i < presets.size(); ++i) {
             wxString str;
@@ -860,7 +861,8 @@ struct DynamicFilamentList1Based : DynamicFilamentList
         items.clear();
         if (!force && m_choices.empty())
             return;
-        auto icons = get_extruder_color_icons(true);
+        // PING（2026-11-09，回報中心 #221）：料槽編號改用跟下拉框文字同一號字（Body_14），不再放大到填滿色塊
+        auto icons = get_extruder_color_icons(true, true);
         auto presets = wxGetApp().preset_bundle->filament_presets;
         for (int i = 0; i < presets.size(); ++i) {
             wxString str;

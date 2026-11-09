@@ -1001,6 +1001,16 @@ for name, (kind, d) in presets.items():
             # 🆕 Eric 2026-10-25（牌 c-1025-AGC-01）：Classic 也拆玻璃版 `PING ABS(玻璃) - Classic`，床溫同 F 系玻璃版。
             if name in ("PING ABS(玻璃)", "PING ABS(玻璃) - Classic") and (d.get("hot_plate_temp_initial_layer") != ["60"] or d.get("hot_plate_temp") != ["100"]):
                 err(f"[ABS 玻璃床溫 0910] {name}: 首層={d.get('hot_plate_temp_initial_layer')!r} 應 60、其它層={d.get('hot_plate_temp')!r} 應 100")
+            # 🆕 Eric 2026-11-09 裁 #220 甲案（牌 c-1109-QA-01）：`PING SupPETG`（PLA 料撐 PETG）噴溫 225（首層同）、床溫 75；
+            #   限定＝只改 SupPETG 這一支，`PING PETG` 維持 235／75（乙案「兩支都改 225」未採）。
+            if name == "PING SupPETG":
+                for _k, _want in (("nozzle_temperature", "225"), ("nozzle_temperature_initial_layer", "225"),
+                                  ("hot_plate_temp", "75"), ("hot_plate_temp_initial_layer", "75"),
+                                  ("cool_plate_temp", "75"), ("cool_plate_temp_initial_layer", "75")):
+                    if d.get(_k) != [_want]:
+                        err(f"[SupPETG 225／75 1109] {name}: {_k}={d.get(_k)!r} 應 [{_want!r}]")
+            if name == "PING PETG" and d.get("nozzle_temperature") != ["235"]:
+                err(f"[SupPETG 甲案不動 PETG 1109] {name}: nozzle_temperature={d.get('nozzle_temperature')!r} 應 ['235']")
             # 線材回抽統一（Eric 2026-07-23 三裁 → 0819 一般流量改寫）
             # 🔴 Classic 前代豁免：赤兔不能吃韌體回抽（Eric 0807）⇒ 材料層不得覆蓋回抽，
             #    專屬護欄在檔尾「Classic 材料層回抽覆蓋 0807」。
