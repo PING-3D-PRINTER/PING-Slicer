@@ -325,6 +325,9 @@ public:
     void        load_config_file();
     // Open a config file. Return true if loaded.
     bool        load_config_file(const std::string &path);
+    // PING (2026-11-09, 回報中心 #219): test builds only — import the user's own presets from the
+    // official (shipping) data folder into the test-build data folder. Same names are skipped, never overwritten.
+    void        ping_import_user_presets_from_official();
 
     //BBS: export current config bundle as BBL default reference
     //void        export_current_configbundle();
