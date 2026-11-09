@@ -105,11 +105,23 @@ jobs:
 
       - name: Free disk space
         if: runner.os == 'macOS' && !inputs.macos-combine-only && !vars.SELF_HOSTED
+        # PING: ported from upstream OrcaSlicer when moving to macos-15 (claim c-1109-MAC-02).
+        # The old step hard-coded /dev/disk3s1s1 (absent on macos-15 -> df exit 1) and kept
+        # only Xcode_15.4.app, which macos-15 does not ship -> it would delete every Xcode.
         run: |
-          df -hI /dev/disk3s1s1
-          sudo find /Applications -maxdepth 1 -type d -name "Xcode_*.app" ! -name "Xcode_15.4.app" -exec rm -rf {} +
+          df -hI /
+          # Deleting the unused Xcodes takes minutes, so only do it when the
+          # build might not fit. A cold build uses under 4 GiB after this step.
+          avail_gib=$(df -g / | awk 'NR == 2 { print $4 }')
+          if [ "$avail_gib" -ge 15 ]; then
+            echo "$avail_gib GiB free, enough for the build"
+            exit 0
+          fi
+          # Keep only the selected Xcode
+          xcode=$(basename "$(cd "$(xcode-select -p)/../.." && pwd -P)")
+          sudo find /Applications -maxdepth 1 -type d -name "Xcode_*.app" ! -name "$xcode" -exec rm -rf {} +
           sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
-          df -hI /dev/disk3s1s1
+          df -hI /
 
       - name: Build slicer mac
         if: runner.os == 'macOS' && !inputs.macos-combine-only
