@@ -4,6 +4,7 @@
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
 #include "Plater.hpp"
+#include "PartPlate.hpp"   // #213 全部盤 smoke：建盤／搬物件
 #include "GLCanvas3D.hpp"
 #include "Selection.hpp"
 
@@ -166,6 +167,29 @@ void run_ping_quote_smoke(MainFrame *frame)
             opts.include_restore_3mf = !(w3mf != nullptr && std::string(w3mf) == "0");
         }
         opts.on_done     = [frame](bool ok, const std::string &msg) { finish_smoke(frame, ok, msg); };
+
+        /* 回報中心 #213 甲案驗收用（選填，PING_QUOTE_SMOKE_ALL_PLATES=1）：第 2 個起的每個模型各搬到一個新盤
+           （照兩盤原點的差平移），再走「全部盤各一份」那條路；輸出檔＝PING_QUOTE_SMOKE 去掉副檔名＋_盤N。 */
+        if (const char *all_env = ::getenv("PING_QUOTE_SMOKE_ALL_PLATES"); all_env != nullptr && std::string(all_env) == "1") {
+            PartPlateList &list   = plater->get_partplate_list();
+            const Vec3d    origin0 = list.get_plate(0)->get_origin();
+            for (size_t k = 1; k < loaded.size(); ++k) {
+                const size_t idx = loaded[k];
+                if (idx >= plater->model().objects.size())
+                    continue;
+                const int   pid   = list.create_plate();
+                const Vec3d shift = list.get_plate(pid)->get_origin() - origin0;
+                for (ModelInstance *mi : plater->model().objects[idx]->instances)
+                    mi->set_offset(mi->get_offset() + shift);
+                plater->changed_object(static_cast<int>(idx));
+            }
+            list.reload_all_objects();
+            for (int i = 0; i < list.get_plate_count(); ++i)
+                BOOST_LOG_TRIVIAL(warning) << "PING_QUOTE_SMOKE plate " << (i + 1) << " printable="
+                                           << (list.get_plate(i)->has_printable_instances() ? 1 : 0);
+            ping_quote_generate_all_plates(plater, opts);
+            return;
+        }
         ping_quote_generate(plater, opts);
     };
 
