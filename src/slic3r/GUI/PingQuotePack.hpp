@@ -156,6 +156,10 @@ struct PingQuoteOptions
 // 背景執行（Job worker），不阻塞 UI。
 void ping_quote_generate(Plater *plater, const PingQuoteOptions &opts = PingQuoteOptions());
 
+// 回報中心 #213 甲案（2026-11-09）：每個有可列印物件的盤各產一個估價包（檔名加 _盤N），格式與契約不變。
+// opts.output_path 非空＝不問存檔路徑（smoke 用，各盤再加 _盤N）；完成後回到原本選中的盤，on_done 收到總結。
+void ping_quote_generate_all_plates(Plater *plater, const PingQuoteOptions &opts = PingQuoteOptions());
+
 }} // namespace Slic3r::GUI
 
 #endif // slic3r_GUI_PingQuotePack_hpp_

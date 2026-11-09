@@ -3305,6 +3305,18 @@ void MainFrame::init_menubar_as_editor()
                 ping_quote_generate(m_plater, o);
             }, "", nullptr,
             [this]() { return can_export_model(); }, this);
+        // PING（2026-11-09，回報中心 #213 甲案，牌 c-1109-QAP-01）：全部盤各一份——每個有可列印物件的盤各產一個估價包
+        // （檔名加 _盤N），包的格式與契約不變；CRM 匯入第二個包會接在同一張報價單後面，業務依序拖進去即可。
+        append_menu_item(fileMenu, wxID_ANY,
+            wxString::FromUTF8("匯出估價包（全部盤各一份）") + dots,
+            wxString::FromUTF8("每個盤各輸出一個估價包，檔名自動加 _盤1、_盤2…"),
+            [this](wxCommandEvent&) {
+                PingQuoteOptions o;
+                if (wxGetApp().app_config->has("ping_quote_include_restore_3mf"))   // 同上：先問 has()，見上一項註解
+                    o.include_restore_3mf = wxGetApp().app_config->get_bool("ping_quote_include_restore_3mf");
+                ping_quote_generate_all_plates(m_plater, o);
+            }, "", nullptr,
+            [this]() { return can_export_model(); }, this);
 
         fileMenu->AppendSeparator();
 

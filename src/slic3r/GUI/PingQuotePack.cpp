@@ -860,4 +860,156 @@ void ping_quote_generate(Plater *plater, const PingQuoteOptions &opts)
     replace_job(w, std::make_unique<PingQuotePackJob>(plater, opts));
 }
 
+// ---------------------------------------------------------------------
+// 全部盤各一份（回報中心 #213 甲案；Eric 2026-11-09「照甲案做」；牌 c-1109-QAP-01）
+//
+// 為什麼是「每盤一包」而不是「全部合成一包」：
+//   ① 一包＝一組設定＋一串物件（契約 v1.4），而每一盤可以有自己的覆寫值與料槽對應——合成一包要改兩邊契約（乙案，未採）。
+//   ② CRM〈匯入報價包〉把第二個包的物件接在同一張報價單後面、不覆蓋（EditQuoteForm importPackageItems），
+//      所以業務把幾個包依序拖進去就是全部的盤——CRM 不用改。
+// 做法：記住目前選中的盤 → 逐一選中「有可列印物件」的盤、照原本單盤那條路產包（檔名加 _盤N）→ 每包做完才開下一包
+//      （同一個 worker，接力不並行）→ 回到原本的盤 → 一個總結對話框。單包的錯誤照收進總結，不中斷其他盤。
+// ---------------------------------------------------------------------
+
+namespace {
+
+struct PingAllPlatesRun
+{
+    Plater                  *plater = nullptr;
+    PingQuoteOptions         base;          // 呼叫端給的選項（silent／include_restore_3mf／on_done）
+    std::vector<int>         plates;        // 要產的盤（0 起算）
+    size_t                   next = 0;
+    int                      orig_plate = 0;
+    std::string              stem;          // 存檔路徑去掉副檔名
+    std::string              ext;           // 含點，例 ".pingquote"
+    int                      ok_count = 0;
+    std::vector<std::string> lines;         // 每盤一行結果
+};
+
+void ping_all_plates_step(std::shared_ptr<PingAllPlatesRun> run)
+{
+    Plater *plater = run->plater;
+    if (run->next >= run->plates.size()) {
+        plater->select_plate(run->orig_plate);
+        std::string summary = (boost::format(_u8L("已輸出 %1%／%2% 個盤的估價包（一盤一個檔）。")) % run->ok_count % run->plates.size()).str();
+        for (const std::string &l : run->lines)
+            summary += "\n" + l;
+        if (run->ok_count > 0)
+            summary += "\n\n" + _u8L("在報價系統把這幾個檔依序拖進同一張報價單，物件會接在後面、不會互相覆蓋。");
+        BOOST_LOG_TRIVIAL(warning) << "ping-quote all plates: " << summary;
+        if (!run->base.silent)
+            MessageDialog(wxGetApp().mainframe, from_u8(summary), wxString::FromUTF8("匯出估價包（全部盤各一份）"),
+                          (run->ok_count == static_cast<int>(run->plates.size()) ? wxICON_INFORMATION : wxICON_WARNING) | wxOK)
+                .ShowModal();
+        if (run->base.on_done)
+            run->base.on_done(run->ok_count > 0, summary);
+        return;
+    }
+
+    const int         plate_idx = run->plates[run->next];
+    const std::string path      = run->stem + "_盤" + std::to_string(plate_idx + 1) + run->ext;
+    plater->select_plate(plate_idx);
+
+    PingQuoteOptions o;
+    o.output_path         = path;
+    o.silent              = true;   // 單包的完成／錯誤對話框不彈，統一收進最後的總結
+    o.include_restore_3mf = run->base.include_restore_3mf;
+    o.on_done             = [run, plate_idx, path](bool ok, const std::string &message) {
+        const std::string first = message.substr(0, message.find('\n'));
+        if (ok) {
+            ++run->ok_count;
+            run->lines.push_back((boost::format(_u8L("盤 %1%：%2%")) % (plate_idx + 1) %
+                                  boost::filesystem::path(path).filename().string()).str());
+        } else {
+            run->lines.push_back((boost::format(_u8L("盤 %1%：沒有輸出（%2%）")) % (plate_idx + 1) % first).str());
+        }
+        ++run->next;
+        // 等這一包的 job 完全收尾、worker 空下來再開下一包
+        wxGetApp().CallAfter([run]() { ping_all_plates_step(run); });
+    };
+    ping_quote_generate(plater, o);
+}
+
+} // anonymous namespace
+
+void ping_quote_generate_all_plates(Plater *plater, const PingQuoteOptions &opts)
+{
+    auto fail = [&opts](const std::string &msg) {
+        if (!opts.silent)
+            MessageDialog(wxGetApp().mainframe, from_u8(msg), wxString::FromUTF8("匯出估價包（全部盤各一份）"), wxICON_WARNING | wxOK).ShowModal();
+        if (opts.on_done)
+            opts.on_done(false, msg);
+    };
+    if (plater == nullptr) {
+        fail("plater is null");
+        return;
+    }
+
+    PartPlateList &list = plater->get_partplate_list();
+    auto           run  = std::make_shared<PingAllPlatesRun>();
+    run->plater         = plater;
+    run->base           = opts;
+    run->orig_plate     = list.get_curr_plate_index();
+    for (int i = 0; i < list.get_plate_count(); ++i) {
+        PartPlate *pl = list.get_plate(i);
+        if (pl != nullptr && pl->has_printable_instances())
+            run->plates.push_back(i);
+    }
+    if (run->plates.empty()) {
+        fail(_u8L("所有盤上都沒有可列印的物件。"));
+        return;
+    }
+
+    std::string path = opts.output_path;   // smoke：直接給存檔路徑（各盤再加 _盤N）
+    if (path.empty()) {
+        char        datebuf[16];
+        std::time_t now = std::time(nullptr);
+        std::tm     lt{};
+#ifdef _WIN32
+        ::localtime_s(&lt, &now);
+#else
+        ::localtime_r(&now, &lt);
+#endif
+        ::snprintf(datebuf, sizeof(datebuf), "%04d%02d%02d", lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday);
+        wxFileDialog dlg(wxGetApp().mainframe,
+                         wxString::Format(wxString::FromUTF8("匯出估價包（全部盤各一份，共 %d 個盤；檔名會自動加 _盤1、_盤2…）"),
+                                          static_cast<int>(run->plates.size())),
+                         from_u8(wxGetApp().app_config->get_last_output_dir("")), from_u8(std::string("報價_") + datebuf + ".pingquote"),
+                         wxString::FromUTF8("PING 估價包 (*.pingquote)|*.pingquote|ZIP (*.zip)|*.zip"), wxFD_SAVE);
+        if (dlg.ShowModal() != wxID_OK) {
+            if (opts.on_done)
+                opts.on_done(false, "user cancelled the save dialog");
+            return;
+        }
+        path = into_u8(dlg.GetPath());
+    }
+    const boost::filesystem::path p = boost::filesystem::path(from_u8(path).ToStdWstring());
+    run->ext  = p.has_extension() ? into_u8(wxString(p.extension().wstring())) : std::string(".pingquote");
+    run->stem = into_u8(wxString((p.parent_path() / p.stem()).wstring()));
+
+    // 會被蓋掉的同名檔先講清楚（單盤那條由存檔對話框問；這裡檔名是我們加的，對話框問不到）
+    if (!opts.silent) {
+        int exists = 0;
+        for (int idx : run->plates) {
+            boost::system::error_code ec;
+            if (boost::filesystem::exists(boost::filesystem::path(from_u8(run->stem + "_盤" + std::to_string(idx + 1) + run->ext).ToStdWstring()), ec))
+                ++exists;
+        }
+        if (exists > 0) {
+            MessageDialog ask(wxGetApp().mainframe,
+                              wxString::Format(wxString::FromUTF8("資料夾裡已經有 %d 個同名的估價包，繼續會覆蓋它們。"), exists),
+                              wxString::FromUTF8("匯出估價包（全部盤各一份）"), wxYES_NO | wxICON_QUESTION);
+            ask.SetButtonLabel(wxID_YES, wxString::FromUTF8("覆蓋並匯出"), true);
+            ask.SetButtonLabel(wxID_NO, wxString::FromUTF8("取消"));
+            if (ask.ShowModal() != wxID_YES) {
+                if (opts.on_done)
+                    opts.on_done(false, "user declined overwrite");
+                return;
+            }
+        }
+    }
+
+    ping_all_plates_step(run);
+}
+
 }} // namespace Slic3r::GUI
