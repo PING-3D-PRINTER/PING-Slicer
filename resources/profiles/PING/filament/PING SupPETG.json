@@ -13,22 +13,22 @@
         "PLA"
     ],
     "nozzle_temperature": [
-        "210"
+        "225"
     ],
     "nozzle_temperature_initial_layer": [
-        "210"
+        "225"
     ],
     "hot_plate_temp": [
-        "60"
+        "75"
     ],
     "hot_plate_temp_initial_layer": [
-        "60"
+        "75"
     ],
     "cool_plate_temp": [
-        "60"
+        "75"
     ],
     "cool_plate_temp_initial_layer": [
-        "60"
+        "75"
     ],
     "fan_max_speed": [
         "100"
