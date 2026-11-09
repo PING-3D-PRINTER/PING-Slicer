@@ -340,6 +340,7 @@ def expected_support_type(printer_name):
         return "normal(auto)"
     return None
 
+FD300_SHEET_ACCEL_SEEN = []   # 檢查 10-b 射到幾支（0 支＝改名後判準失效，下面會叫）
 for name, (kind, d) in presets.items():
     if kind == "machine_model":
         continue
@@ -417,6 +418,12 @@ for name, (kind, d) in presets.items():
         if ("machine_max_acceleration_x" in d and "DL1016" not in name
                 and not classic_model_for_machine(name)):
             V, A, J = ("200", "1500", "56") if "FF" in name else ("400", "5000", "7")
+            # 10-b 鈑金框 FD300 系加速度上限 3000（Eric 2026-11-09 裁「改成 3000」；牌 c-1109-FDA-01）。
+            #   判準與 embed_params.py 4b-4 同一句；FD300 Pro（＝FD300 Lite 骨架）維持 5000。
+            #   這個值在 Klipper 模式下會夾 gcode 裡所有 ACCEL=，不是只影響時間預估。
+            if re.match(r"FD300( |$)", name) and not name.startswith("FD300 Pro"):
+                A = "3000"
+                FD300_SHEET_ACCEL_SEEN.append(name)
             for key, value in (("machine_max_speed_x", [V, V]), ("machine_max_speed_y", [V, V]),
                                ("machine_max_acceleration_x", [A, A]), ("machine_max_acceleration_y", [A, A]),
                                ("machine_max_acceleration_extruding", [A, A]),
@@ -1238,6 +1245,12 @@ for _mn, (_k, _d) in presets.items():
 if _p193_census["預擠線"] != 45:
     err(f"[Classic 預擠線 #193] DUAL 300／450／600／800 應恰 45 台（300＝9；450／600／800 各 12＝本體／同進／單料頭 × 4 口徑），實得 {_p193_census['預擠線']}")
 print(f"Classic 預擠線（#193）：床邊預擠線 {_p193_census['預擠線']} 台｜原地擠 {_p193_census['原地擠']} 台")
+
+# 檢查 10-b 射程（c-1109-FDA-01）：鈑金框 FD300 系＝本體／同進／單料頭／關門 各 3 口徑＋同進照片磚 2 口徑＝14 支。
+#   數字不對＝有人改名或加刪變體，判準可能已經沒射到該擋的機型（0 支時檢查 10-b 等於不存在）。
+if len(FD300_SHEET_ACCEL_SEEN) != 14:
+    err(f"[鈑金框 FD300 加速度 3000 射程] 應恰 14 支機器檔，實得 {len(FD300_SHEET_ACCEL_SEEN)}：{sorted(FD300_SHEET_ACCEL_SEEN)}")
+print(f"鈑金框 FD300 系加速度上限 3000（c-1109-FDA-01）：{len(FD300_SHEET_ACCEL_SEEN)} 支機器檔")
 
 # Classic 全套 11 支（Eric 2026-08-07 裁「全套跟 Fast 對齊」：原 4 支 ＋ 新 7 支）。
 # 下面逐支斷言：PA 全關（Marlin 無 PA）＋ start gcode 不得帶 Klipper 的 SET_RETRACTION。

@@ -3461,7 +3461,11 @@ def main(src_base):
     # 4b-4. ★ 機器動力學＝Klipper 實值（Eric 2026-07-17 裁「全機隊直接改」）：
     # 時間預估器用機器檔 machine_max_* 模擬，原值 20000/jerk100 是幻想 → 29h 估 vs 33h 實差 14%。
     # 實值來源＝機隊 repo range cfg：FD/FP＝max_velocity 400/max_accel 5000/SCV 5（jerk≈5×√2≈7）；
-    # FF＝200/1500/SCV 40（jerk≈56）。只影響時間預估與 M201/M203（Klipper 忽略），不改列印行為。
+    # FF＝200/1500/SCV 40（jerk≈56）。
+    # 🔴 更正（2026-11-09，牌 c-1109-FDA-01）：原寫「只影響時間預估與 M201/M203（Klipper 忽略），不改列印行為」
+    #    是錯的——Klipper 模式下 machine_max_acceleration_extruding 會夾 gcode 裡每一個 ACCEL=
+    #    （GCodeWriter::apply_print_config 的 use_mach_limits 含 gcfKlipper；set_accel_and_jerk 列印與空駛都夾）
+    #    ⇒ 這裡的 A 就是切出來的加速度天花板。
     # DL1016（無實測值）與 Classic 前代機（Marlin，emit_machine_limits=0 另案）跳過。
     mm_set = 0
     for mp_path in glob.glob(os.path.join(PINGDIR, "machine", "*.json")):
@@ -3475,6 +3479,15 @@ def main(src_base):
         if "DL1016" in mname or CLASSIC_MACHINE_RE.match(mname):   # 判準見檔頭 CLASSIC_MACHINE_RE
             continue
         V, A, J = ("200", "1500", "56") if "FF" in mname else ("400", "5000", "7")
+        # 🔴 鈑金框 FD300 系（本體／同進／同進照片磚／單料頭／關門；**不含 FD300 Pro**）加速度上限 3000
+        #   （Eric 2026-11-09 裁「改成 3000」；牌 c-1109-FDA-01）。起因＝Klipper 線 C8M：.146（鈑金框 FD300、
+        #   C8 電控）在 5000 時 C 塔丟 128 微步、3000 不丟；Klipper 不會拿 printer.cfg 的 max_accel 去夾 gcode
+        #   自己寫的 SET_VELOCITY_LIMIT ACCEL=（客戶件實測 5000 出現 50,499 次）⇒ 只能在切片端擋。
+        #   FD300 Lite（鋁擠柱框、骨架同 FD300 Pro）5000 不丟步 ⇒ Eric 裁只擋鈑金框、機器端不加限制。
+        #   製程裡寫 5000 的那些（跟 FD300 Pro 共用）不用改：引擎會拿這裡的 extruding 值把它夾成 3000。
+        #   FP300 雖同 156 骨架，這次 Eric 只裁 FD300 ⇒ **不要順手擴到 FP300**，要擴先問。
+        if re.match(r"FD300( |$)", mname) and not mname.startswith("FD300 Pro"):
+            A = "3000"
         want = {"machine_max_speed_x": [V, V], "machine_max_speed_y": [V, V],
                 "machine_max_acceleration_x": [A, A], "machine_max_acceleration_y": [A, A],
                 "machine_max_acceleration_extruding": [A, A], "machine_max_acceleration_travel": [A, A],
@@ -3486,7 +3499,7 @@ def main(src_base):
         jdump(mp_path, md_)
         mm_set += 1
     if mm_set:
-        print("  機器動力學=Klipper實值：改 %d 台（FD/FP 400/5000/7、FF 200/1500/56）" % mm_set)
+        print("  機器動力學=Klipper實值：改 %d 台（FD/FP 400/5000/7、鈑金框 FD300 系 400/3000/7、FF 200/1500/56）" % mm_set)
 
     # 4b-5. ★ 冷卻降速統一：slow_down_layer_time（最大風扇臨界·每層列印時間）一律 10 秒
     #（Eric 2026-07-18 裁「擴及所有材料」，原預設 5 與 FF 7/基底 2~8 特調一併統一）。
