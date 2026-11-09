@@ -531,7 +531,22 @@ wxBitmap* get_default_extruder_color_icon(bool thin_icon/* = false*/)
     return bitmap;
 }
 
-std::vector<wxBitmap*> get_extruder_color_icons(bool thin_icon/* = false*/)
+// PING (2026-11-09, 回報中心 #221): the digit used to be grown until its line height filled the icon (icon_height - 2),
+// which next to combo text (Body_14) made it visibly bigger than every other number in the panel. With text_sized_label
+// it uses Body_14 like the combo text, and is only shrunk if that would not fit the icon.
+static void ping_set_label_font(wxDC &dc, int icon_height, bool text_sized_label)
+{
+    if (!text_sized_label) {
+        dc.SetFont(::Label::Body_12);
+        Slic3r::GUI::WxFontUtils::get_suitable_font_size(icon_height - 2, dc);
+        return;
+    }
+    dc.SetFont(::Label::Body_14);
+    if (dc.GetFontMetrics().height > icon_height - 2)
+        Slic3r::GUI::WxFontUtils::get_suitable_font_size(icon_height - 2, dc);
+}
+
+std::vector<wxBitmap*> get_extruder_color_icons(bool thin_icon/* = false*/, bool text_sized_label/* = false*/)
 {
     // Create the bitmap with color bars.
     std::vector<wxBitmap*> bmps;
@@ -559,9 +574,9 @@ std::vector<wxBitmap*> get_extruder_color_icons(bool thin_icon/* = false*/)
                 return boost::iequals(c, colors.front());
             });
             if (colors.size() == 1 || same_colour) {
-                bmps.push_back(get_extruder_color_icon(colors[0], label, icon_width, icon_height));
+                bmps.push_back(get_extruder_color_icon(colors[0], label, icon_width, icon_height, text_sized_label));
             } else {
-                bmps.push_back(get_extruder_color_icon(colors, is_gradient, label, icon_width, icon_height));
+                bmps.push_back(get_extruder_color_icon(colors, is_gradient, label, icon_width, icon_height, text_sized_label));
             }
         }
     } else {
@@ -574,7 +589,7 @@ std::vector<wxBitmap*> get_extruder_color_icons(bool thin_icon/* = false*/)
         int index = 0;
         for (const auto &color : colors) {
             auto label = std::to_string(++index);
-            bmps.push_back(get_extruder_color_icon(color, label, icon_width, icon_height));
+            bmps.push_back(get_extruder_color_icon(color, label, icon_width, icon_height, text_sized_label));
         }
     }
     return bmps;
@@ -629,7 +644,7 @@ wxColourData show_sys_picker_dialog(wxWindow *parent, const wxColourData &clr_da
     return data;
 }
 
-wxBitmap *get_extruder_color_icon(std::vector<std::string> colors, bool is_gradient, std::string label, int icon_width, int icon_height){
+wxBitmap *get_extruder_color_icon(std::vector<std::string> colors, bool is_gradient, std::string label, int icon_width, int icon_height, bool text_sized_label){
 
     static Slic3r::GUI::BitmapCache bmp_cache;
 
@@ -639,6 +654,8 @@ wxBitmap *get_extruder_color_icon(std::vector<std::string> colors, bool is_gradi
         bitmap_key += color + "_";
     }
     bitmap_key += "h" + std::to_string(icon_height) + "-w" + std::to_string(icon_width) + "-i" + label;
+    if (text_sized_label)
+        bitmap_key += "-t"; // PING #221: different label font ⇒ must not share a cache entry
 
     wxBitmap *bitmap = bmp_cache.find(bitmap_key);
     if (bitmap == nullptr) {
@@ -681,8 +698,7 @@ wxBitmap *get_extruder_color_icon(std::vector<std::string> colors, bool is_gradi
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
             dc.SetPen(*wxTRANSPARENT_PEN);
 
-            dc.SetFont(::Label::Body_12);
-            Slic3r::GUI::WxFontUtils::get_suitable_font_size(icon_height - 2, dc);
+            ping_set_label_font(dc, icon_height, text_sized_label);
 
             auto size = dc.GetTextExtent(wxString(label));
 
@@ -714,11 +730,13 @@ wxBitmap *get_extruder_color_icon(std::vector<std::string> colors, bool is_gradi
     return bitmap;
 }
 
-wxBitmap *get_extruder_color_icon(std::string color, std::string label, int icon_width, int icon_height)
+wxBitmap *get_extruder_color_icon(std::string color, std::string label, int icon_width, int icon_height, bool text_sized_label)
 {
     static Slic3r::GUI::BitmapCache bmp_cache;
 
     std::string bitmap_key = color + "-h" + std::to_string(icon_height) + "-w" + std::to_string(icon_width) + "-i" + label;
+    if (text_sized_label)
+        bitmap_key += "-t"; // PING #221: different label font ⇒ must not share a cache entry
 
     wxBitmap *bitmap = bmp_cache.find(bitmap_key);
     if (bitmap == nullptr) {
@@ -738,8 +756,7 @@ wxBitmap *get_extruder_color_icon(std::string color, std::string label, int icon
         wxMemoryDC dc;
         dc.SelectObject(*bitmap);
 #endif
-        dc.SetFont(::Label::Body_12);
-        Slic3r::GUI::WxFontUtils::get_suitable_font_size(icon_height - 2, dc);
+        ping_set_label_font(dc, icon_height, text_sized_label);
         if (clr.Alpha() == 0) {
             int             size        = icon_height * 2;
             static wxBitmap transparent = *Slic3r::GUI::BitmapCache().load_svg("transparent", size, size);
