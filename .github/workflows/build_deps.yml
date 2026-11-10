@@ -73,8 +73,20 @@ jobs:
             if (-not "${{ vars.SELF_HOSTED }}") {
               choco install strawberryperl
             }
+            # PING (claim c-1109-MAC-02): pwsh only fails the step on the LAST command's exit
+            # code, so a failed "deps" (run 42566366452: boost download 504) was masked by a
+            # successful "pack" and a half-built deps cache WITHOUT Boost got saved; every
+            # later Build OrcaSlicer on that key then died at CMakeLists.txt "Boost 1.83".
             .\build_release_vs.bat deps
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            # The .bat can also lose cmake's error on its way to :done, so check the result
+            # itself: no BoostConfig.cmake in the install tree = deps are incomplete, fail
+            # here instead of caching them.
+            $boostCfg = Get-ChildItem -Path "${{ github.workspace }}/deps/build/OrcaSlicer_dep" -Recurse -Filter BoostConfig.cmake -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $boostCfg) { Write-Error "deps incomplete: BoostConfig.cmake not found under deps/build/OrcaSlicer_dep"; exit 1 }
+            Write-Host "Boost found: $($boostCfg.FullName)"
             .\build_release_vs.bat pack
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         shell: pwsh
 
       - name: Build on Mac ${{ inputs.arch }}

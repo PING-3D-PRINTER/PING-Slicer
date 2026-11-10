@@ -82,7 +82,12 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
     uses: ./.github/workflows/build_check_cache.yml
     with:
-      os: ${{ vars.SELF_HOSTED && 'orca-macos-arm64' || 'macos-14' }}
+      # PING: GitHub retired every macos-14 image on 2026-11-02 (actions/runner-images
+      # #15226) - T104's run 42558884551 had both mac jobs cancelled at Check Cache with
+      # "macos-14-arm64-us-default is not supported". macos-15 is the Arm64 image, same
+      # as upstream OrcaSlicer: both arches build on it and x86_64 is cross-compiled,
+      # exactly as it was on macos-14 (also Arm64). Do not switch to an Intel label.
+      os: ${{ vars.SELF_HOSTED && 'orca-macos-arm64' || 'macos-15' }}
       arch: ${{ matrix.arch }}
       build-deps-only: ${{ inputs.build-deps-only || false }}
       force-build: ${{ github.event_name == 'schedule' }}
@@ -93,7 +98,7 @@ jobs:
     if: ${{ !cancelled() && needs.build_macos_arch.result == 'success' && !inputs.build-deps-only && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
     uses: ./.github/workflows/build_orca.yml
     with:
-      os: ${{ vars.SELF_HOSTED && 'orca-macos-arm64' || 'macos-14' }}
+      os: ${{ vars.SELF_HOSTED && 'orca-macos-arm64' || 'macos-15' }}
       arch: universal
       macos-combine-only: true
     secrets: inherit
