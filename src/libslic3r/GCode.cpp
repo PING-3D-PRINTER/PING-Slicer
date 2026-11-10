@@ -7308,6 +7308,13 @@ std::string GCode::travel_to(const Point& point, ExtrusionRole role, std::string
     // if needed, write the gcode_label_objects_end then gcode_label_objects_start
     m_writer.add_object_change_labels(gcode);
 
+    // PING: 「避免跨越外牆」(reduce_crossing_wall) 的繞行規劃遇到零長度空駛（這一層的起點剛好等於上一層的終點，
+    // 常見於支撐接著支撐印）會回傳不足兩點的折線，下面整段因此被跳過——連換層該抬的 Z 也一起沒發，
+    // 該層就印在上一層的高度（上游 2.3.2 既有行為，2.2.0 因為只在需要回抽時才繞行所以沒事）。
+    // 退回直線空駛，行為與關閉 reduce_crossing_wall 時一致。
+    if (travel.size() < 2)
+        travel = Polyline{ this->last_pos(), point };
+
     // use G1 because we rely on paths being straight (G0 may make round paths)
     if (travel.size() >= 2) {
         // Orca: use `travel_to_xyz` to ensure we start at the correct z, in case we moved z in custom/filament change gcode
