@@ -87,6 +87,7 @@
 #include "Plater.hpp"
 #include <wx/timer.h>               // C-2 第 3 項：閒置預熱 timer（原本靠傳遞式引入，改成顯式）
 #include "PhotoTileCapability.hpp"
+#include "PingPrinterPicker.hpp"       // #98：原生選機視窗（不靠 WebView2）
 #include "PhotoTileEngineHost.hpp"   // C-2：工作室生成改走隱形宿主（unique_ptr 成員的完整型別也在這）
 #include "libslic3r/PingPhotoStylize.hpp"   // 甲案（c-0822-PT-06）：本地風格化（OpenCV，已是本 repo 相依）
 #include "slic3r/Utils/PingAiImage.hpp"     // 丙案（P3「丑」）：AI 生圖。⚠ 金鑰明文只在那個檔裡，本檔不碰
@@ -1373,6 +1374,9 @@ void GUI_App::post_init()
     if (this->preset_updater) { // G-Code Viewer does not initialize preset_updater.
         CallAfter([this] {
             bool cw_showed = this->config_wizard_startup();
+#if wxUSE_WEBVIEW_EDGE
+            this->init_webview_runtime();   // PING #98：可略過、不卡開機（說明見函式）
+#endif
 
             std::string http_url = get_http_url(app_config->get_country_code());
             std::string language = GUI::into_u8(current_language_code());
@@ -1486,9 +1490,9 @@ GUI_App::GUI_App()
 	//app config initializes early becasuse it is used in instance checking in OrcaSlicer.cpp
     this->init_app_config();
     this->init_download_path();
-#if wxUSE_WEBVIEW_EDGE
-    this->init_webview_runtime();
-#endif
+    /* PING #98（2026-11-10）：缺 WebView2 Runtime 的提示不在這裡跳——這裡是建構子，按「是」會同步下載安裝、
+       無限等待，整個程式卡在還沒有主畫面的地方。改在主畫面開好、選機做完之後才問（post_init 的 CallAfter），
+       而且安裝丟到背景做（init_webview_runtime）。 */
 
     reset_to_active();
 }
@@ -2740,12 +2744,36 @@ void GUI_App::init_download_path()
 #if wxUSE_WEBVIEW_EDGE
 void GUI_App::init_webview_runtime()
 {
-    // Check WebView Runtime
+    /* PING #98（2026-11-10，Codex 一輪配套）：這個提示要「可略過、不卡開機」。
+       原本在 GUI_App 建構子裡問，按「是」就在主執行緒同步下載＋安裝、無限等待、也不看結果
+       ⇒ 沒網路或安裝程式卡住時，客戶連主畫面都看不到。
+       現在：①主畫面開好、原生選機做完才問（切片本身不需要 WebView2）
+             ②按「是」＝丟到背景執行緒去下載安裝，這裡立刻返回
+             ③文案講清楚「可以先略過」「裝好後重開才生效」（這一次啟動的網頁元件已經建立過了）。 */
     if (!WebView::CheckWebViewRuntime()) {
-        int nRet = wxMessageBox(_L("PING Slicer requires the Microsoft WebView2 Runtime to operate certain features.\nClick Yes to install it now."),
-                                _L("WebView2 Runtime"), wxYES_NO);
+        int nRet = wxMessageBox(_L("The home page and the photo tile studio need the Microsoft WebView2 Runtime, which is not installed on this computer.\n"
+                                   "Slicing works without it, so you can skip this for now.\n\n"
+                                   "Click Yes to download and install it in the background (it takes effect the next time you start PING Slicer), or No to skip."),
+                                _L("WebView2 Runtime"), wxYES_NO | wxICON_INFORMATION, mainframe);
         if (nRet == wxYES) {
-            WebView::DownloadAndInstallWebViewRuntime();
+            BOOST_LOG_TRIVIAL(warning) << "WebView2 Runtime missing: user chose to install, running installer in background";
+            std::thread([] {
+                // ShellExecuteEx（裡面用它起安裝程式）建議在已初始化 COM 的執行緒上呼叫
+                const HRESULT hr = ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+                // 例外不能逃出執行緒進入點（會直接終止整個程式）：暫存路徑、HTTP 都可能丟
+                try {
+                    const bool ok = WebView::DownloadAndInstallWebViewRuntime();
+                    BOOST_LOG_TRIVIAL(warning) << "WebView2 Runtime background install finished, launched=" << ok;
+                } catch (const std::exception& ex) {
+                    BOOST_LOG_TRIVIAL(error) << "WebView2 Runtime background install failed: " << ex.what();
+                } catch (...) {
+                    BOOST_LOG_TRIVIAL(error) << "WebView2 Runtime background install failed: unknown exception";
+                }
+                if (SUCCEEDED(hr))
+                    ::CoUninitialize();
+            }).detach();
+        } else {
+            BOOST_LOG_TRIVIAL(warning) << "WebView2 Runtime missing: user skipped the install prompt";
         }
     }
 }
@@ -7032,10 +7060,10 @@ void GUI_App::open_photo_tile(const wxString& image_path)
         BOOST_LOG_TRIVIAL(info) << "Photo tile: entry guidance shown: " << block_reason;
         MessageDialog dlg(mainframe,
                           wxString::FromUTF8(block_reason + "\n\n"
-                              "你可以先到「選擇 3D 列印機」把機型加進來，或直接用左上角的印表機下拉切換。"),
+                              "你可以先到「換機器／加機器」把機型加進來，或直接用左上角的印表機下拉切換。"),
                           wxString::FromUTF8("照片磚"),
                           wxOK | wxCANCEL | wxICON_INFORMATION);
-        dlg.SetButtonLabel(wxID_OK, wxString::FromUTF8("開啟「選擇 3D 列印機」"));
+        dlg.SetButtonLabel(wxID_OK, wxString::FromUTF8("開啟「換機器／加機器」"));
         dlg.SetButtonLabel(wxID_CANCEL, wxString::FromUTF8("還是先進去看看"));
         if (dlg.ShowModal() == wxID_OK) {
             CallAfter([this] { run_wizard(ConfigWizard::RR_USER, ConfigWizard::SP_PRINTERS); });
@@ -9917,6 +9945,13 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
 {
     wxCHECK_MSG(mainframe != nullptr, false, "Internal error: Main frame not created / null");
 
+    /* PING #98（Eric 2026-11-10 裁）：之後換機／加機也用原生選機視窗。
+       接在這裡而不是逐一改呼叫點：SP_PRINTERS 的入口有七處（側欄齒輪、機器下拉最下面那一項、
+       兩個右鍵選單、照片磚進門指引與工作室的「去選機」…），漏一處就還是會開到網頁版。
+       網頁版選機頁（guide/21、24）留著不刪，只是不再從這裡開；線材頁（SP_FILAMENTS）照舊。 */
+    if (reason == ConfigWizard::RR_USER && start_page == ConfigWizard::SP_PRINTERS)
+        return run_ping_printer_picker(false);
+
 #ifdef __APPLE__
      if (is_adding_script_handler()) {
         BOOST_LOG_TRIVIAL(info) << "run_wizard: Script handler is being added, delaying wizard creation";
@@ -10107,12 +10142,258 @@ void GUI_App::window_pos_center(wxTopLevelWindow *window)
     }
 }
 
+/* ═══ PING 原生選機（開發中清單 #98，Eric 2026-11-10 裁）═══════════════════════════
+   起因：客戶 V3.6.4 第一次開啟，「設定精靈」（WebView2 內嵌網頁）整片空白、進不去主畫面。
+   做法：第一次開啟與之後換機都改用原生視窗（PingPrinterPicker），設定由這裡的 C++ 直接落地，
+         全程不建立 GuideFrame。裁示逐字與讀碼事實＝20260604 ORCA客製/00治理文件/
+         HANDOFF_設定精靈改原生選機_20261110.md；實作注意＝同夾 _審查_設定精靈空白_Codex一輪_20261110.md §1。
+
+   與網頁精靈（GuideFrame::SaveProfile／apply_config）的差別，都是刻意的：
+   ① 機型是**逐台開關**，不是整組覆蓋（set_vendors）：只動 PING、只動視窗列得出來的機型
+      ⇒ 別家 vendor 與照片磚內部機型原樣不動（視窗沒列的東西不替使用者刪）。
+   ② 線材只加不減：新啟用的機器，把它 default_materials 那一組勾起來（＝網頁線材頁預設勾選的那一組，
+      22.js ChooseDefaultFilament）。不能只靠 load_installed_filaments()——它對「同一個 vendor、
+      同一個 bundle 版本」只補一次，之後再加第二台就不會補。
+   ③ 完成旗標（firstguide.finish）在 presets 建立成功**之後**才寫；網頁精靈是先寫再做事。
+   ④ 啟用一台＝該機全部口徑；一開始選用 0.4（沒有 0.4 就用第一個口徑）。 */
+static const char* PING_VENDOR_ID = "PING";
+
+static const VendorProfile* ping_vendor_profile()
+{
+    PresetBundle* bundle = wxGetApp().preset_bundle;
+    if (bundle == nullptr)
+        return nullptr;
+    auto it = bundle->vendors.find(PING_VENDOR_ID);
+    return (it == bundle->vendors.end() || it->second.models.empty()) ? nullptr : &it->second;
+}
+
+/* 全新資料夾：PING bundle 還沒裝進使用者的 system 夾（系統 preset 讀的是那裡，不是 resources）
+   ⇒ 先從 resources 裝進去、再載入一次，之後才列得出機型。已經有的就什麼都不做。 */
+static bool ping_ensure_vendor_bundle_loaded()
+{
+    if (ping_vendor_profile() != nullptr)
+        return true;
+    GUI_App& app = wxGetApp();
+    if (app.preset_updater == nullptr || app.preset_bundle == nullptr || app.app_config == nullptr)
+        return false;
+    try {
+        if (!app.preset_updater->install_bundles_rsrc({ std::string(PING_VENDOR_ID) }, false)) {
+            BOOST_LOG_TRIVIAL(error) << "PING printer picker: failed to install the PING bundle from resources";
+            return false;
+        }
+        app.preset_bundle->load_presets(*app.app_config, ForwardCompatibilitySubstitutionRule::Enable);
+    } catch (const std::exception& ex) {
+        BOOST_LOG_TRIVIAL(error) << "PING printer picker: loading presets failed: " << ex.what();
+        return false;
+    }
+    return ping_vendor_profile() != nullptr;
+}
+
+/* 回傳 true＝設定已落地（或使用者按了確定但什麼都沒變）；false＝取消，或這條路走不通。
+   first_run 走不通時呼叫端要有退路（config_wizard_startup 退回網頁精靈）。 */
+bool GUI_App::run_ping_printer_picker(bool first_run)
+{
+    wxCHECK_MSG(mainframe != nullptr, false, "Internal error: Main frame not created / null");
+
+    /* 手上有沒存的參數修改：同網頁精靈，先問要留著還是存起來（按取消＝這次不換）。
+       通常在視窗按了確定之後才問；但 PING bundle 還沒載入時，光是列機型就得重新載入 presets
+       ⇒ 那種情形要在重新載入**之前**先問，不然修改會無聲消失（Codex 一輪必修）。 */
+    bool apply_keeped_changes = false;
+    bool asked_about_changes  = false;
+    auto ask_about_changes = [&]() -> bool {
+        if (first_run || asked_about_changes)
+            return true;
+        asked_about_changes = true;
+        return check_and_keep_current_preset_changes(_L("Configuration package changed"),
+                                                     _L("The configuration package is changed in previous Config Guide"),
+                                                     ActionButtons::KEEP | ActionButtons::SAVE, &apply_keeped_changes);
+    };
+    if (ping_vendor_profile() == nullptr && !ask_about_changes())
+        return false;
+
+    if (!ping_ensure_vendor_bundle_loaded()) {
+        BOOST_LOG_TRIVIAL(error) << "PING printer picker: PING bundle is not available";
+        return false;
+    }
+
+    /* 可選機型＝PING bundle 的機型，扣掉照片磚內部機型（判準同 PhotoTileCapability 的 marker；
+       它是照片磚功能自己裝、自己切的載體，不是使用者要挑的機器——回報中心 #99）。
+       ⚠ 下面會重新載入 presets，vendor 指標屆時失效 ⇒ 需要的東西先抄出來。 */
+    std::vector<PingPickerModel>                    models;
+    std::map<std::string, std::vector<std::string>> default_materials;
+    for (const VendorProfile::PrinterModel& pm : ping_vendor_profile()->models) {
+        if (printer_model_has_photo_tile_marker(pm.id))
+            continue;
+        PingPickerModel m;
+        m.id = pm.id;
+        for (const VendorProfile::PrinterVariant& v : pm.variants)
+            m.variants.push_back(v.name);
+        if (m.variants.empty())
+            continue;
+        default_materials[m.id] = pm.default_materials;
+        models.push_back(std::move(m));
+    }
+    if (models.empty()) {
+        BOOST_LOG_TRIVIAL(error) << "PING printer picker: the PING bundle has no selectable printer model";
+        return false;
+    }
+
+    // 目前已啟用的（任一口徑被記錄＝這台算已啟用，同網頁版 SyncCardSelected）
+    std::set<std::string> had;
+    {
+        const AppConfig::VendorMap& vendors   = app_config->vendors();
+        auto                        it_vendor = vendors.find(PING_VENDOR_ID);
+        if (it_vendor != vendors.end())
+            for (const PingPickerModel& m : models) {
+                auto it_model = it_vendor->second.find(m.id);
+                if (it_model != it_vendor->second.end() && !it_model->second.empty())
+                    had.insert(m.id);
+            }
+    }
+    const std::string active_before = preset_bundle->printers.get_edited_preset().config.opt_string("printer_model");
+
+    const PingPickerResult res = show_ping_printer_picker(
+        mainframe, models, first_run ? std::vector<std::string>() : std::vector<std::string>(had.begin(), had.end()),
+        active_before, first_run);
+    if (!res.accepted || res.active.empty())
+        return false;
+
+    const std::set<std::string> want(res.enabled.begin(), res.enabled.end());
+    const bool                  set_changed    = want != had;
+    const bool                  active_changed = res.active != active_before;
+    if (!first_run && !set_changed && !active_changed)
+        return true;   // 按了確定但什麼都沒變
+
+    BOOST_LOG_TRIVIAL(warning) << "PING printer picker: first_run=" << first_run << ", active '" << active_before << "' -> '"
+                               << res.active << "', enabled " << had.size() << " -> " << want.size();
+
+    if (!ask_about_changes())
+        return false;
+
+    // 先把目前的選擇記回設定檔（沒換機時重新載入才會回到同一組）
+    preset_bundle->export_selections(*app_config);
+
+    /* 失敗要能整組退回（Codex 一輪必修）：下面會改機型開關、線材勾選，重新載入時
+       load_installed_filaments() 還會寫 filament_defaults_applied 標記；任何一步失敗就把這三樣還原、
+       再照原樣載入一次。不還原的話，閒置時的自動存檔會把半套設定寫進檔案。 */
+    static const std::string SECTION_DEFAULTS_APPLIED = "filament_defaults_applied";   // 同 PresetBundle::load_installed_filaments
+    auto section_copy = [this](const std::string& name) {
+        return app_config->has_section(name) ? app_config->get_section(name) : std::map<std::string, std::string>();
+    };
+    const AppConfig::VendorMap               vendors_before  = app_config->vendors();
+    const std::map<std::string, std::string> filaments_before = section_copy(AppConfig::SECTION_FILAMENTS);
+    const std::map<std::string, std::string> defaults_before  = section_copy(SECTION_DEFAULTS_APPLIED);
+    auto roll_back = [&](const std::string& why) {
+        BOOST_LOG_TRIVIAL(error) << "PING printer picker: " << why << "; rolling back";
+        app_config->set_vendors(vendors_before);
+        app_config->set_section(AppConfig::SECTION_FILAMENTS, filaments_before);
+        app_config->set_section(SECTION_DEFAULTS_APPLIED, defaults_before);
+        try {
+            preset_bundle->load_presets(*app_config, ForwardCompatibilitySubstitutionRule::Enable);
+            if (apply_keeped_changes)
+                apply_keeped_preset_modifications();
+            load_current_presets();
+        } catch (const std::exception& ex) {
+            BOOST_LOG_TRIVIAL(error) << "PING printer picker: rollback reload failed: " << ex.what();
+        }
+    };
+
+    for (const PingPickerModel& m : models) {
+        const bool now = want.count(m.id) > 0, before = had.count(m.id) > 0;
+        if (now && !before) {
+            for (const std::string& variant : m.variants)   // 全部口徑一起啟用
+                app_config->set_variant(PING_VENDOR_ID, m.id, variant, true);
+            for (const std::string& name : default_materials[m.id]) {
+                const Preset* filament = preset_bundle->filaments.find_preset(name, false, true);
+                if (filament != nullptr && filament->is_system)
+                    app_config->set(AppConfig::SECTION_FILAMENTS, filament->name, "true");
+            }
+        } else if (!now && before) {
+            std::set<std::string> recorded;   // 抄一份再刪（set_variant 會改到正在走訪的集合）
+            {
+                const AppConfig::VendorMap& vendors = app_config->vendors();
+                recorded = vendors.at(PING_VENDOR_ID).at(m.id);
+            }
+            for (const std::string& variant : recorded)
+                app_config->set_variant(PING_VENDOR_ID, m.id, variant, false);
+        }
+        // 原本就啟用、現在也要的：不動（舊設定只勾部分口徑的，維持他的樣子）
+    }
+
+    /* 換了機才指定要選用哪一支；沒換就照設定檔記的那一支。
+       口徑只能在「這台現在實際啟用的口徑」裡挑（原本就啟用的機器可能只勾了部分口徑——
+       指到沒啟用的口徑，選取時會退到別台去；Codex 一輪必修）：有 0.4 用 0.4，否則照 bundle 順序第一個。 */
+    std::string preferred_model, preferred_variant;
+    if (first_run || active_changed) {
+        preferred_model = res.active;
+        for (const PingPickerModel& m : models)
+            if (m.id == res.active) {
+                for (const std::string& variant : m.variants)
+                    if (app_config->get_variant(PING_VENDOR_ID, m.id, variant) && (preferred_variant.empty() || variant == "0.4"))
+                        preferred_variant = variant;
+                break;
+            }
+    }
+
+    try {
+        preset_bundle->load_presets(*app_config, ForwardCompatibilitySubstitutionRule::Enable,
+                                    { preferred_model, preferred_variant, std::string(), std::string() });
+    } catch (const std::exception& ex) {
+        roll_back(std::string("reloading presets failed: ") + ex.what());
+        return false;
+    }
+
+    // 真的選到那一台才算成功（成功之後才寫完成旗標）
+    const Preset& selected = preset_bundle->printers.get_edited_preset();
+    if (preset_bundle->printers.only_default_printers() || selected.config.opt_string("printer_model") != res.active) {
+        roll_back("wanted '" + res.active + "' but selected printer is '" + selected.name + "'");
+        return false;
+    }
+
+    preset_bundle->export_selections(*app_config);
+    if (apply_keeped_changes)
+        apply_keeped_preset_modifications();
+    app_config->set_legacy_datadir(false);
+
+    if (!app_config->get_bool("firstguide", "finish")) {
+        /* 同網頁精靈 SaveProfile 寫的三樣。stealth_mode 要明講：沒完成精靈時 get_stealth_mode() 一律回 true，
+           完成之後改讀這個值——PING 的精靈早就跳過那一頁、寫的一律是 false，這裡沿用。 */
+        if (app_config->get("region").empty())
+            app_config->set("region", "Asia-Pacific");
+        app_config->set_bool("stealth_mode", false);
+        app_config->set("firstguide", "finish", "1");
+    }
+    app_config->save();
+    /* save() 沒有回傳值：寫暫存檔失敗＝只記 log 就返回（dirty 還在）；最後改名那一步的結果它不看。
+       ⇒ 兩樣都查：dirty 清掉了、而且設定檔真的在。沒落盤的後果是下次啟動再問一次選機（設定本身在記憶體裡是好的），
+       所以這裡只記 error、不擋使用者。save() 改成有回傳值是另一件事（動到 libslic3r 的共用介面），沒在這裡做。 */
+    if (app_config->dirty() || !app_config->exists())
+        BOOST_LOG_TRIVIAL(error) << "PING printer picker: saving the configuration failed; the picker will show again on next start";
+    else
+        m_app_conf_exists = true;
+
+    update_mode();
+    load_current_presets();   // 不能省：PING 單／雙／四料的料槽數與側欄同步在這裡面
+    update_publish_status();
+    mainframe->refresh_plugin_tips();
+    BOOST_LOG_TRIVIAL(warning) << "PING printer picker: applied, selected printer '" << selected.name << "'";
+    return true;
+}
+
 bool GUI_App::config_wizard_startup()
 {
+    /* 既有客戶升級不得被重設：只有「沒有設定檔」或「一台看得到的機器都沒有」才走這裡（條件同原版）。 */
     if (!m_app_conf_exists || preset_bundle->printers.only_default_printers()) {
-        BOOST_LOG_TRIVIAL(info) << "run wizard...";
-        run_wizard(ConfigWizard::RR_DATA_EMPTY);
-        BOOST_LOG_TRIVIAL(info) << "finished run wizard";
+        // PING #98：第一次開啟＝原生選機視窗，不建立 GuideFrame（WebView2）
+        BOOST_LOG_TRIVIAL(warning) << "first start: running the native PING printer picker";
+        if (run_ping_printer_picker(true))
+            return true;
+        /* 原生這條路走不通（PING 設定檔裝不起來、載入失敗）：**不退回網頁精靈**——那正是這次要拿掉的東西，
+           而且未完成精靈時它沒有關閉鈕，空白就卡死（Codex 一輪必修）。講清楚、讓人進主畫面；
+           完成旗標沒寫 ⇒ 下次啟動會再試一次，說明選單也有同一個入口。 */
+        BOOST_LOG_TRIVIAL(error) << "first start: native printer picker failed";
+        show_error(mainframe, _L("PING Slicer could not load its printer profiles, so no printer is set up yet.\n"
+                                 "Please restart PING Slicer to try again. If it keeps happening, reinstall PING Slicer or contact PING support."));
         return true;
     } /*else if (get_app_config()->legacy_datadir()) {
         // Looks like user has legacy pre-vendorbundle data directory,

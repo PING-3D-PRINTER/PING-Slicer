@@ -792,6 +792,8 @@ public:
     void            open_web_page_localized(const std::string &http_address);
     bool            may_switch_to_SLA_preset(const wxString& caption);
     bool            run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage start_page = ConfigWizard::SP_WELCOME);
+    // PING #98：原生選機視窗（不靠 WebView2）。first_run＝第一次開啟；false＝之後換機／加機。
+    bool            run_ping_printer_picker(bool first_run);
     void            show_desktop_integration_dialog();
 
 #if ENABLE_THUMBNAIL_GENERATOR_DEBUG

@@ -51,6 +51,11 @@ struct PhotoTileCapability
     std::string reject_reason;           // 有 marker 卻不算照片磚機時的原因（診斷用）
 };
 
+/* 只看機型名（printer_model）有沒有照片磚 marker。給「手上只有機型名、還沒有 preset」的地方用
+   （原生選機視窗列機型清單時把照片磚內部機型排除，2026-11-10 開發中清單 #98）。
+   與 PhotoTileCapability::has_photo_tile_marker 同一條判準。 */
+bool printer_model_has_photo_tile_marker(const std::string& printer_model);
+
 // 單一判定（純函式）：任一組設定。後處理閘門走這支，不要自己比字串。
 PhotoTileCapability photo_tile_capability_of_config(const DynamicPrintConfig& config,
                                                     const std::string& preset_name = std::string());

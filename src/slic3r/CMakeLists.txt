@@ -497,6 +497,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/PhotoTileCapability.hpp
     GUI/PingAiKeyDialog.cpp
     GUI/PingAiKeyDialog.hpp
+    GUI/PingPrinterPicker.cpp
+    GUI/PingPrinterPicker.hpp
     GUI/PhotoTileGateJson.hpp
     GUI/PhotoTileSleepVigil.cpp
     GUI/PhotoTileGoldenGate.cpp

@@ -15,6 +15,46 @@ MAGIC_LE = 0x950412DE
 
 # 新增字串：msgid（必須與 C++ L() 字串 byte-for-byte 一致）→ 繁中翻譯
 NEW_ENTRIES = {
+    # PING（2026-11-10・牌 c-1110-NPK-02，開發中清單 #98）：原生選機視窗（PingPrinterPicker.cpp）＋
+    #   機器下拉最下面那一項改名＋缺 WebView2 Runtime 的提示改成可略過（GUI_App.cpp）。
+    #   Eric 2026-11-10 四題「全部照建議」；文案照原型 原型_原生選機視窗_20261110.html。
+    "Choose your printer": "選擇您的機器",
+    "Pick one and you are ready to go. You can switch later from the printer list on the main screen.":
+        "選好就可以開始使用；之後可以在主畫面的機器選單再換。",
+    "Pick one, then switch to it or add it to your printers.": "選一台，換成它，或加進來一起用。",
+    "Machine setup": "配置",
+    "Single material": "單料",
+    "Dual material": "雙料",
+    "Quad material": "四料",
+    "Four materials, set separately: multi-color, multi-material, easy-release supports":
+        "四支材料，個別設定：多色、異材質、易拆支撐",
+    "Two materials, set separately: multi-color, multi-material, easy-release supports":
+        "兩支材料，個別設定：多色、異材質、易拆支撐",
+    "One material": "一種材料",
+    "Same material fed together: higher flow, color-blend gradients": "同種材料一起進料：提高流量、混色漸層",
+    "One material, a single spool is enough": "一種材料，一卷即可",
+    "Three main materials merged for triple flow; the fourth prints easy-release supports":
+        "三支主材合流、流量 ×3，第四支印易拆支撐",
+    "For printing ABS with the door closed; the printable area is smaller": "關門列印 ABS 用，可印範圍比較小",
+    "Nozzle sizes %s mm are all installed; choose one when you slice.": "口徑 %s mm 都會裝好，切片時再選。",
+    "My printers:": "我的機器：",
+    "Remove %s": "移除 %s",
+    "+ %s (not added yet)": "＋ %s（還沒加入）",
+    "\"Switch to this one\" keeps only this printer; \"Add this one\" keeps the others too.":
+        "〔換成這一台〕只留下這一台；〔再加一台〕原本的都留著。",
+    "At least one printer must stay.": "至少要留一台。",
+    "Use the X button to remove printers you no longer use. At least one must stay. Changes apply when you press OK.":
+        "按 ✕ 可以移除不用的機器，至少留一台；按〔確認〕才會生效。",
+    "Currently using: %s": "目前使用：%s",
+    "Selected: %s": "已選：%s",
+    "OK, start using": "確定，開始使用",
+    "Switch to this one": "換成這一台",
+    "Add this one": "再加一台",
+    "Change / add printer...": "換機器／加機器…",
+    "PING Slicer could not load its printer profiles, so no printer is set up yet.\nPlease restart PING Slicer to try again. If it keeps happening, reinstall PING Slicer or contact PING support.":
+        "PING Slicer 讀不到機型設定檔，所以還沒有設定好機器。\n請重新開啟 PING Slicer 再試一次；如果一直發生，請重新安裝 PING Slicer 或聯絡 PING 售服。",
+    "The home page and the photo tile studio need the Microsoft WebView2 Runtime, which is not installed on this computer.\nSlicing works without it, so you can skip this for now.\n\nClick Yes to download and install it in the background (it takes effect the next time you start PING Slicer), or No to skip.":
+        "首頁和照片磚工作室需要 Microsoft WebView2 Runtime，這台電腦還沒有安裝。\n切片不需要它，可以先略過。\n\n按「是」會在背景下載並安裝（下次開啟 PING Slicer 才生效）；按「否」先略過。",
     # PING（2026-10-10・牌 c-1010-UPD-01）：偏好設定「Update & sync」區新增的啟動檢查開關。
     "Check for updates on startup": "啟動時檢查更新",
     # PING（2026-10-04・牌 c-1004-KEY-01，Klipper #493 第一步）：「實體列印設備」放出連線金鑰欄＋

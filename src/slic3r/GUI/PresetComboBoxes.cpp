@@ -1426,7 +1426,8 @@ void PlaterPresetComboBox::update()
         else if (m_type == Preset::TYPE_SLA_MATERIAL)
             set_label_marker(Append(separator(L("Add/Remove materials")), *bmp), LABEL_ITEM_WIZARD_MATERIALS);
         else {
-            set_label_marker(Append(separator(L("Select/Remove printers (system presets)")), *bmp), LABEL_ITEM_WIZARD_PRINTERS);
+            // PING #98（Eric 2026-11-10 裁 Q2 丙）：這一項開的是原生選機視窗，入口跟著改名「換機器／加機器…」
+            set_label_marker(Append(separator(L("Change / add printer...")), *bmp), LABEL_ITEM_WIZARD_PRINTERS);
             set_label_marker(Append(separator(L("Create printer")), *bmp), LABEL_ITEM_WIZARD_ADD_PRINTERS);
         }
     }

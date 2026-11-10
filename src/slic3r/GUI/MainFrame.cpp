@@ -2982,7 +2982,11 @@ static wxMenu* generate_help_menu()
     append_menu_item(helpMenu, wxID_ANY, _L("Keyboard Shortcuts") + sep + "&?", _L("Show the list of the keyboard shortcuts"),
         [](wxCommandEvent&) { wxGetApp().keyboard_shortcuts(); });
     // Show Beginner's Tutorial
-    append_menu_item(helpMenu, wxID_ANY, _L("Setup Wizard"), _L("Setup Wizard"), [](wxCommandEvent &) {wxGetApp().ShowUserGuide();});
+    /* PING #98（Eric 2026-11-10 裁）：這一項原本開網頁版「設定精靈」（GuideFrame，WebView2）。
+       之後換機／加機一律用原生選機視窗 ⇒ 這裡也改接同一個視窗、名稱跟機器下拉最下面那一項一致。
+       ShowUserGuide() 本體留著沒刪（網頁版留著不刪、只是不再開）。 */
+    append_menu_item(helpMenu, wxID_ANY, _L("Change / add printer..."), _L("Change / add printer..."),
+        [](wxCommandEvent&) { wxGetApp().run_wizard(ConfigWizard::RR_USER, ConfigWizard::SP_PRINTERS); });
 
     /* PING(2026-09-12 Eric 裁「拿掉」，牌 c-0912-PTI-01)：說明選單原有「照片磚產生器（於瀏覽器開啟）」一項——
        那是 0706 企劃期把 web/phototile/index.html 丟到外部瀏覽器跑的入口。工作室改成隱形宿主架構後，頁面要靠

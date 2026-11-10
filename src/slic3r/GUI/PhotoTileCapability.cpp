@@ -31,6 +31,11 @@ bool nozzle_is_legal(double mm)
 }
 } // namespace
 
+bool printer_model_has_photo_tile_marker(const std::string& printer_model)
+{
+    return printer_model.find(PHOTO_TILE_MARKER) != std::string::npos;
+}
+
 PhotoTileCapability photo_tile_capability_of_config(const DynamicPrintConfig& config,
                                                    const std::string& preset_name)
 {
@@ -42,7 +47,7 @@ PhotoTileCapability photo_tile_capability_of_config(const DynamicPrintConfig& co
     cap.printer_model = pm->value;
 
     cap.is_mixing  = pm->value.find(MIXING_MARKER) != std::string::npos;
-    cap.has_photo_tile_marker = pm->value.find(PHOTO_TILE_MARKER) != std::string::npos;
+    cap.has_photo_tile_marker = printer_model_has_photo_tile_marker(pm->value);
     cap.is_classic = pm->value.rfind(CLASSIC_PREFIX, 0) == 0;
     // 家族：FD＝雙料同進（M6051）／FF＝四料同進（M6052）。與自動選機同準。
     if (pm->value.rfind("FD", 0) == 0)      { cap.family = "FD"; cap.mode = "dual"; }
