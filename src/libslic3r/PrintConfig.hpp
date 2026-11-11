@@ -910,6 +910,13 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionPercent,             raft_first_layer_density))
     ((ConfigOptionFloat,               raft_first_layer_expansion))
     ((ConfigOptionInt,                 raft_layers))
+    // PING(2026-11-11 Eric 裁，牌 c-1111-RAFT-02)：筏層頂面獨立設定。5 鍵預設都是 0／不勾＝現行行為；
+    // 筏層只有 1 層時不作用。規則正本＝根 repo `20260604 ORCA客製/計畫_筏層獨立設定_改碼_20261111.html` 第三節。
+    ((ConfigOptionPercent,             raft_top_density))
+    ((ConfigOptionFloatOrPercent,      raft_top_line_width))
+    ((ConfigOptionFloat,               raft_top_layer_height))
+    ((ConfigOptionFloat,               raft_top_speed))
+    ((ConfigOptionBool,                raft_top_perpendicular))
     ((ConfigOptionEnum<SeamPosition>,  seam_position))
     ((ConfigOptionBool,                staggered_inner_seams))
     ((ConfigOptionFloat,               slice_closing_radius))

@@ -4790,6 +4790,69 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionInt(INITIAL_RAFT_LAYERS));
 
+    // PING(2026-11-11 Eric 裁，牌 c-1111-RAFT-02)：筏層頂面獨立設定（第一步，5 鍵）。
+    // 預設都是 0／不勾＝現行行為（頂面跟支撐介面走）；筏層只有 1 層時不作用。
+    // 三件事各自獨立：①密度／線寬／層高任一格不是 0 ⇒ 頂面的線距與流量走新算法（鋪滿線距用筏層實際層高與線寬算，
+    // 留 0 的格子補值）②速度只管頂面那幾條線印多快 ③垂直只管頂面的方向與圖樣。
+    def = this->add("raft_top_density", coPercent);
+    def->label = L("Raft top density");
+    def->category = L("Support");
+    def->tooltip = L("Density of the raft top layers, the layers the object sits on. "
+                     "100% means the lines touch each other. "
+                     "0 means the same as the support interface (computed from the top interface spacing). "
+                     "Not used when the raft has only one layer.");
+    def->sidetext = "%";
+    def->min = 0;
+    def->max = 100;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionPercent(0));
+
+    def = this->add("raft_top_line_width", coFloatOrPercent);
+    def->label = L("Raft top line width");
+    def->category = L("Support");
+    def->tooltip = L("Line width of the raft top layers. If expressed as a %, it will be computed over the nozzle diameter. "
+                     "0 means the same as the support line width. "
+                     "Not used when the raft has only one layer.");
+    def->sidetext = L("mm or %");
+    def->ratio_over = "nozzle_diameter";
+    def->min = 0;
+    def->max = 1000;
+    def->max_literal = 10;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloatOrPercent(0., false));
+
+    def = this->add("raft_top_layer_height", coFloat);
+    def->label = L("Raft top layer height");
+    def->category = L("Support");
+    def->tooltip = L("Layer height of the raft top layers. "
+                     "0 means automatic: the larger of the layer height and 0.75 x nozzle diameter. "
+                     "Not used when the raft has only one layer.");
+    def->sidetext = L("mm");	// milimeters, CIS languages need translation
+    def->min = 0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
+    def = this->add("raft_top_speed", coFloat);
+    def->label = L("Raft top speed");
+    def->category = L("Support");
+    def->tooltip = L("Speed of the raft top layers. 0 means the same as the support interface speed. "
+                     "Not used when the raft has only one layer.");
+    def->sidetext = L("mm/s");	// milimeters per second, CIS languages need translation
+    def->min = 0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
+    def = this->add("raft_top_perpendicular", coBool);
+    def->label = L("Raft top perpendicular to first layer");
+    def->category = L("Support");
+    def->tooltip = L("Print the raft top layer perpendicular to the bottom surface lines of the first object layer, "
+                     "using a rectilinear pattern. The raft top layers below alternate by 90 degrees. "
+                     "Only effective when the bottom surface pattern of the first object layer is made of straight lines. "
+                     "If unchecked, the current algorithm is used. "
+                     "Not used when the raft has only one layer.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("resolution", coFloat);
     def->label = L("Resolution");
     def->tooltip = L("The G-code path is generated after simplifying the contour of models to avoid too many points and G-code lines. "

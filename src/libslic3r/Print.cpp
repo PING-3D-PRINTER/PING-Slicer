@@ -39,6 +39,8 @@
 #include "GCode/ConflictChecker.hpp"
 #include "GCode/PingMemoryEstimate.hpp"
 #include "ParameterUtils.hpp"
+// PING(c-1111-RAFT-02)：切片前檢查筏層頂面補值後的線寬與層高，跟支撐產生路徑共用同一份算法。
+#include "Support/SupportParameters.hpp"
 
 #include <codecvt>
 
@@ -1591,6 +1593,28 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
             if (object->has_support() || object->has_raft()) {
                 if (!validate_extrusion_width(object->config(), "support_line_width", layer_height, err_msg))
                     return {err_msg, object, "support_line_width"};
+            }
+            // PING(2026-11-11 Eric 裁，牌 c-1111-RAFT-02)：筏層頂面走新算法時，先把補值之後實際會用的線寬、層高算出來，
+            // 再用頂面實際使用的那支噴嘴（介面那支料的）檢查。不合就在切片前報錯，不默默改掉使用者填的值。
+            // 三格（密度／線寬／層高）全是 0 或筏層不到 2 層時整段走現行程式，不做這些檢查。
+            {
+                const PingRaftTopSettings raft_top = PingRaftTopSettings::create(m_config, object->config());
+                if (raft_top.active && raft_top.custom_flow) {
+                    // 層高上下限的算法同 Slicing.cpp 的 min_layer_height_from_nozzle()／max_layer_height_from_nozzle()。
+                    const size_t idx                 = size_t(object->config().support_interface_filament.value - 1);
+                    const double min_cfg             = m_config.min_layer_height.get_at(idx);
+                    const double max_cfg             = m_config.max_layer_height.get_at(idx);
+                    const double min_layer_height    = (min_cfg == 0.) ? 0.07 : std::max(0.01, min_cfg);
+                    const double max_layer_height    = std::max(min_layer_height, (max_cfg == 0.) ? 0.75 * raft_top.nozzle_diameter : max_cfg);
+                    if (raft_top.height < min_layer_height - EPSILON || raft_top.height > max_layer_height + EPSILON)
+                        return {L("Raft top layer height is out of the printable range of the support interface nozzle."), object, "raft_top_layer_height"};
+                    if (raft_top.width > MAX_LINE_WIDTH_MULTIPLIER * raft_top.nozzle_diameter)
+                        return {L("Raft top line width is too large."), object, "raft_top_line_width"};
+                    // 跟現有線寬規則一樣，等於也算不合。
+                    if (raft_top.width <= raft_top.height)
+                        return {L("Raft top line width must be larger than the raft top layer height. "
+                                  "Please set both the raft top line width and the raft top layer height."), object, "raft_top_line_width"};
+                }
             }
             for (const char *opt_key : { "inner_wall_line_width", "outer_wall_line_width", "sparse_infill_line_width", "internal_solid_infill_line_width", "top_surface_line_width","skin_infill_line_width" ,"skeleton_infill_line_width"})
 				for (const PrintRegion &region : object->all_regions())

@@ -174,6 +174,10 @@ public:
     // It call fill_surface by default
     virtual void fill_surface_extrusion(const Surface *surface, const FillParams &params, ExtrusionEntitiesPtr &out);
 
+    // PING(c-1111-RAFT-02)：這個填充器對 surface 實際會用的線方向（弧度，0＝+X），供筏層頂面「與本體第一層垂直」讀取。
+    // 直接問填充器自己（含逐層交錯、fixed_angle、橋接角），不另外重算一次。只對直線類圖樣有意義。
+    float        ping_line_direction(const Surface *surface) const { return this->_infill_direction(surface).first - float(M_PI / 2.); }
+
 protected:
     Fill() :
         layer_id(size_t(-1)),

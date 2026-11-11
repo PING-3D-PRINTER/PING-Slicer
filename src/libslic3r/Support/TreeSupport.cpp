@@ -1418,6 +1418,24 @@ void TreeSupport::generate_toolpaths()
         fill_params.density = interface_density;
         fill_params.dont_adjust = true;
 
+        if (m_support_params.ping_raft_top_own_path()) {
+            // PING(c-1111-RAFT-02)：筏層頂面的新路（筏層 2 層以上、而且有填值或垂直生效）。
+            // 現行這一套的頂面與樹幹底下那塊共用同一個流量與填充器，噴嘴還取支撐底座那支料；
+            // 頂面是用介面那支料印的，所以頂面另建流量（噴嘴取介面那支料）與填充器，樹幹底下那塊保持原樣。
+            // 三件事各自獨立：沒動到的那一件留用現行的值。這一套的頂面本來就是直線圖樣。
+            const bool   custom_flow = m_support_params.ping_raft_top.custom_flow;
+            const Flow   top_flow    = custom_flow ? m_support_params.ping_raft_top_flow(ts_layer->height) : support_flow;
+            const size_t layers_below_contact = m_slicing_params.base_raft_layers + m_slicing_params.interface_raft_layers - 1 - layer_nr;
+            std::unique_ptr<Fill> filler_top(Fill::new_from_type(ipRectilinear));
+            filler_top->angle   = m_support_params.ping_raft_top_perpendicular ?
+                m_support_params.ping_raft_top_angle(layers_below_contact) : float(PI / 2);
+            filler_top->spacing = top_flow.spacing();
+            FillParams top_params;
+            top_params.density     = custom_flow ? float(m_support_params.ping_raft_top_density) : float(interface_density);
+            top_params.dont_adjust = true;
+            fill_expolygons_generate_paths(ts_layer->support_fills.entities, raft_interface_areas,
+                filler_top.get(), top_params, erSupportMaterialInterface, top_flow);
+        } else
         fill_expolygons_generate_paths(ts_layer->support_fills.entities, raft_interface_areas,
             filler_interface, fill_params, erSupportMaterialInterface, support_flow);
 

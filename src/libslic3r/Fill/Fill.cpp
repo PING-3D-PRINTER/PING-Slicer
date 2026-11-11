@@ -1194,6 +1194,9 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 {
 	for (LayerRegion *layerm : m_regions)
 		layerm->fills.clear();
+	// PING(c-1111-RAFT-02)：填充一重算，上一次記下的底面方向就作廢（下面算完再寫回）。
+	this->ping_bottom_fill_direction_valid = false;
+	double ping_bottom_fill_area = 0.;
 
 
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
@@ -1298,6 +1301,22 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         }
 		if (surface_fill.params.pattern == ipGrid)
 			params.can_reverse = false;
+		// PING(c-1111-RAFT-02)：記下本體第一層「底面實心填充」實際走的線方向，給筏層頂面「與本體第一層垂直」讀。
+		// 直接問這個填充器自己（旋轉模板、對齊模型、逐層交錯都已經算進去），不另外重算。
+		// 只認有單一方向的直線類圖樣；一個物件裡不同區域方向不同時，以面積最大的那一區為準。
+		// 面積最大的那一區不是直線類（同心、希爾伯特曲線…沒有單一方向）＝無效，筏層照現行算法。
+		if (this->lower_layer == nullptr && surface_fill.surface.is_bottom() && surface_fill.surface.is_solid()) {
+			double area = 0.;
+			for (const ExPolygon &expoly : surface_fill.expolygons)
+				area += std::abs(expoly.area());
+			if (area > ping_bottom_fill_area) {
+				ping_bottom_fill_area = area;
+				const bool straight = surface_fill.params.pattern == ipRectilinear || surface_fill.params.pattern == ipMonotonic ||
+					surface_fill.params.pattern == ipMonotonicLine || surface_fill.params.pattern == ipAlignedRectilinear;
+				this->ping_bottom_fill_direction_valid = straight;
+				this->ping_bottom_fill_direction = straight ? f->ping_line_direction(&surface_fill.surface) : 0.f;
+			}
+		}
 		for (ExPolygon& expoly : surface_fill.expolygons) {
 
       f->no_overlap_expolygons = intersection_ex(surface_fill.no_overlap_expolygons, ExPolygons() = {expoly}, ApplySafetyOffset::Yes);

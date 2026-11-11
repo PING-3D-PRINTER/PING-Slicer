@@ -94,7 +94,9 @@ std::map<std::string, std::vector<SimpleSettingData>>  SettingsFactory::OBJECT_C
                     {"support_bottom_z_distance", "",19},{"support_top_z_distance", "",20},{"support_base_pattern", "",21},{"support_base_pattern_spacing", "",22},
                     {"support_interface_top_layers", "",23},{"support_interface_bottom_layers", "",24},{"support_interface_spacing", "",25},{"support_bottom_interface_spacing", "",26},
                     {"support_object_xy_distance", "",27}, {"bridge_no_support", "",28},{"max_bridge_length", "",29},{"support_critical_regions_only", "",30},{"support_remove_small_overhang","",31},
-                    {"support_object_first_layer_gap","",32}
+                    {"support_object_first_layer_gap","",32},
+                    // PING(c-1111-RAFT-02)：筏層頂面獨立設定，讓一盤可以擺好幾片不同設定的試片
+                    {"raft_top_density","",33},{"raft_top_line_width","",34},{"raft_top_layer_height","",35},{"raft_top_speed","",36},{"raft_top_perpendicular","",37}
                             }},
     { L("Speed"), {{"support_speed", "",12}, {"support_interface_speed", "",13}
                     }}

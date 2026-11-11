@@ -796,6 +796,24 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // 「筏層」群組上面，藏起來的話改筏層數的當下上面會多出一行、把正在改的欄位往下推（Eric 09-30「照建議」Q1 甲）。
     toggle_field("raft_expansion", have_raft);
 
+    // PING 2026-11-11 (c-1111-RAFT-02)：筏層頂面獨立設定 5 格。
+    // 沒有筏層時收起來（跟筏層 Z 間距同做法：它們排在群組最下面，收起來不會把正在改的欄位往下推）；
+    // 筏層只有 1 層時那一層同時是貼床層、5 格不作用 ⇒ 灰掉；
+    // 一般支撐與樹狀 organic 開了支撐熨燙時頂面照現行強制鋪滿 ⇒ 頂面密度灰掉（樹狀 slim／strong／hybrid 現行沒有這件事，不灰）。
+    // 判「是不是樹狀 slim／strong／hybrid」跟切片端同一條規則（PingRaftTopSettings::is_normal_tree）：只看支撐類型與樣式，
+    // 不看有沒有開支撐——只開筏層不開支撐時，筏層由哪一套程式產生也是照這兩格決定的。
+    {
+        const bool raft_top_active      = config->opt_int("raft_layers") >= 2;
+        const bool raft_by_normal_tree  = is_tree(support_type) &&
+            (support_style == smsTreeSlim || support_style == smsTreeStrong || support_style == smsTreeHybrid);
+        const bool raft_top_ironed      = config->opt_bool("support_ironing") && !raft_by_normal_tree;
+        for (auto el : { "raft_top_density", "raft_top_line_width", "raft_top_layer_height", "raft_top_speed", "raft_top_perpendicular" }) {
+            toggle_line(el, have_raft);
+            toggle_field(el, raft_top_active);
+        }
+        toggle_field("raft_top_density", raft_top_active && !raft_top_ironed);
+    }
+
     bool has_ironing = (config->opt_enum<IroningType>("ironing_type") != IroningType::NoIroning);
     for (auto el : { "ironing_pattern", "ironing_flow", "ironing_spacing", "ironing_angle", "ironing_inset", "ironing_angle_fixed" })
         toggle_line(el, has_ironing);
