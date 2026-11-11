@@ -1599,6 +1599,10 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
             // 三格（密度／線寬／層高）全是 0 或筏層不到 2 層時整段走現行程式，不做這些檢查。
             {
                 const PingRaftTopSettings raft_top = PingRaftTopSettings::create(m_config, object->config());
+                // 密度限 0～100。介面的輸入框本來就擋得住；這裡擋的是手改的專案檔／逐物件設定帶進來的值，
+                // 不默默把 150 當成 100 用（Codex 反審 r1 P1-5）。筏層不到 2 層時這一格不作用，不查。
+                if (raft_top.active && (object->config().raft_top_density.value < 0. || object->config().raft_top_density.value > 100.))
+                    return {L("Raft top density must be between 0 and 100%."), object, "raft_top_density"};
                 if (raft_top.active && raft_top.custom_flow) {
                     // 層高上下限的算法同 Slicing.cpp 的 min_layer_height_from_nozzle()／max_layer_height_from_nozzle()。
                     const size_t idx                 = size_t(object->config().support_interface_filament.value - 1);

@@ -326,6 +326,7 @@ NEW_ENTRIES = {
     ): "勾選後，筏層最上面那層改用直線圖案，方向跟本體第一層的底面線條垂直，下面幾層依序交錯 90 度。本體的「底面圖案」是直線類才有作用。不勾＝照現在的算法。筏層只有 1 層時不作用。",
     "Raft top layer height is out of the printable range of the support interface nozzle.": "筏層頂面層高超出噴嘴印得出來的範圍，請調整「筏層頂面層高」。",
     "Raft top line width is too large.": "筏層頂面線寬太寬，請調小「筏層頂面線寬」。",
+    "Raft top density must be between 0 and 100%.": "筏層頂面密度要在 0～100% 之間，請調整「筏層頂面密度」。",
     (
         "Raft top line width must be larger than the raft top layer height. "
         "Please set both the raft top line width and the raft top layer height."

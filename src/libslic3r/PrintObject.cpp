@@ -1394,7 +1394,10 @@ bool PrintObject::invalidate_step(PrintObjectStep step)
         invalidated |= this->invalidate_steps({ posIroning, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
     } else if (step == posSlice) {
-		invalidated |= this->invalidate_steps({ posPerimeters, posPrepareInfill, posInfill, posIroning, posSupportMaterial, posSimplifyPath, posSimplifyInfill });
+		// PING(c-1111-RAFT-02)：補上 posSimplifySupportPath。原本這個批次清單漏了它，而「支撐失效 ⇒ 支撐路徑簡化失效」寫在下面逐步傳播那段、
+        // 批次失效走不到，結果重新切層後支撐路徑少簡化一次（跟全新切差在路徑上多出幾奈米的點）。
+        // 新的 raft_top_layer_height 會走這條路（層高、筏層層數等既有設定也一樣），單元測試 test_ping_raft_top.cpp 抓到。
+        invalidated |= this->invalidate_steps({ posPerimeters, posPrepareInfill, posInfill, posIroning, posSupportMaterial, posSimplifyPath, posSimplifyInfill, posSimplifySupportPath });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
         m_slicing_params.valid = false;
     } else if (step == posSupportMaterial) {
