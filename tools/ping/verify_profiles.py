@@ -254,6 +254,8 @@ CLASSIC = {
     "PING 200": {"nozzle":"0.4", "retract":"2", "speed":"20", "height":"200", "bed":True},
     "PING 270": {"nozzle":"0.4", "retract":"6", "speed":"60", "height":"300", "bed":True},
     "PING 300+":{"nozzle":"0.4", "retract":"2", "speed":"20", "height":"270", "bed":True},
+    # 2026-11-12 新機 PING 300H（Eric「沒有300H（列印直徑 300，高 600）」，牌 c-1112-RAFT-04）＝300+ 只差高度
+    "PING 300H":{"nozzle":"0.4", "retract":"2", "speed":"20", "height":"600", "bed":True},
     "DUAL 300": {"nozzle":"0.4", "retract":"2", "speed":"20", "height":"270", "bed":True},
     "DUAL 450": {"nozzle":"0.6", "retract":"3", "speed":"30", "height":"600", "bed":True},
     "DUAL 600": {"nozzle":"0.6", "retract":"3", "speed":"30", "height":"580", "bed":True},
@@ -2268,7 +2270,7 @@ for _rel, _needles in (
 #      東西＝內部倒置。**下一棒看到 Classic 是 25/40 不要「順手統一」。**
 #   ⛔ 本規則只動支撐兩鍵：稀疏填充 100／內牆 80 是全庫標準（Eric 0719 親裁），不得順手改。
 _SPD_FLOOR = 60.0
-_CLASSIC_PREFIXES = ("EDU 200", "PING 200", "PING 270", "PING 300+",
+_CLASSIC_PREFIXES = ("EDU 200", "PING 200", "PING 270", "PING 300+", "PING 300H",   # 300H：2026-11-12 c-1112-RAFT-04
                      "DUAL 300", "DUAL 450", "DUAL 600", "DUAL 800")
 # 🔴 豁免名單（Eric 2026-09-19，牌 c-0919-ETR-01）＝產生器 4b-7 的 SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS **同名同值**
 #    （verify 刻意不 import 產生器，兩邊一起改）。名單內的族不套 ≥60，改驗 exact 50。
@@ -2985,6 +2987,26 @@ print(f"CF 只在單噴頭：F 系 {len(_CF_FILS)} 支 × {len(_cf_want)} 台口
       f"｜Classic {len(_CF_FILS_CLASSIC)} 支 × {len(_cf_want_classic)} 台"
       f"｜機型預勾 單料頭 {_cf_census['單料頭']} 台／Classic 單料頭 {_cf_census['Classic 單料頭']} 台"
       f"／其餘 {_cf_census['其餘']} 台皆無")
+
+# 🆕 筏層首層三值（Eric 2026-11-12，牌 c-1112-RAFT-04；產生器 4b-6b RAFT_BOTTOM_VALUES 同名同值，verify 刻意不 import 產生器）。
+#    回歸型：每一支 PING 系統製程都要有這三格（只在有筏層時作用）；掃到 0 支＝判定失效。
+#    綠燈＝三格值對，**不等於**切出來的 G-code 對（那要無頭切片量）。
+_RB_WANT = {"raft_bottom_line_width": "200%", "raft_bottom_density": "50%", "raft_bottom_speed": "25"}
+_rb_seen = _rb_bad = 0
+for _n, (_k, _d) in presets.items():
+    if _k != "process" or _n.startswith("fdm_") or _d.get("instantiation") != "true":
+        continue
+    _rb_seen += 1
+    _rb_diff = {k: _d.get(k) for k, v in _RB_WANT.items() if _d.get(k) != v}
+    if _rb_diff:
+        _rb_bad += 1
+        if _rb_bad <= 8:
+            err(f"[筏層首層三值 1112] {_n}: {_rb_diff!r}，應為 {_RB_WANT!r}")
+if _rb_bad > 8:
+    err(f"[筏層首層三值 1112] 另有 {_rb_bad - 8} 支未列出")
+if _rb_seen == 0:
+    err("[筏層首層三值 1112] 沒有掃到任何製程 ⇒ 判定失效")
+print(f"筏層首層三值（200%／50%／25）：{_rb_seen - _rb_bad}／{_rb_seen} 支製程合格")
 if errors:
     print(f"\n[FAIL] {len(errors)} 個問題：")
     for e in errors:

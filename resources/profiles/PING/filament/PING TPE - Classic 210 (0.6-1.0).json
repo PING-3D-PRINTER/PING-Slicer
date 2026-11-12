@@ -83,6 +83,14 @@
         "DUAL 800 同進 1.0 nozzle",
         "DUAL 800 單料頭 0.6 nozzle",
         "DUAL 800 單料頭 1.0 nozzle",
-        "EDU 200 0.6 nozzle"
+        "EDU 200 0.6 nozzle",
+        "PING 200 0.6 nozzle",
+        "PING 200 1.0 nozzle",
+        "PING 270 0.6 nozzle",
+        "PING 270 1.0 nozzle",
+        "PING 300+ 0.6 nozzle",
+        "PING 300+ 1.0 nozzle",
+        "PING 300H 0.6 nozzle",
+        "PING 300H 1.0 nozzle"
     ]
 }

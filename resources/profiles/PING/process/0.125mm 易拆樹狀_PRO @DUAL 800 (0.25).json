@@ -300,5 +300,8 @@
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "DUAL 800 0.25 nozzle"
-    ]
+    ],
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }

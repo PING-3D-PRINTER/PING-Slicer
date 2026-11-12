@@ -295,5 +295,8 @@
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 Pro 同進照片磚 0.4 nozzle"
-    ]
+    ],
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }

@@ -908,6 +908,8 @@ static std::vector<std::string> s_Preset_print_options {
     "raft_layers", "raft_first_layer_density", "raft_first_layer_expansion", "raft_contact_distance", "raft_expansion",
     // PING(c-1111-RAFT-02)：筏層頂面獨立設定
     "raft_top_density", "raft_top_line_width", "raft_top_layer_height", "raft_top_speed", "raft_top_perpendicular",
+    // PING(c-1112-RAFT-04)：筏層首層獨立設定
+    "raft_bottom_line_width", "raft_bottom_density", "raft_bottom_speed",
     "support_base_pattern", "support_base_pattern_spacing", "support_expansion", "support_style",
     // BBS
     "print_extruder_id", "print_extruder_variant",

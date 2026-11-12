@@ -435,7 +435,8 @@ public:
     // 只有填充已算完（posInfill 完成）而且第一層底面是直線類圖樣時才讀得到；讀不到回 false，呼叫端照現行算法。
     bool                        ping_raft_top_reference_direction(float &direction) const;
     // 筏層要不要跟著本體的填充結果走（勾了垂直、而且筏層 2 層以上）。填充重算時用它決定要不要連帶重算支撐。
-    bool                        ping_raft_follows_infill() const { return m_config.raft_top_perpendicular.value && m_config.raft_layers.value >= 2; }
+    // PING(c-1112-RAFT-04)：垂直改成固定生效（Eric 11-12「一定要勾」），不再讀 raft_top_perpendicular。
+    bool                        ping_raft_follows_infill() const { return m_config.raft_layers.value >= 2; }
     // Checks if the model object is painted using the multi-material painting gizmo.
     bool                        is_mm_painted()         const { return this->model_object()->is_mm_painted(); }
     // Checks if the model object is painted using the fuzzy skin painting gizmo.

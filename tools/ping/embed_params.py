@@ -260,11 +260,35 @@ EXT_NOZZLE_PROC_START = 1100   # 後加口徑的 process：出貨線一次就要
 _nz_m = EXT_NOZZLE_START           # 模組層級＝三條 emit 路徑共用（本次修正的重點）
 _nz_p = EXT_NOZZLE_PROC_START
 
+# ★ 1112 段（Eric 2026-11-12「單料機要有其他口徑 0.2/0.4/0.6/1.0」「另外沒有 300H」，牌 c-1112-RAFT-04）。
+#   Classic 單料 PING 200／270／300+ 補 0.2／0.6／1.0，新機 PING 300H 四個口徑。
+#   🔴 不能塞進 960／1100 段：那兩段的計數器是「依產出順序」連號，後面還有 4a-9～4c-4 的製程族在吃 1100 段，
+#      新項目只要排在任何一個既有項目前面就會把它推走（0911 實測過同型位移）。⇒ 另開一段、只給本批用。
+#   machine 從 PINGM1200、process 從 PINGP1400 起（現況最大 PINGM977／PINGP1156，不跨位數邊界、留足餘裕）。
+#   判準＝名字：machine「<機型> <口徑> nozzle」、process 名含「@<機型> (<口徑>)」；樹狀等派生製程同名規則自動跟進。
+C1112_SEG = {
+    "PING 200":  ("0.2", "0.6", "1.0"),
+    "PING 270":  ("0.2", "0.6", "1.0"),
+    "PING 300+": ("0.2", "0.6", "1.0"),
+    "PING 300H": ("0.2", "0.4", "0.6", "1.0"),
+}
+C1112_M_START = 1200
+C1112_P_START = 1400
+_c12_m = C1112_M_START
+_c12_p = C1112_P_START
+
+def _c12_name(nm):
+    """名字屬於 1112 段嗎（machine 葉檔名或 process 名）"""
+    return any(nm == "%s %s nozzle" % (m, z) or ("@%s (%s)" % (m, z)) in nm
+               for m, zs in C1112_SEG.items() for z in zs)
+
 def _nz_reset():
-    global _nz_m, _nz_p, _ext_m, _ext_p
+    global _nz_m, _nz_p, _ext_m, _ext_p, _c12_m, _c12_p
     _nz_m = EXT_NOZZLE_START
     _nz_p = EXT_NOZZLE_PROC_START
     _ext_m = _ext_p = EXT_MODEL_START
+    _c12_m = C1112_M_START
+    _c12_p = C1112_P_START
 
 def _ext_take_m():
     global _ext_m
@@ -279,20 +303,27 @@ def _ext_proc(nm):
     return any(("@" + r + " (") in nm for r in EXT_RESERVED_MODELS)
 
 def _nz_res(model, nz):
-    """該 (機型, 口徑) 是否為既有機型的後加口徑（走 960 段）"""
-    return nz in EXT_RESERVED_NOZZLES.get(model, ())
+    """該 (機型, 口徑) 是否走保留號段（960／1100 段，或 1112 段）——兩者都不動主計數器"""
+    return nz in EXT_RESERVED_NOZZLES.get(model, ()) or nz in C1112_SEG.get(model, ())
 
-def _nz_take_m():
-    global _nz_m
+def _nz_take_m(nm):
+    """nm＝這支 machine 的名字；屬 1112 段的走自己的計數器（見 C1112_SEG），其餘照舊 960 段"""
+    global _nz_m, _c12_m
+    if _c12_name(nm):
+        v = "PINGM%03d" % _c12_m; _c12_m += 1; return v
     v = "PINGM%03d" % _nz_m; _nz_m += 1; return v
 
-def _nz_take_p():
-    global _nz_p
+def _nz_take_p(nm):
+    """nm＝這支 process 的名字；屬 1112 段的走自己的計數器，其餘照舊 1100 段"""
+    global _nz_p, _c12_p
+    if _c12_name(nm):
+        v = "PINGP%03d" % _c12_p; _c12_p += 1; return v
     v = "PINGP%03d" % _nz_p; _nz_p += 1; return v
 
 def _nz_proc(nm):
-    """製程名是否屬後加口徑（判準＝名字含 "@<機型> (<口徑>)" 子字串）"""
-    return any(("@%s (%s)" % (m, z)) in nm for m, zs in EXT_RESERVED_NOZZLES.items() for z in zs)
+    """製程名是否屬保留號段（判準＝名字含 "@<機型> (<口徑>)" 子字串；含 1112 段）"""
+    return (any(("@%s (%s)" % (m, z)) in nm for m, zs in EXT_RESERVED_NOZZLES.items() for z in zs)
+            or _c12_name(nm))
 
 
 BASE_PLA_OLD, BASE_PLA_NEW = "PING PLA", "PING PLA - 210"
@@ -648,6 +679,11 @@ CLASSIC_SPECS = [
     {"name":"PING 300+","src_model":"FP300",       "src_nozzle":"0.4", "src_diameter":300,
      "diameter":300, "height":"270", "nozzle":"0.4", "layer":"0.2",  "initial":"0.25",
      "retract":"2", "retract_speed":"20", "dual":False, "heated_bed":True,  "speed_class":"single"},
+    # ★ PING 300H（Eric 2026-11-12「沒有300H（列印直徑 300，高 600）」，六題 Q6 照建議）：
+    #   Classic 單料，G-code／床／回抽全照 PING 300+，只差列印高度 600。id 走 1112 段（C1112_SEG）＝插在這裡也不位移。
+    {"name":"PING 300H","src_model":"FP300",       "src_nozzle":"0.4", "src_diameter":300,
+     "diameter":300, "height":"600", "nozzle":"0.4", "layer":"0.2",  "initial":"0.25",
+     "retract":"2", "retract_speed":"20", "dual":False, "heated_bed":True,  "speed_class":"single"},
     {"name":"DUAL 300", "src_model":"FD300",       "src_nozzle":"0.4", "src_diameter":300,
      "diameter":300, "height":"270", "nozzle":"0.4", "layer":"0.2",  "initial":"0.25",
      "retract":"2", "retract_speed":"20", "dual":True,  "heated_bed":True,  "speed_class":"dual04"},
@@ -729,8 +765,9 @@ CLASSIC_PRO_SRC = {"DUAL 300": "FD300 Pro", "DUAL 450": "FD450 Pro",
 # Eric 2026-09-01 裁 Q1＝丙「直接跟 FD 來源的 0.4／1.0 走」⇒ 新補的口徑用這張表，不自己發明數字。
 # ⚠ 既有口徑**不套這張表**：DUAL 450／600／800 的 0.6 現況是 layer 0.25／initial 0.3（Classic 專屬值，
 #   與 FD 的 0.3／0.35 不同），那是已出貨的值，本棒不動它（要不要對齊另裁）。
-SRC_LAYER_BY_NOZZLE = {"0.25": "0.125", "0.4": "0.2", "0.6": "0.3", "1.0": "0.5"}
-SRC_INITIAL_BY_NOZZLE = {"0.25": "0.15", "0.4": "0.25", "0.6": "0.35", "1.0": "0.55"}
+SRC_LAYER_BY_NOZZLE = {"0.2": "0.1", "0.25": "0.125", "0.4": "0.2", "0.6": "0.3", "1.0": "0.5"}
+SRC_INITIAL_BY_NOZZLE = {"0.2": "0.15", "0.25": "0.15", "0.4": "0.25", "0.6": "0.35", "1.0": "0.55"}
+# 0.2 那一格（2026-11-12 加，牌 c-1112-RAFT-04）＝實查 FD450 Pro 單料頭 0.2 的預設製程（0.1／0.15）。
 
 
 def _nozzles_of_spec(spec):
@@ -757,13 +794,25 @@ _CLASSIC_EXTRA_NOZZLES = {
     "DUAL 600": ["0.4", "1.0", "0.25"],
     "DUAL 800": ["0.4", "1.0", "0.25"],
 }
+# ★ Classic 單料機補口徑（Eric 2026-11-12「單料機要有其他口徑 0.2/0.4/0.6/1.0」；六題 Q4／Q5 照建議，牌 c-1112-RAFT-04）：
+#   PING 200／270／300+／300H 補 0.2／0.6／1.0（EDU 200 不動）。每個口徑一支基本製程。
+#   來源＝FD450 Pro 單料頭同口徑（＝DUAL 450 單料頭那幾支 Classic 製程的同一個來源；FP300 沒有 1.0、三個口徑統一一個來源）；
+#   速度照既有補口徑規則「照 FD 字面」（Eric 2026-09-01），之後的 Classic 速度上限 post-pass 照套。id 走 1112 段。
+_CLASSIC_SINGLE_EXTRA = {"PING 200": ["0.2", "0.6", "1.0"], "PING 270": ["0.2", "0.6", "1.0"],
+                         "PING 300+": ["0.2", "0.6", "1.0"], "PING 300H": ["0.2", "0.6", "1.0"]}
+_CLASSIC_SINGLE_SRC = ("FD450 Pro 單料頭", 450)
 for _s in CLASSIC_SPECS:
     _extra = _CLASSIC_EXTRA_NOZZLES.get(_s["name"])
-    if not _extra:
-        continue
-    _s["extra_nozzles"] = [{"nozzle": _n, "src_nozzle": _n,
-                            "layer": SRC_LAYER_BY_NOZZLE[_n],
-                            "initial": SRC_INITIAL_BY_NOZZLE[_n]} for _n in _extra]
+    if _extra:
+        _s["extra_nozzles"] = [{"nozzle": _n, "src_nozzle": _n,
+                                "layer": SRC_LAYER_BY_NOZZLE[_n],
+                                "initial": SRC_INITIAL_BY_NOZZLE[_n]} for _n in _extra]
+    _extra = _CLASSIC_SINGLE_EXTRA.get(_s["name"])
+    if _extra:
+        _s["extra_nozzles"] = [{"nozzle": _n, "src_nozzle": _n, "src_model": _CLASSIC_SINGLE_SRC[0],
+                                "src_diameter": _CLASSIC_SINGLE_SRC[1],
+                                "layer": SRC_LAYER_BY_NOZZLE[_n],
+                                "initial": SRC_INITIAL_BY_NOZZLE[_n]} for _n in _extra]
 del _s, _extra
 
 def scale_circle_area(area_pts, target_diameter):
@@ -2061,10 +2110,13 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
     #   把「一台一個口徑」的 emit 主體抽成本函式：**既有口徑照舊由下面第一段迴圈呼叫，順序一字未動
     #   ⇒ PINGM/PINGP id 零位移**；新補的口徑放到所有既有 Classic（含 0726 那批變體）之後才呼叫，
     #   完全比照當時「變體放在既有 8 台迴圈之後＝既有 id 零位移」的作法。
-    def _emit_one(spec, nz, src_nz, layer, initial, keep_src_speeds=False):
+    def _emit_one(spec, nz, src_nz, layer, initial, keep_src_speeds=False, src_model=None, src_diameter=None):
         nonlocal gm, gp
         name = spec["name"]
-        src_mac_name = "%s %s nozzle" % (spec["src_model"], src_nz)
+        # 逐口徑可以換來源機型（2026-11-12：Classic 單料補口徑取 FD450 Pro 單料頭）；沒給＝照該台 spec。
+        src_model = src_model or spec["src_model"]
+        src_diameter = src_diameter or spec["src_diameter"]
+        src_mac_name = "%s %s nozzle" % (src_model, src_nz)
         src_mac = os.path.join(PINGDIR, "machine", "%s.json" % src_mac_name)
         mac = json.load(io.open(src_mac, encoding="utf-8"))
         mac_name = "%s %s nozzle" % (name, nz)
@@ -2072,7 +2124,7 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         defaults = _classic_defaults(spec)
 
         mac.update({"type":"machine", "name":mac_name, "alias":name, "from":"system",
-                    "instantiation":"true", "setting_id":(_nz_take_m() if _nz_res(name, nz) else "PINGM%03d" % gm),
+                    "instantiation":"true", "setting_id":(_nz_take_m(mac_name) if _nz_res(name, nz) else "PINGM%03d" % gm),
                     "printer_model":name, "printer_variant":nz,
                     "default_print_profile":proc_name, "default_filament_profile":defaults,
                     "gcode_flavor":"marlin", "emit_machine_limits_to_gcode":"0",
@@ -2088,7 +2140,7 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
                     "single_extruder_multi_material":"1" if spec["dual"] else "0"})
         if isinstance(mac.get("printable_area"), list):
             mac["printable_area"] = scale_circle_area_from(
-                mac["printable_area"], spec["src_diameter"], spec["diameter"])
+                mac["printable_area"], src_diameter, spec["diameter"])
         for key, value in (("retraction_length", spec["retract"]),
                            ("retraction_speed", spec["retract_speed"]),
                            ("deretraction_speed", spec["retract_speed"]),
@@ -2134,15 +2186,15 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         # 原本寫死 `"0.2" if nz=="0.4" else "0.3"`＝只涵蓋 0.4／0.6 兩種；0901 補 0.25 與 1.0
         # 之後那個寫法會去找不存在的檔（例：`0.3mm … (1.0)`），故改成完整對照表。
         src_layer = SRC_LAYER_BY_NOZZLE[src_nz]
-        src_proc_name = (combo_pname(src_layer, "PLA+SUP", spec["src_model"], src_nz)
+        src_proc_name = (combo_pname(src_layer, "PLA+SUP", src_model, src_nz)
                          if spec["dual"] else
-                         ("%smm @%s (%s)" % (src_layer, spec["src_model"], src_nz)))
+                         ("%smm @%s (%s)" % (src_layer, src_model, src_nz)))
         proc = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % src_proc_name), encoding="utf-8"))
         # 0730 改名批：Fast 母檔帶 renamed_from（易拆(Z0) 的舊名）——複製時必剝，否則 Classic
         # 製程冒領同一舊名＝重複認領地雷（0728 _classic_filament 線材版同族坑、verify 首跑實抓）。
         proc.pop("renamed_from", None)
         proc.update({"type":"process", "name":proc_name, "from":"system", "instantiation":"true",
-                     "setting_id":(_nz_take_p() if _nz_res(name, nz) else "PINGP%03d" % gp), "inherits":"fdm_process_ping_common",
+                     "setting_id":(_nz_take_p(proc_name) if _nz_res(name, nz) else "PINGP%03d" % gp), "inherits":"fdm_process_ping_common",
                      "compatible_printers":[mac_name], "layer_height":layer,
                      "initial_layer_print_height":initial, "seam_position":"back",
                      "support_type":"normal(auto)", "accel_to_decel_enable":"0",
@@ -2255,7 +2307,7 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
                 proc_name = src_dpp.replace("@%s (" % src_model, "@%s (" % model)
                 assert proc_name != src_dpp, "FD 變體 default_print_profile 格式變了: %r" % src_dpp
                 mac.update({"type":"machine", "name":mac_name, "alias":model, "from":"system",
-                            "instantiation":"true", "setting_id":(_nz_take_m() if _nz_res(model, nz) else "PINGM%03d" % gm),
+                            "instantiation":"true", "setting_id":(_nz_take_m(mac_name) if _nz_res(model, nz) else "PINGM%03d" % gm),
                             "printer_model":model, "printer_variant":nz,
                             "default_print_profile":proc_name,
                             # 0728 Eric 裁「Classic 變體預設跟」：變體＝單一出料 → Classic 210
@@ -2308,7 +2360,7 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
                 proc = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % src_dpp),
                                          encoding="utf-8"))
                 proc.update({"type":"process", "name":proc_name, "from":"system", "instantiation":"true",
-                             "setting_id":(_nz_take_p() if _nz_res(model, nz) else "PINGP%03d" % gp), "inherits":"fdm_process_ping_common",
+                             "setting_id":(_nz_take_p(proc_name) if _nz_res(model, nz) else "PINGP%03d" % gp), "inherits":"fdm_process_ping_common",
                              "compatible_printers":[mac_name], "accel_to_decel_enable":"0",
                              "filename_format": filename_tpl("同進" if variant == "同進" else "單料")})
                 for key in accel_keys + jerk_keys:
@@ -2360,13 +2412,15 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         nonlocal gm, gp
         gm, gp = _gm, _gp
         en = ep = 0
-        for spec in CLASSIC_SPECS:
+        # 2026-11-12：Classic 單料（1112 段）排在最後跑——它們有自己的計數器，但排序照「新增排最後」慣例，日後好對帳。
+        for spec in sorted(CLASSIC_SPECS, key=lambda s: s["name"] in _CLASSIC_SINGLE_EXTRA):
             extras = spec.get("extra_nozzles") or []
             if not extras:
                 continue
             for nrow in extras:
                 _emit_one(spec, nrow["nozzle"], nrow["src_nozzle"], nrow["layer"], nrow["initial"],
-                          keep_src_speeds=True)   # Eric 2026-09-01 裁「照 FD 字面」
+                          keep_src_speeds=True,   # Eric 2026-09-01 裁「照 FD 字面」
+                          src_model=nrow.get("src_model"), src_diameter=nrow.get("src_diameter"))
                 en += 1; ep += 1
             _emit_model(spec)   # 重出一次，nozzle_diameter 聚合成 `a;b;c`
         print("  Classic base 補口徑：machine=%d，process=%d（machine_model 就地聚合）" % (en, ep))
@@ -2665,7 +2719,7 @@ def main(src_base):
                     mac["retract_when_changing_layer"] = ["0"] * len(mac["retract_when_changing_layer"])
                 mac.update({"type":"machine","name":mac_name,"from":"system","instantiation":"true",
                     "setting_id":(_ext_take_m() if model in EXT_RESERVED_MODELS
-                                  else _nz_take_m() if _nz_res(model, nz)
+                                  else _nz_take_m(mac_name) if _nz_res(model, nz)
                                   else "PINGM%03d"%gm),"printer_model":model,"printer_variant":nz,
                     "default_print_profile":pname(combos[0]),
                     # alias=機型名 → active 標籤顯示乾淨名；口徑走噴嘴 chip(printer_variant)
@@ -2712,7 +2766,7 @@ def main(src_base):
                     normalize_tree_support(proc)  # 樹狀保守配方＋organic 防呆（2026-07-25）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":(_ext_take_p() if model in EXT_RESERVED_MODELS
-                                      else _nz_take_p() if _nz_res(model, nz)
+                                      else _nz_take_p(pname(cb)) if _nz_res(model, nz)
                                       else "PINGP%03d"%gp),"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
                         "filename_format": filename_tpl(cb)})
@@ -2796,7 +2850,7 @@ def main(src_base):
     # 4a-4. 棧板雙生製程統一 emit（setting_id 接在全庫最後＝既有 id 零位移）
     for tw in pallet_twins:
         if _ext_proc(tw["name"]): tw["setting_id"] = _ext_take_p()
-        elif _nz_proc(tw["name"]): tw["setting_id"] = _nz_take_p()
+        elif _nz_proc(tw["name"]): tw["setting_id"] = _nz_take_p(tw["name"])
         else: tw["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % tw["name"]), tw)
         proc_list.append({"name": tw["name"], "sub_path": "process/%s.json" % tw["name"]})
@@ -2806,7 +2860,7 @@ def main(src_base):
     # 4a-5. PLA+PVA 專屬製程統一 emit（接在棧板之後＝既有＋照片磚＋棧板 id 全零位移）
     for pv in pva_twins:
         if _ext_proc(pv["name"]): pv["setting_id"] = _ext_take_p()
-        elif _nz_proc(pv["name"]): pv["setting_id"] = _nz_take_p()
+        elif _nz_proc(pv["name"]): pv["setting_id"] = _nz_take_p(pv["name"])
         else: pv["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % pv["name"]), pv)
         proc_list.append({"name": pv["name"], "sub_path": "process/%s.json" % pv["name"]})
@@ -2851,7 +2905,7 @@ def main(src_base):
     #        全零位移——⚠ 本線照片磚在 PVA 之後 emit〔id 佈局承重牆〕，高流量必須排照片磚之後）
     for hf in hf_twins:
         if _ext_proc(hf["name"]): hf["setting_id"] = _ext_take_p()
-        elif _nz_proc(hf["name"]): hf["setting_id"] = _nz_take_p()
+        elif _nz_proc(hf["name"]): hf["setting_id"] = _nz_take_p(hf["name"])
         else: hf["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % hf["name"]), hf)
         proc_list.append({"name": hf["name"], "sub_path": "process/%s.json" % hf["name"]})
@@ -2862,7 +2916,7 @@ def main(src_base):
     #        PVA＋照片磚＋高流量 全零位移。⚠ 新增製程一律排最後，別插隊——r6 撞號事故同源）
     for pf in pacf_twins:
         if _ext_proc(pf["name"]): pf["setting_id"] = _ext_take_p()
-        elif _nz_proc(pf["name"]): pf["setting_id"] = _nz_take_p()
+        elif _nz_proc(pf["name"]): pf["setting_id"] = _nz_take_p(pf["name"])
         else: pf["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % pf["name"]), pf)
         proc_list.append({"name": pf["name"], "sub_path": "process/%s.json" % pf["name"]})
@@ -2881,7 +2935,7 @@ def main(src_base):
     #        ⚠ 下一個新增製程族要排在**本段之後**，別插隊（r6 撞號事故同源）。
     for et in easy_tree_twins:
         if _ext_proc(et["name"]): et["setting_id"] = _ext_take_p()
-        elif _nz_proc(et["name"]): et["setting_id"] = _nz_take_p()
+        elif _nz_proc(et["name"]): et["setting_id"] = _nz_take_p(et["name"])
         else: et["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % et["name"]), et)
         proc_list.append({"name": et["name"], "sub_path": "process/%s.json" % et["name"]})
@@ -2892,7 +2946,7 @@ def main(src_base):
     #        接在 4a-9 之後＝**真正的全庫最尾** ⇒ 既有 preset setting_id 全零位移。⚠ 下一個新增製程族排在本段之後。
     for af in abscf_fast_twins:
         if _ext_proc(af["name"]): af["setting_id"] = _ext_take_p()
-        elif _nz_proc(af["name"]): af["setting_id"] = _nz_take_p()
+        elif _nz_proc(af["name"]): af["setting_id"] = _nz_take_p(af["name"])
         else: af["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % af["name"]), af)
         proc_list.append({"name": af["name"], "sub_path": "process/%s.json" % af["name"]})
@@ -2917,7 +2971,7 @@ def main(src_base):
         tree10_twins.append(t10)
     for t10 in tree10_twins:
         if _ext_proc(t10["name"]): t10["setting_id"] = _ext_take_p()
-        elif _nz_proc(t10["name"]): t10["setting_id"] = _nz_take_p()
+        elif _nz_proc(t10["name"]): t10["setting_id"] = _nz_take_p(t10["name"])
         else: t10["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % t10["name"]), t10)
         proc_list.append({"name": t10["name"], "sub_path": "process/%s.json" % t10["name"]})
@@ -3763,6 +3817,25 @@ def main(src_base):
     if exp_set or lw_set or lw_unknown:
         print("  支撐首層擴展→0（棧板留 %s）：改 %d 支｜支撐線寬窄一階：改 %d 支｜口徑認不出：%d 支"
               % (PALLET_RAFT_FIRST_LAYER_EXPANSION, exp_set, lw_set, lw_unknown))
+
+    # 4b-6b. ★ 筏層首層（貼床那層）獨立三值（Eric 2026-11-12，牌 c-1112-RAFT-04）。
+    #   原話：「筏層的首層線寬不能吃物件的首層線寬，需要獨立出來 0.6 噴嘴的話設定 1.2」
+    #         「筏層的第一層速度/密度(50 %)也要另外設定（不要跟支撐的首層密度共用）」；速度六題 Q2 照建議＝25（2.1 中底層速度）。
+    #   線寬用 % 寫（200%＝0.6 噴嘴 1.2），各口徑等比。
+    #   範圍＝**全庫製程**（不只 raft_layers≥1 的 84 支）：這三格只在有筏層時作用，沒筏層的製程寫了也不影響；
+    #   而使用者在易拆等製程自己打開筏層時（Eric 11-12 截圖就是這樣），貼床那層也要吃到這組值、不是退回支撐首層密度 10%。
+    #   做成 post-pass＝製程有多條 emit 路徑，單一規則點才不會漏（同上面 4b-6）；之後才派生的製程（4c-3／4c-4）從這裡的結果複製、自然帶到。
+    RAFT_BOTTOM_VALUES = {"raft_bottom_line_width": "200%", "raft_bottom_density": "50%", "raft_bottom_speed": "25"}
+    rb_set = 0
+    for pp_path in sorted(glob.glob(os.path.join(PINGDIR, "process", "*.json"))):
+        pdj = json.load(io.open(pp_path, encoding="utf-8"))
+        if pdj.get("type") != "process":
+            continue
+        if any(pdj.get(k) != v for k, v in RAFT_BOTTOM_VALUES.items()):
+            pdj.update(RAFT_BOTTOM_VALUES)
+            jdump(pp_path, pdj)
+            rb_set += 1
+    print("  筏層首層三值（200%%／50%%／25）：寫入 %d 支" % rb_set)
     if ffw_files:
         print("  FF 族線寬＝口徑（0915 裁·#152）：改 %d 支／%d 個鍵" % (ffw_files, ffw_keys))
 
@@ -3893,6 +3966,7 @@ def main(src_base):
     # 每家族專屬照片（FD300 Pro 有自己的照片，勿沿用 FD300——取最長前綴匹配）
     cover_src = {"EDU 200":"FP300_cover.png", "PING 200":"FP300_cover.png",
                  "PING 270":"FP300_cover.png", "PING 300+":"FP300_cover.png",
+                 "PING 300H":"FP300_cover.png",   # 2026-11-12 新機（c-1112-RAFT-04），同 300+
                  "DUAL 300":"FD300_cover.png", "DUAL 450":"FD450 Pro_cover.png",
                  "DUAL 600":"FD600 Pro_cover.png", "DUAL 800":"FD800 Pro_cover.png",
                  "FD300 Pro":"FD300 Pro_cover.png","FD300":"FD300_cover.png",
@@ -3978,7 +4052,7 @@ def main(src_base):
         raise SystemExit("[停手] Classic Pro 噴頭製程：一台 DUAL 雙料本體都沒對到（機型名格式變了？）")
     for _d in _classic_pro:
         if _ext_proc(_d["name"]): _d["setting_id"] = _ext_take_p()
-        elif _nz_proc(_d["name"]): _d["setting_id"] = _nz_take_p()
+        elif _nz_proc(_d["name"]): _d["setting_id"] = _nz_take_p(_d["name"])
         else: _d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % _d["name"]), _d)
         proc_list.append({"name": _d["name"], "sub_path": "process/%s.json" % _d["name"]})
@@ -4008,7 +4082,7 @@ def main(src_base):
         raise SystemExit("[停手] 0.6 口徑樹狀製程：一支 0.6 標準名製程都沒對到（製程命名格式變了？）")
     for t06 in tree06_twins:
         if _ext_proc(t06["name"]): t06["setting_id"] = _ext_take_p()
-        elif _nz_proc(t06["name"]): t06["setting_id"] = _nz_take_p()
+        elif _nz_proc(t06["name"]): t06["setting_id"] = _nz_take_p(t06["name"])
         else: t06["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % t06["name"]), t06)
         proc_list.append({"name": t06["name"], "sub_path": "process/%s.json" % t06["name"]})

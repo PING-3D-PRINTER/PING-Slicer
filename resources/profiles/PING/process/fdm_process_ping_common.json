@@ -56,5 +56,8 @@
     "prime_tower_width": "30",
     "prime_volume": "45",
     "wipe_tower_max_idle_layers": "1",
-    "solid_infill_rotate_template": ""
+    "solid_infill_rotate_template": "",
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }

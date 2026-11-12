@@ -21774,3 +21774,36 @@ msgstr "筏層頂面的列印速度。0＝跟支撐面的速度一樣。筏層�
 
 msgid "Raft top density must be between 0 and 100%."
 msgstr "筏層頂面密度要在 0～100% 之間，請調整「筏層頂面密度」。"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "Density of the first raft layer, the layer on the build plate. 0 means the same as the support initial layer density. The support initial layer density still applies to supports printed without a raft. Not used when there is no raft."
+msgstr "筏層第一層（貼床那層）的疏密。0＝跟支撐的「首層密度」一樣。沒開筏層時，支撐的第一層照舊用「首層密度」。沒有筏層時不作用。"
+
+msgid "Line width of the first raft layer, the layer on the build plate. If expressed as a %, it will be computed over the nozzle diameter. 0 means the same as the first layer line width. Not used when there is no raft."
+msgstr "筏層第一層（貼床那層）的線寬。填 % 時以噴嘴口徑為基準（100%＝噴嘴口徑）。0＝跟「品質」頁的首層線寬一樣。沒有筏層時不作用。"
+
+msgid "Raft first layer density"
+msgstr "筏層首層密度"
+
+msgid "Raft first layer density must be between 0 and 100%."
+msgstr "筏層首層密度要在 0～100% 之間，請調整「筏層首層密度」。"
+
+msgid "Raft first layer line width"
+msgstr "筏層首層線寬"
+
+msgid "Raft first layer line width is too large."
+msgstr "筏層首層線寬太寬，請調小「筏層首層線寬」。"
+
+msgid "Raft first layer line width must be larger than the initial layer height."
+msgstr "筏層首層線寬必須大於首層層高，請調大「筏層首層線寬」。"
+
+msgid "Raft first layer speed"
+msgstr "筏層首層速度"
+
+msgid "Speed of the first raft layer, the layer on the build plate. 0 means the same as the initial layer speed. Not used when there is no raft."
+msgstr "筏層第一層（貼床那層）的列印速度。0＝跟首層速度一樣。沒有筏層時不作用。"

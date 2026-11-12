@@ -686,8 +686,9 @@ static void scenario_check_perpendicular_after_slicing(Part part)
 
     // 主要判準：重新 process ＝ 全新切。
     CHECK(diff(after, fresh) == "");
-    // 對照：沒重新 process 的舊結果（全零）≠ 全新切（勾）。這條紅了＝比對函式分不出差別，上面那條綠了也不算數。
-    CHECK(diff_unordered(before, fresh) != "");
+    // // PING(c-1112-RAFT-04)：Eric 11-12「一定要勾」⇒ 垂直固定生效、不再讀 raft_top_perpendicular；下面改成新語意。
+    // 原本這裡是「全零（不勾）≠ 勾」的對照；垂直固定生效之後兩者相同。比對函式分得出差別由 08（密度／線寬／層高）那幾條擔保。
+    CHECK(diff_unordered(before, fresh) == "");
 
     // 勾了之後，筏層最上面那層介面線的方向與本體第一層底面填充方向垂直。
     check_raft_top_perpendicular(*rig.object(), after);
@@ -908,17 +909,15 @@ TEST_CASE("PingRaftTop 05: support preview before a full slice", "[PingRaftTop]"
         CHECK(diff(take(*rig.object()), fresh_slice(Part::Tee, perpendicular_config())) == "");
     }
 
-    SECTION("perpendicular unchecked: the preview marks support done (old behaviour)")
+    // // PING(c-1112-RAFT-04)：Eric 11-12「一定要勾」⇒ 垂直固定生效、不再讀 raft_top_perpendicular；下面改成新語意。
+    SECTION("perpendicular forced: an unchecked config behaves like a checked one in the preview")
     {
         Rig rig(Part::Tee, base_config());
         REQUIRE_NOTHROW(rig.object()->generate_support_preview());
-        CHECK(rig.object()->is_step_done(posSupportMaterial));
-        const PrintStateBase::TimeStamp stamp = rig.object()->step_state_with_timestamp(posSupportMaterial).timestamp;
+        CHECK_FALSE(rig.object()->is_step_done(posSupportMaterial));
         REQUIRE_NOTHROW(rig.print.process());
         CHECK(rig.object()->is_step_done(posSupportMaterial));
-        // 舊行為：完整切片不會再重算支撐。
-        CHECK(rig.object()->step_state_with_timestamp(posSupportMaterial).timestamp == stamp);
-        CHECK(diff(take(*rig.object()), fresh_slice(Part::Tee, base_config())) == "");
+        CHECK(diff(take(*rig.object()), fresh_slice(Part::Tee, perpendicular_config())) == "");
     }
 
     SECTION("perpendicular checked, raft with one layer: the preview marks support done")
@@ -1444,12 +1443,13 @@ TEST_CASE("PingRaftTop 10: two identical objects on one plate", "[PingRaftTop]")
         const PrintStateBase::TimeStamp stamp_0 = rig.object(0)->step_state_with_timestamp(posSupportMaterial).timestamp;
         const PrintStateBase::TimeStamp stamp_1 = rig.object(1)->step_state_with_timestamp(posSupportMaterial).timestamp;
 
-        // 改本體方向：只有勾了垂直的那個物件要連帶重算支撐，沒勾的那個照舊不重算（舊行為沒被改到）。
+        // // PING(c-1112-RAFT-04)：Eric 11-12「一定要勾」⇒ 垂直固定生效、不再讀 raft_top_perpendicular；下面改成新語意。
+        // 改本體方向：垂直固定生效 ⇒ 兩個物件都要連帶重算支撐（物件層級寫不寫「不勾」都一樣）。
         rig.apply(config_135);
-        CHECK(rig.object(0)->is_step_done(posSupportMaterial));
+        CHECK_FALSE(rig.object(0)->is_step_done(posSupportMaterial));
         CHECK_FALSE(rig.object(1)->is_step_done(posSupportMaterial));
         REQUIRE_NOTHROW(rig.print.process());
-        CHECK(rig.object(0)->step_state_with_timestamp(posSupportMaterial).timestamp == stamp_0);
+        CHECK(rig.object(0)->step_state_with_timestamp(posSupportMaterial).timestamp != stamp_0);
         CHECK(rig.object(1)->step_state_with_timestamp(posSupportMaterial).timestamp != stamp_1);
         CHECK(diff(take(*rig.object(0)), fresh_slice(Part::Tee, config_135)) == "");
         CHECK(diff(take(*rig.object(1)), fresh_slice(Part::Tee, with(config_135, {{"raft_top_perpendicular", true}}))) == "");
@@ -1566,7 +1566,8 @@ TEST_CASE("PingRaftTop 12: tree supports follow the same recalculation rule", "[
             REQUIRE_NOTHROW(rig.print.process());
             const Snapshot after_45 = take(*rig.object());
             CHECK(diff(after_45, fresh_45) == "");
-            CHECK(diff_unordered(zero, fresh_45) != "");
+            // // PING(c-1112-RAFT-04)：Eric 11-12「一定要勾」⇒ 垂直固定生效、不再讀 raft_top_perpendicular；下面改成新語意。
+            CHECK(diff_unordered(zero, fresh_45) == "");
             check_raft_top_perpendicular(*rig.object(), after_45);
 
             // 勾垂直 → 本體方向 45→135。

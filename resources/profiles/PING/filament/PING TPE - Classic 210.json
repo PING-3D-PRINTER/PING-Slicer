@@ -86,8 +86,13 @@
         "DUAL 800 同進 0.4 nozzle",
         "DUAL 800 單料頭 0.2 nozzle",
         "DUAL 800 單料頭 0.4 nozzle",
+        "PING 200 0.2 nozzle",
         "PING 200 0.4 nozzle",
+        "PING 270 0.2 nozzle",
         "PING 270 0.4 nozzle",
-        "PING 300+ 0.4 nozzle"
+        "PING 300+ 0.2 nozzle",
+        "PING 300+ 0.4 nozzle",
+        "PING 300H 0.2 nozzle",
+        "PING 300H 0.4 nozzle"
     ]
 }

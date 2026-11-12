@@ -103,5 +103,8 @@
     "gap_infill_speed": "30",
     "travel_speed": "200",
     "enable_arc_fitting": "0",
-    "exclude_object": "0"
+    "exclude_object": "0",
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }

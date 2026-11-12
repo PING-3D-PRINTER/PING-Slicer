@@ -1493,7 +1493,8 @@ void generate_support_toolpaths(
                 // Base flange.
                 filler->angle = support_params.raft_angle_1st_layer;
                 filler->spacing = support_params.first_layer_flow.spacing();
-                density       = float(config.raft_first_layer_density.value * 0.01);
+                // PING(c-1112-RAFT-04)：筏層第一層密度可以自己設（0＝沿用支撐首層密度）。
+                density       = float(support_params.ping_raft_bottom_density);
             } else if (support_layer_id >= slicing_params.base_raft_layers && support_params.ping_raft_top_own_path()) {
                 // PING(c-1111-RAFT-02)：筏層頂面（本體坐的那層下面那幾層）的新路。三件事各自獨立：
                 // 方向只看垂直有沒有生效、線距與流量只看密度／線寬／層高有沒有填；沒動到的那一件照下面現行那段的算法。

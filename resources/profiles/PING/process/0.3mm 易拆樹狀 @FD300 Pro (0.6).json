@@ -300,5 +300,8 @@
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 Pro 0.6 nozzle"
-    ]
+    ],
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }
