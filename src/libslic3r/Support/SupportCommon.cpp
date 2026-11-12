@@ -1442,6 +1442,13 @@ void generate_support_toolpaths(
             std::unique_ptr<Fill> filler_support   = std::unique_ptr<Fill>(Fill::new_from_type(support_params.base_fill_pattern));
             filler_interface->set_bounding_box(bbox_object);
             filler_support->set_bounding_box(bbox_object);
+            // PING(c-1111-RAFT-02)：筏層頂面走新算法或垂直生效時，頂面另開一個填充器。
+            // 不能共用上面的 filler_interface：它同時在印貼床那一層（下面 support_layer_id == 0 那段）。
+            std::unique_ptr<Fill> filler_ping_raft_top;
+            if (support_params.ping_raft_top_own_path()) {
+                filler_ping_raft_top = std::unique_ptr<Fill>(Fill::new_from_type(support_params.ping_raft_top_fill_pattern));
+                filler_ping_raft_top->set_bounding_box(bbox_object);
+            }
 
             // Print the tree supports cutting through the raft with the exception of the 1st layer, where a full support layer will be printed below
             // both the raft and the trees.
@@ -1487,6 +1494,25 @@ void generate_support_toolpaths(
                 filler->angle = support_params.raft_angle_1st_layer;
                 filler->spacing = support_params.first_layer_flow.spacing();
                 density       = float(config.raft_first_layer_density.value * 0.01);
+            } else if (support_layer_id >= slicing_params.base_raft_layers && support_params.ping_raft_top_own_path()) {
+                // PING(c-1111-RAFT-02)：筏層頂面（本體坐的那層下面那幾層）的新路。三件事各自獨立：
+                // 方向只看垂直有沒有生效、線距與流量只看密度／線寬／層高有沒有填；沒動到的那一件照下面現行那段的算法。
+                assert(! raft_layer.bridging);
+                filler = filler_ping_raft_top.get();
+                // 本體坐的那層是第 raft_layers()-1 層（在下面第二個迴圈印），這一層在它下面第幾層：
+                const size_t layers_below_contact = slicing_params.raft_layers() - 1 - support_layer_id;
+                filler->angle = support_params.ping_raft_top_perpendicular ?
+                    support_params.ping_raft_top_angle(layers_below_contact) :
+                    support_params.raft_interface_angle(support_layer.interface_id());
+                if (support_params.ping_raft_top.custom_flow) {
+                    // 鋪滿線距用這一層實際的線寬與層高算（現行是拿支撐底座、本體層高的線距當基準）。
+                    flow            = support_params.ping_raft_top_flow(raft_layer.height);
+                    filler->spacing = flow.spacing();
+                } else {
+                    filler->spacing = support_params.support_material_flow.spacing();
+                    flow            = Flow(float(support_params.raft_interface_flow.width()), float(raft_layer.height), support_params.raft_interface_flow.nozzle_diameter());
+                }
+                density       = float(support_params.ping_raft_top_density);
             } else if (support_layer_id >= slicing_params.base_raft_layers) {
                 filler->angle = support_params.raft_interface_angle(support_layer.interface_id());
                 // We don't use $base_flow->spacing because we need a constant spacing
@@ -1563,6 +1589,8 @@ void generate_support_toolpaths(
         auto filler_base_interface  = std::unique_ptr<Fill>(base_interface_layers.empty() ? nullptr :
             Fill::new_from_type(support_params.interface_density > 0.95 || support_params.with_sheath ? ipRectilinear : ipSupportBase));
         auto filler_support         = std::unique_ptr<Fill>(Fill::new_from_type(support_params.base_fill_pattern));
+        // PING(c-1111-RAFT-02)：本體坐的那一層（筏層最上面那層）改用直線圖樣時另開的填充器，用到才建。
+        std::unique_ptr<Fill> filler_ping_raft_top;
         filler_interface->set_bounding_box(bbox_object);
         if (filler_first_layer_ptr)
             filler_first_layer_ptr->set_bounding_box(bbox_object);
@@ -1663,6 +1691,17 @@ void generate_support_toolpaths(
                     //FIXME Bottom interfaces are extruded with the briding flow. Some bridging layers have its height slightly reduced, therefore
                     // the bridging flow does not quite apply. Reduce the flow to area of an ellipse? (A = pi * a * b)
                     auto *filler = raft_contact ? filler_raft_contact : filler_interface.get();
+                    // PING(c-1111-RAFT-02)：本體坐的那一層的新路（筏層 2 層以上、而且有填值或垂直生效才會是 true）。
+                    // 三件事各自獨立，沒動到的那一件留用下面現行算出來的值。
+                    const bool ping_raft_top = raft_contact && ! layer_ex.layer->bridging && support_params.ping_raft_top_own_path();
+                    if (ping_raft_top && support_params.ping_raft_top_straight) {
+                        // 填了密度或垂直生效：頂面用直線圖樣，不再跟「支撐介面圖樣」走。
+                        if (! filler_ping_raft_top) {
+                            filler_ping_raft_top = std::unique_ptr<Fill>(Fill::new_from_type(support_params.ping_raft_top_fill_pattern));
+                            filler_ping_raft_top->set_bounding_box(bbox_object);
+                        }
+                        filler = filler_ping_raft_top.get();
+                    }
                     auto interface_flow = layer_ex.layer->bridging ?
                         Flow::bridging_flow(layer_ex.layer->height, support_params.support_material_bottom_interface_flow.nozzle_diameter()) :
                         (raft_contact ? &support_params.raft_interface_flow :
@@ -1678,6 +1717,15 @@ void generate_support_toolpaths(
                     double density = raft_contact ? support_params.raft_interface_density : interface_as_base ? support_params.support_density : support_params.interface_density;
                     filler->spacing = raft_contact ? support_params.raft_interface_flow.spacing() :
                         interface_as_base ? support_params.support_material_flow.spacing() : support_params.support_material_interface_flow.spacing();
+                    if (ping_raft_top && support_params.ping_raft_top_perpendicular)
+                        // 只給筏層用的角度（raft_interface_angle() 也被一般支撐介面拿去用，不能改它）。
+                        filler->angle = support_params.ping_raft_top_angle(0);
+                    if (ping_raft_top && support_params.ping_raft_top.custom_flow) {
+                        // 線寬用補值後的、層高用這一層實際的；鋪滿線距跟著這兩個值算。
+                        interface_flow  = support_params.ping_raft_top_flow(layer_ex.layer->height);
+                        filler->spacing = interface_flow.spacing();
+                        density         = support_params.ping_raft_top_density;
+                    }
                     filler->link_max_length = coord_t(scale_(filler->spacing * link_max_length_factor / density));
                     fill_expolygons_generate_paths(
                         // Destination

@@ -6483,6 +6483,16 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             const double  support_speed = m_config.support_speed.value;
             const double  support_interface_speed = m_config.get_abs_value("support_interface_speed");
             speed = (path.role() == erSupportMaterial) ? support_speed : support_interface_speed;
+            // PING(2026-11-11 Eric 裁，牌 c-1111-RAFT-02)：筏層頂面速度。判法＝這條線的角色是「支撐介面」，
+            // 而且現在印的這一層支撐層在該物件的筏層高度範圍內（筏層 2 層以上）。同一層裡穿過筏層的支撐柱、樹幹
+            // 角色是「支撐」，不會被套到。貼床那層、慢速層數的漸進、流量上限封頂都在下面，照舊生效。
+            if (path.role() == erSupportMaterialInterface && m_config.raft_top_speed.value > 0. && m_layer != nullptr) {
+                if (const SupportLayer *support_layer = dynamic_cast<const SupportLayer*>(m_layer); support_layer != nullptr) {
+                    const SlicingParameters &slicing_params = support_layer->object()->slicing_parameters();
+                    if (slicing_params.raft_layers() >= 2 && support_layer->print_z < slicing_params.raft_contact_top_z + EPSILON)
+                        speed = m_config.raft_top_speed.value;
+                }
+            }
         } else {
             throw Slic3r::InvalidArgument("Invalid speed");
         }

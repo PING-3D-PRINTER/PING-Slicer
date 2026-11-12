@@ -2903,6 +2903,14 @@ void TabPrint::build()
         optgroup = page->new_optgroup(L("Raft"), L"param_raft");
         optgroup->append_single_option_line("raft_layers", "support_settings_raft");
         optgroup->append_single_option_line("raft_contact_distance", "support_settings_raft");
+        // PING 2026-11-11 (c-1111-RAFT-02)：筏層頂面獨立設定 5 格，全部放「筏層」群組、接在筏層 Z 間距下面
+        // （Eric 11-11 裁 N2：不分散到「品質」「速度」頁，依據＝09-30「主要是我沒有找到它可以調」）。
+        // 沒有筏層時收起來、筏層 1 層時灰掉，切換在 ConfigManipulation。
+        optgroup->append_single_option_line("raft_top_density", "support_settings_raft");
+        optgroup->append_single_option_line("raft_top_line_width", "support_settings_raft");
+        optgroup->append_single_option_line("raft_top_layer_height", "support_settings_raft");
+        optgroup->append_single_option_line("raft_top_speed", "support_settings_raft");
+        optgroup->append_single_option_line("raft_top_perpendicular", "support_settings_raft");
 
         optgroup = page->new_optgroup(L("Support filament"), L"param_support_filament");
         optgroup->append_single_option_line("support_filament", "support_settings_filament#base");

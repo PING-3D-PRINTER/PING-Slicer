@@ -10,6 +10,7 @@ add_executable(${_TEST_NAME}_tests
 	test_gcodewriter.cpp
 	test_model.cpp
 	test_ping_memory_estimate.cpp
+	test_ping_raft_top.cpp
 	test_print.cpp
 	test_printgcode.cpp
 	test_printobject.cpp

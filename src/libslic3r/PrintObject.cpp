@@ -795,8 +795,26 @@ void PrintObject::generate_support_material()
             this->_generate_support_material();
             m_print->throw_if_canceled();
         }
-        this->set_done(posSupportMaterial);
+        // PING(c-1111-RAFT-02)：支撐筆刷的預覽（generate_support_preview）切完層就直接產生支撐、沒有經過填充，
+        // 勾了「頂面與本體第一層垂直」時讀不到本體方向，筏層頂面是照現行算法畫的。這種情況不把步驟標成完成
+        // （留在「已開始」，跟切到一半被取消時一樣），之後按切片、填充算完，會重新產生成垂直的。
+        // 完整切片時填充一定比支撐先算完，走不到這個分支。
+        if (! (this->ping_raft_follows_infill() && ! this->is_step_done(posInfill)))
+            this->set_done(posSupportMaterial);
     }
+}
+
+// PING(c-1111-RAFT-02)：本體第一層底面填充實際走的線方向，make_fills() 算填充時記在第一層上。
+// posInfill 沒完成（還沒算、被取消、已失效）一律當讀不到：那時層上留的值可能是上一輪的。
+bool PrintObject::ping_raft_top_reference_direction(float &direction) const
+{
+    if (m_layers.empty() || ! this->is_step_done(posInfill))
+        return false;
+    const Layer &first_layer = *m_layers.front();
+    if (! first_layer.ping_bottom_fill_direction_valid)
+        return false;
+    direction = first_layer.ping_bottom_fill_direction;
+    return true;
 }
 
 void PrintObject::estimate_curled_extrusions()
@@ -1076,6 +1094,8 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "mmu_segmented_region_interlocking_depth"
             || opt_key == "raft_layers"
             || opt_key == "raft_contact_distance"
+            // PING(c-1111-RAFT-02)：筏層頂面層高會改到筏層頂與本體起始高度，跟筏層層數同組，要重新切片。
+            || opt_key == "raft_top_layer_height"
             || opt_key == "slice_closing_radius"
             || opt_key == "slicing_mode"
             || opt_key == "slowdown_for_curled_perimeters"
@@ -1150,6 +1170,10 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "raft_expansion"
             || opt_key == "raft_first_layer_density"
             || opt_key == "raft_first_layer_expansion"
+            // PING(c-1111-RAFT-02)：筏層頂面的密度、線寬、垂直只影響支撐（筏層）的路徑。
+            || opt_key == "raft_top_density"
+            || opt_key == "raft_top_line_width"
+            || opt_key == "raft_top_perpendicular"
             || opt_key == "bridge_no_support"
             || opt_key == "max_bridge_length"
             || opt_key == "initial_layer_line_width"
@@ -1309,6 +1333,8 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "seam_slope_inner_walls"
             || opt_key == "support_speed"
             || opt_key == "support_interface_speed"
+            // PING(c-1111-RAFT-02)：筏層頂面速度只在輸出 G-code 時套用，不會改到線距。
+            || opt_key == "raft_top_speed"
             || opt_key == "overhang_1_4_speed"
             || opt_key == "overhang_2_4_speed"
             || opt_key == "overhang_3_4_speed"
@@ -1351,6 +1377,13 @@ bool PrintObject::invalidate_step(PrintObjectStep step)
 {
 	bool invalidated = Inherited::invalidate_step(step);
 
+    // PING(c-1111-RAFT-02)：勾了「頂面與本體第一層垂直」之後，筏層頂面的方向要跟著本體第一層的填充結果走，
+    // 所以填充只要會重算（牆、填充準備、填充三個步驟任一個失效），支撐就要連帶重算。
+    // 掛在這三個步驟各自的入口，不是只掛 posInfill：下面那幾個批次的 invalidate_steps() 不會再回到這個函式。
+    // posSlice 與 invalidate_all_steps() 本來就會讓支撐失效，不用另外接。
+    if ((step == posPerimeters || step == posPrepareInfill || step == posInfill) && this->ping_raft_follows_infill())
+        invalidated |= this->invalidate_step(posSupportMaterial);
+
     // propagate to dependent steps
     if (step == posPerimeters) {
 		invalidated |= this->invalidate_steps({ posPrepareInfill, posInfill, posIroning, posSimplifyPath, posSimplifyInfill });
@@ -1361,7 +1394,10 @@ bool PrintObject::invalidate_step(PrintObjectStep step)
         invalidated |= this->invalidate_steps({ posIroning, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
     } else if (step == posSlice) {
-		invalidated |= this->invalidate_steps({ posPerimeters, posPrepareInfill, posInfill, posIroning, posSupportMaterial, posSimplifyPath, posSimplifyInfill });
+		// PING(c-1111-RAFT-02)：補上 posSimplifySupportPath。原本這個批次清單漏了它，而「支撐失效 ⇒ 支撐路徑簡化失效」寫在下面逐步傳播那段、
+        // 批次失效走不到，結果重新切層後支撐路徑少簡化一次（跟全新切差在路徑上多出幾奈米的點）。
+        // 新的 raft_top_layer_height 會走這條路（層高、筏層層數等既有設定也一樣），單元測試 test_ping_raft_top.cpp 抓到。
+        invalidated |= this->invalidate_steps({ posPerimeters, posPrepareInfill, posInfill, posIroning, posSupportMaterial, posSimplifyPath, posSimplifyInfill, posSimplifySupportPath });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
         m_slicing_params.valid = false;
     } else if (step == posSupportMaterial) {

@@ -156,6 +156,12 @@ public:
     // BBS
     ExPolygons              loverhangs;
     BoundingBox             loverhangs_bbox;
+
+    // PING(c-1111-RAFT-02)：這一層「底面實心填充」實際走的線方向（弧度，0＝+X），make_fills() 算完填充時寫入、
+    // 一開始就先清掉。只在底面是直線類圖樣時有效（多區域時取面積最大的那一區）；沒有底面填充或圖樣不是直線類＝無效。
+    // 讀的人（筏層頂面「與本體第一層垂直」）另外要確認 posInfill 已完成，見 PrintObject::ping_raft_top_reference_direction()。
+    bool                    ping_bottom_fill_direction_valid { false };
+    float                   ping_bottom_fill_direction { 0.f };
     size_t                  region_count() const { return m_regions.size(); }
     const LayerRegion*      get_region(int idx) const { return m_regions[idx]; }
     LayerRegion*            get_region(int idx) { return m_regions[idx]; }

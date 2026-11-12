@@ -6,6 +6,74 @@
 #include "../Flow.hpp"
 
 namespace Slic3r {
+
+// PING(2026-11-11 Eric 裁，牌 c-1111-RAFT-02)：筏層頂面獨立設定，補值之後實際會用的值。
+// 三套支撐產生路徑（一般＋樹狀 organic 走 SupportCommon.cpp、樹狀 slim／strong／hybrid 走 TreeSupport.cpp）
+// 與切片前的檢查（Print::validate）共用這一份算法，免得各算各的。
+// 規則正本＝根 repo `20260604 ORCA客製/計畫_筏層獨立設定_改碼_20261111.html` 第三節。
+struct PingRaftTopSettings
+{
+    // 筏層 2 層以上才有「頂面」可言；只有 1 層時那一層同時是貼床層，照現行以貼床為準，5 鍵不作用。
+    bool   active          { false };
+    // 密度／線寬／層高任一格不是 0 ⇒ 頂面的線距與流量走新算法。三格全 0 時整段走現行程式，一行都不換。
+    bool   custom_flow     { false };
+    // 填了密度（一般支撐與樹狀 organic 開支撐熨燙時頂面照現行強制鋪滿，密度那一格不作用，這裡會是 false）。
+    bool   density_set     { false };
+    // 支撐熨燙強制鋪滿（只有一般支撐與樹狀 organic；樹狀 slim／strong／hybrid 現行沒有這件事）。
+    bool   ironing_solid   { false };
+    // 介面那支料的噴嘴口徑（頂面是用介面那支料印的）。
+    double nozzle_diameter { 0. };
+    // 補值後的線寬：有填用填的（% 是噴嘴口徑的幾成），沒填用支撐線寬（跟現行介面流量同一個來源）。
+    double width           { 0. };
+    // 補值後的層高：有填用填的，沒填用自動值 max(層高, 0.75 × 噴嘴)（跟 Slicing.cpp 同一條式子）。
+    double height          { 0. };
+    // 鋪滿線距＝線寬 − 層高 × (1 − π/4)，用上面兩個實際值算。≤ 0 代表這組線寬與層高印不出來。
+    double spacing         { 0. };
+    // 密度 0～1：有填用填的，沒填由「支撐介面間距」換算（線心距＝介面間距＋鋪滿線距）。
+    double density         { 1. };
+
+    // 樹狀 slim／strong／hybrid（走 TreeSupport.cpp 那一套）？判法跟 SupportParameters 解析 support_style 的結果一致。
+    static bool is_normal_tree(const PrintObjectConfig &object_config)
+    {
+        if (! is_tree(object_config.support_type.value))
+            return false;
+        const SupportMaterialStyle style = object_config.support_style.value;
+        return style == smsTreeSlim || style == smsTreeStrong || style == smsTreeHybrid;
+    }
+
+    static PingRaftTopSettings create(const PrintConfig &print_config, const PrintObjectConfig &object_config)
+    {
+        PingRaftTopSettings s;
+        s.active = object_config.raft_layers.value >= 2;
+        if (! s.active)
+            return s;
+        s.ironing_solid = object_config.support_ironing.value && ! is_normal_tree(object_config);
+        s.density_set   = ! s.ironing_solid && object_config.raft_top_density.value > 0.;
+        const bool width_set  = object_config.raft_top_line_width.value > 0.;
+        const bool height_set = object_config.raft_top_layer_height.value > 0.;
+        s.custom_flow = s.density_set || width_set || height_set;
+        // support_interface_filament == 0（不換料）時 get_at(size_t(-1)) 會回第 0 支噴嘴，跟現行流量的取法一致。
+        s.nozzle_diameter = print_config.nozzle_diameter.get_at(object_config.support_interface_filament.value - 1);
+        if (width_set)
+            s.width = object_config.raft_top_line_width.get_abs_value(s.nozzle_diameter);
+        else {
+            const ConfigOptionFloatOrPercent &w = object_config.support_line_width.value > 0. ? object_config.support_line_width : object_config.line_width;
+            s.width = (! w.percent && w.value <= 0.) ?
+                double(Flow::auto_extrusion_width(frSupportMaterialInterface, float(s.nozzle_diameter))) :
+                w.get_abs_value(s.nozzle_diameter);
+        }
+        s.height  = height_set ? object_config.raft_top_layer_height.value : std::max(object_config.layer_height.value, 0.75 * s.nozzle_diameter);
+        s.spacing = s.width - s.height * (1. - 0.25 * PI);
+        if (s.ironing_solid)
+            s.density = 1.;
+        else if (s.density_set)
+            s.density = std::min(1., object_config.raft_top_density.value * 0.01);
+        else
+            s.density = s.spacing > 0. ? std::min(1., s.spacing / (object_config.support_interface_spacing.value + s.spacing)) : 1.;
+        return s;
+    }
+};
+
 struct SupportParameters {
     SupportParameters() = delete;
     SupportParameters(const PrintObject& object)
@@ -170,6 +238,25 @@ struct SupportParameters {
                                                        object_config.tree_support_wall_count.value == 0 ? 0.25 * sqr(scaled<double>(5.0)) * M_PI :
                                                                                                           std::numeric_limits<double>::max();
 
+        // PING(c-1111-RAFT-02)：筏層頂面獨立設定。預設（5 鍵全 0／不勾）時下面三個旗標都是 false，
+        // 產生路徑整段走現行程式；ping_raft_top_* 這幾個值只有旗標為 true 時才會被讀。
+        this->ping_raft_top = PingRaftTopSettings::create(print_config, object_config);
+        this->ping_raft_top_perpendicular = false;
+        this->ping_raft_top_contact_angle = 0.f;
+        if (this->ping_raft_top.active && object_config.raft_top_perpendicular.value) {
+            // 讀本體第一層底面「實際用的」方向再轉 90°，不重算（旋轉模板裡可以有隨機）。
+            // 讀不到（填充還沒算、底面不是直線類圖樣、第一層沒有底面填充）就照現行算法。
+            float direction = 0.f;
+            if (object.ping_raft_top_reference_direction(direction)) {
+                this->ping_raft_top_perpendicular = true;
+                this->ping_raft_top_contact_angle = direction + float(0.5 * M_PI);
+            }
+        }
+        this->ping_raft_top_density = this->ping_raft_top.custom_flow ? this->ping_raft_top.density : double(this->raft_interface_density);
+        // 填了密度或垂直生效 ⇒ 頂面用直線圖樣，不再跟「支撐介面圖樣」走。直線圖樣的選法沿用現行：鋪滿用 ipRectilinear，疏的用 ipSupportBase。
+        this->ping_raft_top_straight = this->ping_raft_top.density_set || this->ping_raft_top_perpendicular;
+        this->ping_raft_top_fill_pattern = this->ping_raft_top_density > 0.95 ? ipRectilinear : ipSupportBase;
+
         support_style = object_config.support_style;
         if (support_style != smsDefault) {
             if ((support_style == smsSnug || support_style == smsGrid) && is_tree(object_config.support_type)) support_style = smsDefault;
@@ -264,6 +351,27 @@ struct SupportParameters {
     // Produce a raft interface angle for a given SupportLayer::interface_id()
     float 					raft_interface_angle(size_t interface_id) const 
     	{ return this->raft_angle_interface + ((interface_id & 1) ? float(- M_PI / 4.) : float(+ M_PI / 4.)); }
+
+    // PING(c-1111-RAFT-02)：筏層頂面獨立設定（說明見上面 PingRaftTopSettings 與建構子裡那一段）。
+    PingRaftTopSettings     ping_raft_top;
+    // 頂面實際用的密度：走新算法用補值後的，否則＝raft_interface_density。
+    double                  ping_raft_top_density { 1. };
+    // 頂面改用直線圖樣（填了密度或垂直生效）。
+    bool                    ping_raft_top_straight { false };
+    InfillPattern           ping_raft_top_fill_pattern { ipRectilinear };
+    // 勾了垂直而且讀得到本體第一層的方向。
+    bool                    ping_raft_top_perpendicular { false };
+    // 本體坐的那一層（筏層最上面那層）的角度＝本體第一層底面方向＋90°。
+    float                   ping_raft_top_contact_angle { 0.f };
+    // 頂面要不要另開填充器、走另一條路（新算法或垂直生效）。false＝整段走現行程式。
+    bool                    ping_raft_top_own_path() const { return this->ping_raft_top.custom_flow || this->ping_raft_top_perpendicular; }
+    // 垂直生效時筏層頂面各層的角度：最上面那層＝contact_angle，往下每層交錯 90°。
+    // layers_below_contact＝這一層在本體坐的那層下面第幾層（0＝本體坐的那層）。只給筏層用，一般支撐介面不經過這裡。
+    float                   ping_raft_top_angle(size_t layers_below_contact) const
+        { return this->ping_raft_top_contact_angle + ((layers_below_contact & 1) ? float(0.5 * M_PI) : 0.f); }
+    // 走新算法時某一層頂面的流量：線寬用補值後的、層高用這一層實際的層高、噴嘴用介面那支料的。
+    Flow                    ping_raft_top_flow(double layer_height) const
+        { return Flow(float(this->ping_raft_top.width), float(layer_height), float(this->ping_raft_top.nozzle_diameter)); }
 		
     bool independent_layer_height = false;
     const double thresh_big_overhang = Slic3r::sqr(scale_(10));

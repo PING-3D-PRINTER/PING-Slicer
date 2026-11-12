@@ -138,6 +138,16 @@ SlicingParameters SlicingParameters::create_from_config(
         params.first_object_layer_bridging  = false;
         params.contact_raft_layer_height    = std::max(params.layer_height, 0.75 * support_material_interface_extruder_dmr);
         params.first_object_layer_height    = params.layer_height;
+        // PING(2026-11-11 Eric 裁，牌 c-1111-RAFT-02)：筏層頂面層高。0＝上面的自動值（現行）。
+        // 筏層只有 1 層時那一層是貼床層（下面會改用首層層高），頂面設定不作用。
+        // 這個值超不超出噴嘴的上下限由 Print::validate 在切片前檢查，這裡不默默改它。
+        // 填的值跟自動值差不到 EPSILON 時沿用自動值本身：不同物件之間的分層是用 == 比的（Slicing.hpp equal_layering），
+        // 0.75 × 0.6 算出來是 0.44999999999999996，跟明填的 0.45 差最後一位，會讓換料塔把兩個其實同分層的物件擋下來。
+        if (params.raft_layers() >= 2 && object_config.raft_top_layer_height.value > 0. &&
+            std::abs(object_config.raft_top_layer_height.value - params.contact_raft_layer_height) > EPSILON) {
+            params.interface_raft_layer_height = object_config.raft_top_layer_height.value;
+            params.contact_raft_layer_height   = object_config.raft_top_layer_height.value;
+        }
     }
 
     if (params.has_raft()) {

@@ -289,6 +289,48 @@ NEW_ENTRIES = {
     #   src/slic3r/GUI/BackgroundSlicingProcess.cpp（format_error_message 的 std::bad_alloc）。
     #   取代「A error occurred. Maybe memory of system is not enough or it's a bug of the program」（舊條目留在 .mo 當死條目）。
     "Out of memory. Slicing was not completed.\nTry one of these, then slice again: under Process > Strength, set Sparse infill pattern to Grid or lower Sparse infill density; under Process > Quality, increase Layer height; or scale the model down.\n(%1%)": "記憶體不足，這次切片沒有完成。\n可以到「列印參數 → 結構」把稀疏填充圖案改成「網格」或調低稀疏填充密度，到「列印參數 → 品質」調高層高，或把模型縮小後再切。\n（%1%）",
+    # PING（2026-11-11・牌 c-1111-RAFT-02）：筏層頂面獨立設定 5 格＋3 句切片前的錯誤訊息。
+    #   src/libslic3r/PrintConfig.cpp（raft_top_*）、src/libslic3r/Print.cpp（validate）。
+    #   名稱照改碼計畫第二節（Eric 11-11 裁 N2）；說明裡提到別的欄位時用介面上看得到的中文名。
+    "Raft top density": "筏層頂面密度",
+    (
+        "Density of the raft top layers, the layers the object sits on. "
+        "100% means the lines touch each other. "
+        "0 means the same as the support interface (computed from the top interface spacing). "
+        "Not used when the raft has only one layer."
+    ): "筏層頂面（本體坐上去的那幾層）的疏密。100%＝線與線相接、鋪滿；0＝跟支撐面一樣（照「頂部接觸面間距」算）。筏層只有 1 層時不作用。",
+    "Raft top line width": "筏層頂面線寬",
+    (
+        "Line width of the raft top layers. If expressed as a %, it will be computed over the nozzle diameter. "
+        "0 means the same as the support line width. "
+        "Not used when the raft has only one layer."
+    ): "筏層頂面的線寬。填 % 時以噴嘴口徑為基準（100%＝噴嘴口徑）。0＝跟支撐線寬一樣。筏層只有 1 層時不作用。",
+    "Raft top layer height": "筏層頂面層高",
+    (
+        "Layer height of the raft top layers. "
+        "0 means automatic: the larger of the layer height and 0.75 x nozzle diameter. "
+        "Not used when the raft has only one layer."
+    ): "筏層頂面每一層的厚度。0＝自動（層高與 0.75×噴嘴口徑取大的）。筏層只有 1 層時不作用。",
+    "Raft top speed": "筏層頂面速度",
+    (
+        "Speed of the raft top layers. 0 means the same as the support interface speed. "
+        "Not used when the raft has only one layer."
+    ): "筏層頂面的列印速度。0＝跟支撐面的速度一樣。筏層只有 1 層時不作用。",
+    "Raft top perpendicular to first layer": "頂面與本體第一層垂直",
+    (
+        "Print the raft top layer perpendicular to the bottom surface lines of the first object layer, "
+        "using a rectilinear pattern. The raft top layers below alternate by 90 degrees. "
+        "Only effective when the bottom surface pattern of the first object layer is made of straight lines. "
+        "If unchecked, the current algorithm is used. "
+        "Not used when the raft has only one layer."
+    ): "勾選後，筏層最上面那層改用直線圖案，方向跟本體第一層的底面線條垂直，下面幾層依序交錯 90 度。本體的「底面圖案」是直線類才有作用。不勾＝照現在的算法。筏層只有 1 層時不作用。",
+    "Raft top layer height is out of the printable range of the support interface nozzle.": "筏層頂面層高超出噴嘴印得出來的範圍，請調整「筏層頂面層高」。",
+    "Raft top line width is too large.": "筏層頂面線寬太寬，請調小「筏層頂面線寬」。",
+    "Raft top density must be between 0 and 100%.": "筏層頂面密度要在 0～100% 之間，請調整「筏層頂面密度」。",
+    (
+        "Raft top line width must be larger than the raft top layer height. "
+        "Please set both the raft top line width and the raft top layer height."
+    ): "筏層頂面的線寬必須大於層高。請把「筏層頂面線寬」與「筏層頂面層高」一起填。",
 }
 
 
