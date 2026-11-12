@@ -1294,6 +1294,8 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
     };
 
     // Checks that the print does not exceed the max print height
+    std::string        ping_raft_hint;                   // PING #242: raft over-height hint, merged into *warning at the end
+    const ModelObject *ping_raft_hint_object = nullptr;
     for (size_t print_object_idx = 0; print_object_idx < m_objects.size(); ++ print_object_idx) {
         const PrintObject &print_object = *m_objects[print_object_idx];
         //FIXME It is quite expensive to generate object layers just to get the print height!
@@ -1332,14 +1334,11 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
                     print_object.model_object()->name,
                     float_to_string_decimal_point(layers.back() + sp.object_print_z_min, 2),
                     float_to_string_decimal_point(this->config().printable_height.value, 0));
-                if (warning->string.empty()) {
-                    warning->string     = msg;
-                    warning->object     = print_object.model_object();
-                    warning->opt_key    = "raft_layers";
-                    warning->is_warning = true;
-                } else {
-                    warning->string += "\n" + msg;
-                }
+                // Kept aside and merged at the end of validate(): later checks assign warning->string with "=" and
+                // would wipe it (e.g. FD300's acceleration warning).
+                ping_raft_hint += (ping_raft_hint.empty() ? "" : "\n") + msg;
+                if (ping_raft_hint_object == nullptr)
+                    ping_raft_hint_object = print_object.model_object();
             }
         }
     }
@@ -1874,6 +1873,17 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
     if (!this->has_same_shrinkage_compensations()){
         warning->string = L("Filament shrinkage will not be used because filament shrinkage for the used filaments does not match.");
         warning->opt_key = "";
+    }
+    // PING #242 (Q2=hint only): merge the raft over-height hint last so no other warning overwrites it.
+    if (!ping_raft_hint.empty() && warning != nullptr) {
+        if (warning->string.empty()) {
+            warning->string     = ping_raft_hint;
+            warning->object     = ping_raft_hint_object;
+            warning->opt_key    = "raft_layers";
+            warning->is_warning = true;
+        } else {
+            warning->string += "\n" + ping_raft_hint;
+        }
     }
     return {};
 }
