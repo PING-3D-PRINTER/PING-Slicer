@@ -300,5 +300,8 @@
     "compatible_printers": [
         "FD300 關門 0.4 nozzle"
     ],
-    "renamed_from": "0.2mm ABS+SUP @FD300 關門 (0.4);0.2mm 易拆(Z0)+棧板 @FD300 關門 (0.4)"
+    "renamed_from": "0.2mm ABS+SUP @FD300 關門 (0.4);0.2mm 易拆(Z0)+棧板 @FD300 關門 (0.4)",
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }

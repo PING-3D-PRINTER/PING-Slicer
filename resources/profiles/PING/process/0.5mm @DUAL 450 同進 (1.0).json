@@ -299,5 +299,8 @@
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "DUAL 450 同進 1.0 nozzle"
-    ]
+    ],
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }

@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.52",
+    "version": "01.00.01.53",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -143,6 +143,10 @@
         {
             "name": "PING 300+",
             "sub_path": "machine/PING 300+.json"
+        },
+        {
+            "name": "PING 300H",
+            "sub_path": "machine/PING 300H.json"
         },
         {
             "name": "DUAL 300",
@@ -793,6 +797,10 @@
         {
             "name": "0.2mm @PING 300+ (0.4)",
             "sub_path": "process/0.2mm @PING 300+ (0.4).json"
+        },
+        {
+            "name": "0.2mm @PING 300H (0.4)",
+            "sub_path": "process/0.2mm @PING 300H (0.4).json"
         },
         {
             "name": "0.2mm @DUAL 300 (0.4)",
@@ -1603,6 +1611,54 @@
             "sub_path": "process/0.125mm @DUAL 800 (0.25).json"
         },
         {
+            "name": "0.1mm @PING 200 (0.2)",
+            "sub_path": "process/0.1mm @PING 200 (0.2).json"
+        },
+        {
+            "name": "0.3mm @PING 200 (0.6)",
+            "sub_path": "process/0.3mm @PING 200 (0.6).json"
+        },
+        {
+            "name": "0.5mm @PING 200 (1.0)",
+            "sub_path": "process/0.5mm @PING 200 (1.0).json"
+        },
+        {
+            "name": "0.1mm @PING 270 (0.2)",
+            "sub_path": "process/0.1mm @PING 270 (0.2).json"
+        },
+        {
+            "name": "0.3mm @PING 270 (0.6)",
+            "sub_path": "process/0.3mm @PING 270 (0.6).json"
+        },
+        {
+            "name": "0.5mm @PING 270 (1.0)",
+            "sub_path": "process/0.5mm @PING 270 (1.0).json"
+        },
+        {
+            "name": "0.1mm @PING 300+ (0.2)",
+            "sub_path": "process/0.1mm @PING 300+ (0.2).json"
+        },
+        {
+            "name": "0.3mm @PING 300+ (0.6)",
+            "sub_path": "process/0.3mm @PING 300+ (0.6).json"
+        },
+        {
+            "name": "0.5mm @PING 300+ (1.0)",
+            "sub_path": "process/0.5mm @PING 300+ (1.0).json"
+        },
+        {
+            "name": "0.1mm @PING 300H (0.2)",
+            "sub_path": "process/0.1mm @PING 300H (0.2).json"
+        },
+        {
+            "name": "0.3mm @PING 300H (0.6)",
+            "sub_path": "process/0.3mm @PING 300H (0.6).json"
+        },
+        {
+            "name": "0.5mm @PING 300H (1.0)",
+            "sub_path": "process/0.5mm @PING 300H (1.0).json"
+        },
+        {
             "name": "0.125mm 易拆樹狀 @FD300 (0.25)",
             "sub_path": "process/0.125mm 易拆樹狀 @FD300 (0.25).json"
         },
@@ -1801,6 +1857,22 @@
         {
             "name": "0.5mm 樹狀 @DUAL 800 (1.0)",
             "sub_path": "process/0.5mm 樹狀 @DUAL 800 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @PING 200 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @PING 200 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @PING 270 (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @PING 270 (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @PING 300+ (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @PING 300+ (1.0).json"
+        },
+        {
+            "name": "0.5mm 樹狀 @PING 300H (1.0)",
+            "sub_path": "process/0.5mm 樹狀 @PING 300H (1.0).json"
         },
         {
             "name": "0.2mm 易拆_PRO @DUAL 300 (0.4)",
@@ -2061,6 +2133,22 @@
         {
             "name": "0.3mm 樹狀 @DUAL 300 (0.6)",
             "sub_path": "process/0.3mm 樹狀 @DUAL 300 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @PING 200 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @PING 200 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @PING 270 (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @PING 270 (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @PING 300+ (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @PING 300+ (0.6).json"
+        },
+        {
+            "name": "0.3mm 樹狀 @PING 300H (0.6)",
+            "sub_path": "process/0.3mm 樹狀 @PING 300H (0.6).json"
         }
     ],
     "filament_list": [
@@ -2623,6 +2711,10 @@
             "sub_path": "machine/PING 300+ 0.4 nozzle.json"
         },
         {
+            "name": "PING 300H 0.4 nozzle",
+            "sub_path": "machine/PING 300H 0.4 nozzle.json"
+        },
+        {
             "name": "DUAL 300 0.4 nozzle",
             "sub_path": "machine/DUAL 300 0.4 nozzle.json"
         },
@@ -2877,6 +2969,54 @@
         {
             "name": "DUAL 800 0.25 nozzle",
             "sub_path": "machine/DUAL 800 0.25 nozzle.json"
+        },
+        {
+            "name": "PING 200 0.2 nozzle",
+            "sub_path": "machine/PING 200 0.2 nozzle.json"
+        },
+        {
+            "name": "PING 200 0.6 nozzle",
+            "sub_path": "machine/PING 200 0.6 nozzle.json"
+        },
+        {
+            "name": "PING 200 1.0 nozzle",
+            "sub_path": "machine/PING 200 1.0 nozzle.json"
+        },
+        {
+            "name": "PING 270 0.2 nozzle",
+            "sub_path": "machine/PING 270 0.2 nozzle.json"
+        },
+        {
+            "name": "PING 270 0.6 nozzle",
+            "sub_path": "machine/PING 270 0.6 nozzle.json"
+        },
+        {
+            "name": "PING 270 1.0 nozzle",
+            "sub_path": "machine/PING 270 1.0 nozzle.json"
+        },
+        {
+            "name": "PING 300+ 0.2 nozzle",
+            "sub_path": "machine/PING 300+ 0.2 nozzle.json"
+        },
+        {
+            "name": "PING 300+ 0.6 nozzle",
+            "sub_path": "machine/PING 300+ 0.6 nozzle.json"
+        },
+        {
+            "name": "PING 300+ 1.0 nozzle",
+            "sub_path": "machine/PING 300+ 1.0 nozzle.json"
+        },
+        {
+            "name": "PING 300H 0.2 nozzle",
+            "sub_path": "machine/PING 300H 0.2 nozzle.json"
+        },
+        {
+            "name": "PING 300H 0.6 nozzle",
+            "sub_path": "machine/PING 300H 0.6 nozzle.json"
+        },
+        {
+            "name": "PING 300H 1.0 nozzle",
+            "sub_path": "machine/PING 300H 1.0 nozzle.json"
         }
     ]
 }

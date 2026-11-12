@@ -300,5 +300,8 @@
     "compatible_printers": [
         "FD450 Pro 0.25 nozzle"
     ],
-    "renamed_from": "0.125mm PLA+PLA @FD450 Pro (0.25);0.125mm 雙料(Z隙) @FD450 Pro (0.25)"
+    "renamed_from": "0.125mm PLA+PLA @FD450 Pro (0.25);0.125mm 雙料(Z隙) @FD450 Pro (0.25)",
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }

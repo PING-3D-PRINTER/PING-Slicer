@@ -300,5 +300,8 @@
     "compatible_printers": [
         "FD300 0.6 nozzle"
     ],
-    "renamed_from": "0.3mm ABS+SUP @FD300 (0.6);0.3mm 易拆(Z0)+棧板 @FD300 (0.6)"
+    "renamed_from": "0.3mm ABS+SUP @FD300 (0.6);0.3mm 易拆(Z0)+棧板 @FD300 (0.6)",
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }

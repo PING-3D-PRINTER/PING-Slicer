@@ -302,5 +302,8 @@
     "wipe_tower_wall_type": "cone",
     "set_other_flow_ratios": "1",
     "first_layer_flow_ratio": "1",
-    "tree_support_wall_count": "0"
+    "tree_support_wall_count": "0",
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }

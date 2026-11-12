@@ -300,5 +300,8 @@
     "compatible_printers": [
         "FD300 Pro 單料頭 0.25 nozzle"
     ],
-    "renamed_from": "0.125mm_棧板 @FD300 Pro 單料頭 (0.25)"
+    "renamed_from": "0.125mm_棧板 @FD300 Pro 單料頭 (0.25)",
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }

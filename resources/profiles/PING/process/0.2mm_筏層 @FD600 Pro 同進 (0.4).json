@@ -300,5 +300,8 @@
     "compatible_printers": [
         "FD600 Pro 同進 0.4 nozzle"
     ],
-    "renamed_from": "0.2mm_棧板 @FD600 Pro 同進 (0.4)"
+    "renamed_from": "0.2mm_棧板 @FD600 Pro 同進 (0.4)",
+    "raft_bottom_line_width": "200%",
+    "raft_bottom_density": "50%",
+    "raft_bottom_speed": "25"
 }
