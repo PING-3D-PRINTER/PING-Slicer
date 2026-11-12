@@ -21807,3 +21807,12 @@ msgstr "筏層首層速度"
 
 msgid "Speed of the first raft layer, the layer on the build plate. 0 means the same as the initial layer speed. Not used when there is no raft."
 msgstr "筏層第一層（貼床那層）的列印速度。0＝跟首層速度一樣。沒有筏層時不作用。"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "With the raft, object %1% will be printed up to %2% mm, above the printer's printable height of %3% mm. Slicing continues; make sure the printer can reach this height."
+msgstr "加了筏層後，物件 %1% 會印到 %2% mm，超過機型可印高度 %3% mm。仍可切片，請確認機台印得到這個高度。"
