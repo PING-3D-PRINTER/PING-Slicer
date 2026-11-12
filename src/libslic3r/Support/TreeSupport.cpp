@@ -1367,19 +1367,22 @@ void TreeSupport::generate_toolpaths()
         coordf_t expand_offset = (layer_nr == 0 ? m_object_config->raft_first_layer_expansion.value : 0.);
         auto raft_areas1 = offset_ex(raft_areas, scale_(expand_offset));
 
-        Flow support_flow = Flow(support_extrusion_width, ts_layer->height, nozzle_diameter);
+        // PING(c-1112-RAFT-04)：筏層第一層的線寬可以自己設（0＝沿用這一套現行的支撐線寬）。
+        const coordf_t raft_layer_width = (layer_nr == 0 && object_config.raft_bottom_line_width.value > 0.) ?
+            coordf_t(object_config.raft_bottom_line_width.get_abs_value(nozzle_diameter)) : support_extrusion_width;
+        Flow support_flow = Flow(raft_layer_width, ts_layer->height, nozzle_diameter);
         Fill* filler_raft = Fill::new_from_type(ipRectilinear);
         filler_raft->angle = layer_nr == 0 ? PI/2 : 0;
         filler_raft->spacing = support_flow.spacing();
 
         FillParams fill_params;
         coordf_t raft_density = std::min(1., support_flow.spacing() / (object_config.support_base_pattern_spacing.value + support_flow.spacing()));
-        fill_params.density = layer_nr == 0 ? object_config.raft_first_layer_density * 0.01 : raft_density;
+        fill_params.density = layer_nr == 0 ? m_support_params.ping_raft_bottom_density : raft_density;   // PING(c-1112-RAFT-04)
         fill_params.dont_adjust = true;
 
         // wall of first layer raft
         if (layer_nr == 0) {
-            Flow flow = Flow(support_extrusion_width, ts_layer->height, nozzle_diameter);
+            Flow flow = Flow(raft_layer_width, ts_layer->height, nozzle_diameter);   // PING(c-1112-RAFT-04)
             extrusion_entities_append_loops(ts_layer->support_fills.entities, to_polygons(raft_areas1), erSupportMaterial,
                         float(flow.mm3_per_mm()), float(flow.width()), float(flow.height()));
             raft_areas1 = offset_ex(raft_areas1, -flow.scaled_spacing() / 2.);

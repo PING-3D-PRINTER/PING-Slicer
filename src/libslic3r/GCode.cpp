@@ -6511,6 +6511,14 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         //wall lines have be attached
         if (path.role() != erBottomSurface)
             speed = m_config.get_abs_value("initial_layer_speed");
+        // PING(2026-11-12 Eric 裁，牌 c-1112-RAFT-04)：筏層第一層速度。只套在「有筏層的物件的支撐層」上的支撐類線條（＝筏層貼床那層）；
+        // 0＝沿用首層速度。流量上限封頂在下面，照舊生效。
+        if (m_config.raft_bottom_speed.value > 0. && m_layer != nullptr &&
+            (path.role() == erSupportMaterial || path.role() == erSupportMaterialInterface || path.role() == erSupportTransition)) {
+            if (const SupportLayer *support_layer = dynamic_cast<const SupportLayer*>(m_layer); support_layer != nullptr &&
+                support_layer->object()->slicing_parameters().raft_layers() > 0)
+                speed = m_config.raft_bottom_speed.value;
+        }
     }
     else if(m_config.slow_down_layers > 1){
         const auto _layer = layer_id();

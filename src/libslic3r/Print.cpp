@@ -1620,6 +1620,19 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
                                   "Please set both the raft top line width and the raft top layer height."), object, "raft_top_line_width"};
                 }
             }
+            // PING(2026-11-12 Eric 裁，牌 c-1112-RAFT-04)：筏層第一層線寬（有筏層而且有填才查）。跟現有線寬規則同一套上限，且要大於首層層高。
+            if (object->config().raft_layers.value > 0) {
+                if (object->config().raft_bottom_density.value < 0. || object->config().raft_bottom_density.value > 100.)
+                    return {L("Raft first layer density must be between 0 and 100%."), object, "raft_bottom_density"};
+                if (object->config().raft_bottom_line_width.value > 0.) {
+                    const double nozzle = m_config.nozzle_diameter.get_at(size_t(object->config().support_filament.value - 1));
+                    const double width  = object->config().raft_bottom_line_width.get_abs_value(nozzle);
+                    if (width > MAX_LINE_WIDTH_MULTIPLIER * nozzle)
+                        return {L("Raft first layer line width is too large."), object, "raft_bottom_line_width"};
+                    if (width <= object->slicing_parameters().first_print_layer_height)
+                        return {L("Raft first layer line width must be larger than the initial layer height."), object, "raft_bottom_line_width"};
+                }
+            }
             for (const char *opt_key : { "inner_wall_line_width", "outer_wall_line_width", "sparse_infill_line_width", "internal_solid_infill_line_width", "top_surface_line_width","skin_infill_line_width" ,"skeleton_infill_line_width"})
 				for (const PrintRegion &region : object->all_regions())
                     if (!validate_extrusion_width(region.config(), opt_key, layer_height, err_msg))

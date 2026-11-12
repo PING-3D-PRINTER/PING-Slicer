@@ -112,6 +112,18 @@ struct SupportParameters {
 	        }
 	    }
         this->first_layer_flow = Slic3r::support_material_1st_layer_flow(&object, float(slicing_params.first_print_layer_height));
+        // PING(2026-11-12 Eric 裁，牌 c-1112-RAFT-04)：有筏層時，筏層第一層（貼床那層）的線寬與密度可以自己設；0＝沿用現行。
+        // 有筏層時 first_layer_flow 只用在筏層第一層（支撐柱都從筏層上面長），所以直接換掉它；沒筏層時一律不動。
+        this->ping_raft_bottom_density = object_config.raft_first_layer_density.value * 0.01;
+        if (object_config.raft_layers.value > 0) {
+            if (object_config.raft_bottom_line_width.value > 0.)
+                this->first_layer_flow = Flow::new_from_config_width(
+                    frSupportMaterial, object_config.raft_bottom_line_width,
+                    float(print_config.nozzle_diameter.get_at(object_config.support_filament - 1)),
+                    float(slicing_params.first_print_layer_height));
+            if (object_config.raft_bottom_density.value > 0.)
+                this->ping_raft_bottom_density = std::min(1., object_config.raft_bottom_density.value * 0.01);
+        }
         this->support_material_flow = Slic3r::support_material_flow(&object, float(slicing_params.layer_height));
         this->support_material_interface_flow = Slic3r::support_material_interface_flow(&object, float(slicing_params.layer_height));
     	this->raft_interface_flow                = support_material_interface_flow;
@@ -243,7 +255,8 @@ struct SupportParameters {
         this->ping_raft_top = PingRaftTopSettings::create(print_config, object_config);
         this->ping_raft_top_perpendicular = false;
         this->ping_raft_top_contact_angle = 0.f;
-        if (this->ping_raft_top.active && object_config.raft_top_perpendicular.value) {
+        // PING(c-1112-RAFT-04)：垂直固定生效（Eric 11-12「一定要勾」），不再讀 raft_top_perpendicular。
+        if (this->ping_raft_top.active) {
             // 讀本體第一層底面「實際用的」方向再轉 90°，不重算（旋轉模板裡可以有隨機）。
             // 讀不到（填充還沒算、底面不是直線類圖樣、第一層沒有底面填充）就照現行算法。
             float direction = 0.f;
@@ -361,6 +374,8 @@ struct SupportParameters {
     InfillPattern           ping_raft_top_fill_pattern { ipRectilinear };
     // 勾了垂直而且讀得到本體第一層的方向。
     bool                    ping_raft_top_perpendicular { false };
+    // PING(c-1112-RAFT-04)：筏層第一層的密度（0～1）。有筏層而且填了 raft_bottom_density 用它，否則＝支撐首層密度。
+    double                  ping_raft_bottom_density { 1. };
     // 本體坐的那一層（筏層最上面那層）的角度＝本體第一層底面方向＋90°。
     float                   ping_raft_top_contact_angle { 0.f };
     // 頂面要不要另開填充器、走另一條路（新算法或垂直生效）。false＝整段走現行程式。

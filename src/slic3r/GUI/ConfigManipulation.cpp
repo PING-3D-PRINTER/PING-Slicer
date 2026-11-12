@@ -807,11 +807,14 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
         const bool raft_by_normal_tree  = is_tree(support_type) &&
             (support_style == smsTreeSlim || support_style == smsTreeStrong || support_style == smsTreeHybrid);
         const bool raft_top_ironed      = config->opt_bool("support_ironing") && !raft_by_normal_tree;
-        for (auto el : { "raft_top_density", "raft_top_line_width", "raft_top_layer_height", "raft_top_speed", "raft_top_perpendicular" }) {
+        for (auto el : { "raft_top_density", "raft_top_line_width", "raft_top_layer_height", "raft_top_speed" }) {
             toggle_line(el, have_raft);
             toggle_field(el, raft_top_active);
         }
         toggle_field("raft_top_density", raft_top_active && !raft_top_ironed);
+        // PING(c-1112-RAFT-04)：筏層首層 3 格——沒有筏層時收起來；筏層 1 層以上都作用（那一層就是貼床層）。
+        for (auto el : { "raft_bottom_line_width", "raft_bottom_density", "raft_bottom_speed" })
+            toggle_line(el, have_raft);
     }
 
     bool has_ironing = (config->opt_enum<IroningType>("ironing_type") != IroningType::NoIroning);

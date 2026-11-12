@@ -2910,7 +2910,11 @@ void TabPrint::build()
         optgroup->append_single_option_line("raft_top_line_width", "support_settings_raft");
         optgroup->append_single_option_line("raft_top_layer_height", "support_settings_raft");
         optgroup->append_single_option_line("raft_top_speed", "support_settings_raft");
-        optgroup->append_single_option_line("raft_top_perpendicular", "support_settings_raft");
+        // PING 2026-11-12 (c-1112-RAFT-04)：「頂面與本體第一層垂直」固定生效、介面拿掉（Eric「一定要勾，可以隱藏」）。
+        // 筏層首層 3 格接在頂面那幾格下面，同一個群組（依據同上：Eric 09-30「主要是我沒有找到它可以調」）。
+        optgroup->append_single_option_line("raft_bottom_line_width", "support_settings_raft");
+        optgroup->append_single_option_line("raft_bottom_density", "support_settings_raft");
+        optgroup->append_single_option_line("raft_bottom_speed", "support_settings_raft");
 
         optgroup = page->new_optgroup(L("Support filament"), L"param_support_filament");
         optgroup->append_single_option_line("support_filament", "support_settings_filament#base");

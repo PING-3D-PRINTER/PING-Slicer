@@ -4851,7 +4851,48 @@ void PrintConfigDef::init_fff_params()
                      "If unchecked, the current algorithm is used. "
                      "Not used when the raft has only one layer.");
     def->mode = comAdvanced;
-    def->set_default_value(new ConfigOptionBool(false));
+    // PING(2026-11-12 Eric 裁，牌 c-1112-RAFT-04)：Eric「這是一定要勾的。可以把這個參數隱藏起來，預設都是勾選」。
+    // 切片端一律當成勾選（SupportParameters／Print.hpp 不讀這一格），介面也拿掉；鍵留著只為了讓存過它的專案檔能照常開。
+    def->set_default_value(new ConfigOptionBool(true));
+
+    // PING(2026-11-12 Eric 裁，牌 c-1112-RAFT-04)：筏層首層（貼床那層）獨立設定。預設都是 0＝沿用現行；沒有筏層時不作用。
+    // 起因＝現行筏層第一層的線寬吃物件的「首層線寬」、密度吃支撐的「首層密度」（易拆製程是 10%）、速度吃「首層速度」。
+    def = this->add("raft_bottom_line_width", coFloatOrPercent);
+    def->label = L("Raft first layer line width");
+    def->category = L("Support");
+    def->tooltip = L("Line width of the first raft layer, the layer on the build plate. If expressed as a %, it will be computed over the nozzle diameter. "
+                     "0 means the same as the first layer line width. "
+                     "Not used when there is no raft.");
+    def->sidetext = L("mm or %");
+    def->ratio_over = "nozzle_diameter";
+    def->min = 0;
+    def->max = 1000;
+    def->max_literal = 10;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloatOrPercent(0., false));
+
+    def = this->add("raft_bottom_density", coPercent);
+    def->label = L("Raft first layer density");
+    def->category = L("Support");
+    def->tooltip = L("Density of the first raft layer, the layer on the build plate. "
+                     "0 means the same as the support initial layer density. "
+                     "The support initial layer density still applies to supports printed without a raft. "
+                     "Not used when there is no raft.");
+    def->sidetext = "%";
+    def->min = 0;
+    def->max = 100;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionPercent(0));
+
+    def = this->add("raft_bottom_speed", coFloat);
+    def->label = L("Raft first layer speed");
+    def->category = L("Support");
+    def->tooltip = L("Speed of the first raft layer, the layer on the build plate. 0 means the same as the initial layer speed. "
+                     "Not used when there is no raft.");
+    def->sidetext = L("mm/s");	// milimeters per second, CIS languages need translation
+    def->min = 0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0.));
 
     def = this->add("resolution", coFloat);
     def->label = L("Resolution");

@@ -1174,6 +1174,9 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "raft_top_density"
             || opt_key == "raft_top_line_width"
             || opt_key == "raft_top_perpendicular"
+            // PING(c-1112-RAFT-04)：筏層第一層的線寬、密度只影響支撐（筏層）的路徑。
+            || opt_key == "raft_bottom_line_width"
+            || opt_key == "raft_bottom_density"
             || opt_key == "bridge_no_support"
             || opt_key == "max_bridge_length"
             || opt_key == "initial_layer_line_width"
@@ -1335,6 +1338,8 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "support_interface_speed"
             // PING(c-1111-RAFT-02)：筏層頂面速度只在輸出 G-code 時套用，不會改到線距。
             || opt_key == "raft_top_speed"
+            // PING(c-1112-RAFT-04)：筏層第一層速度只在輸出 G-code 時套用。
+            || opt_key == "raft_bottom_speed"
             || opt_key == "overhang_1_4_speed"
             || opt_key == "overhang_2_4_speed"
             || opt_key == "overhang_3_4_speed"

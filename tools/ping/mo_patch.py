@@ -331,6 +331,30 @@ NEW_ENTRIES = {
         "Raft top line width must be larger than the raft top layer height. "
         "Please set both the raft top line width and the raft top layer height."
     ): "筏層頂面的線寬必須大於層高。請把「筏層頂面線寬」與「筏層頂面層高」一起填。",
+    # PING（2026-11-12・牌 c-1112-RAFT-04）：筏層首層獨立設定 3 格＋3 句切片前的錯誤訊息。
+    #   src/libslic3r/PrintConfig.cpp（raft_bottom_*）、src/libslic3r/Print.cpp（validate）。
+    #   名稱照 Eric 11-12 原話「筏層的首層線寬」「筏層的第一層速度/密度」。
+    "Raft first layer line width": "筏層首層線寬",
+    (
+        "Line width of the first raft layer, the layer on the build plate. If expressed as a %, it will be computed over the nozzle diameter. "
+        "0 means the same as the first layer line width. "
+        "Not used when there is no raft."
+    ): "筏層第一層（貼床那層）的線寬。填 % 時以噴嘴口徑為基準（100%＝噴嘴口徑）。0＝跟「品質」頁的首層線寬一樣。沒有筏層時不作用。",
+    "Raft first layer density": "筏層首層密度",
+    (
+        "Density of the first raft layer, the layer on the build plate. "
+        "0 means the same as the support initial layer density. "
+        "The support initial layer density still applies to supports printed without a raft. "
+        "Not used when there is no raft."
+    ): "筏層第一層（貼床那層）的疏密。0＝跟支撐的「首層密度」一樣。沒開筏層時，支撐的第一層照舊用「首層密度」。沒有筏層時不作用。",
+    "Raft first layer speed": "筏層首層速度",
+    (
+        "Speed of the first raft layer, the layer on the build plate. 0 means the same as the initial layer speed. "
+        "Not used when there is no raft."
+    ): "筏層第一層（貼床那層）的列印速度。0＝跟首層速度一樣。沒有筏層時不作用。",
+    "Raft first layer density must be between 0 and 100%.": "筏層首層密度要在 0～100% 之間，請調整「筏層首層密度」。",
+    "Raft first layer line width is too large.": "筏層首層線寬太寬，請調小「筏層首層線寬」。",
+    "Raft first layer line width must be larger than the initial layer height.": "筏層首層線寬必須大於首層層高，請調大「筏層首層線寬」。",
 }
 
 

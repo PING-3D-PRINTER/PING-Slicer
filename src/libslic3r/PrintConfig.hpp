@@ -917,6 +917,10 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,               raft_top_layer_height))
     ((ConfigOptionFloat,               raft_top_speed))
     ((ConfigOptionBool,                raft_top_perpendicular))
+    // PING(2026-11-12 Eric 裁，牌 c-1112-RAFT-04)：筏層首層（貼床那層）獨立設定。3 鍵預設 0＝沿用現行（首層線寬／支撐首層密度／首層速度）；有筏層時才作用。
+    ((ConfigOptionFloatOrPercent,      raft_bottom_line_width))
+    ((ConfigOptionPercent,             raft_bottom_density))
+    ((ConfigOptionFloat,               raft_bottom_speed))
     ((ConfigOptionEnum<SeamPosition>,  seam_position))
     ((ConfigOptionBool,                staggered_inner_seams))
     ((ConfigOptionFloat,               slice_closing_radius))
