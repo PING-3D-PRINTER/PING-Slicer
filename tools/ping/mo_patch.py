@@ -15,6 +15,12 @@ MAGIC_LE = 0x950412DE
 
 # 新增字串：msgid（必須與 C++ L() 字串 byte-for-byte 一致）→ 繁中翻譯
 NEW_ENTRIES = {
+    # PING（2026-11-12・牌 c-1112-H600-02，回報中心 #242 Q2）：開筏層後物件被墊高、超出可印高時只提示不擋。
+    #   msgid 是 C++ 兩段字串常數相接後的結果，空格要一致。
+    (
+        "With the raft, object %1% will be printed up to %2% mm, above the printer's printable height of %3% mm. "
+        "Slicing continues; make sure the printer can reach this height."
+    ): "加了筏層後，物件 %1% 會印到 %2% mm，超過機型可印高度 %3% mm。仍可切片，請確認機台印得到這個高度。",
     # PING（2026-10-10・牌 c-1010-UPD-01）：偏好設定「Update & sync」區新增的啟動檢查開關。
     "Check for updates on startup": "啟動時檢查更新",
     # PING（2026-10-04・牌 c-1004-KEY-01，Klipper #493 第一步）：「實體列印設備」放出連線金鑰欄＋

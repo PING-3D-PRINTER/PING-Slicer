@@ -1310,16 +1310,36 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
                     print_object.model_object(),
                     ""
                 };
-            } else if (layers.back() > this->config().printable_height + EPSILON) {
-                // Test whether the last slicing plane is below or above the print volume.
+            } else if (0.5 * (layers[layers.size() - 2] + layers.back()) > this->config().printable_height + EPSILON) {
+                // PING (#242, Eric 2026-11-12 Q1=B): only block when the object itself exceeds the print volume.
+                // The slicer keeps the topmost layer while its middle is still below the object top, so an object
+                // that fits can end with a layer up to half a layer above printable_height (e.g. first layer 0.25 +
+                // 0.2 steps ends at 600.05 for a 600 mm object). Upstream blocked that case too ("its last layer
+                // exceeds..."); real PING machines have 30+ mm of Z travel above printable_height, so it is allowed.
                 return StringObjectException{
-                    0.5 * (layers[layers.size() - 2] + layers.back()) > this->config().printable_height + EPSILON ?
-                    Slic3r::format(_u8L("The object %1% exceeds the maximum build volume height."), print_object.model_object()->name) :
-                    Slic3r::format(_u8L("While the object %1% itself fits the build volume, its last layer exceeds the maximum build volume height."), print_object.model_object()->name) +
-                    " " + _u8L("You might want to reduce the size of your model or change current print settings and retry."),
+                    Slic3r::format(_u8L("The object %1% exceeds the maximum build volume height."), print_object.model_object()->name),
                     print_object.model_object(),
                     ""
                 };
+            } else if (const SlicingParameters &sp = print_object.slicing_parameters();
+                       sp.has_raft() && warning != nullptr &&
+                       0.5 * (layers[layers.size() - 2] + layers.back()) + sp.object_print_z_min > this->config().printable_height + EPSILON) {
+                // PING (#242, Eric 2026-11-12 Q2=hint only): the check above ignores the raft that lifts the object.
+                // Hint, do not block (new checks are hints for now). Same half-layer criterion, shifted by the raft.
+                const std::string msg = Slic3r::format(
+                    _u8L("With the raft, object %1% will be printed up to %2% mm, above the printer's printable height of %3% mm. "
+                         "Slicing continues; make sure the printer can reach this height."),
+                    print_object.model_object()->name,
+                    float_to_string_decimal_point(layers.back() + sp.object_print_z_min, 2),
+                    float_to_string_decimal_point(this->config().printable_height.value, 0));
+                if (warning->string.empty()) {
+                    warning->string     = msg;
+                    warning->object     = print_object.model_object();
+                    warning->opt_key    = "raft_layers";
+                    warning->is_warning = true;
+                } else {
+                    warning->string += "\n" + msg;
+                }
             }
         }
     }
