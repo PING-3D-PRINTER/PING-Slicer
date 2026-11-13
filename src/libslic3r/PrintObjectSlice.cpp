@@ -261,17 +261,25 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
 
     std::vector<std::vector<ExPolygons>> slices_by_region(print_object_regions.all_regions.size(), std::vector<ExPolygons>(zs.size(), ExPolygons()));
 
-    // PING (CFB 2026-09-22, reworked 2026-10-29 c-1029-CFG-01): area a part flagged ping_keep_clear_of_parts must never
-    // take, per region id and per layer ("Z overrides X/Y", same idea as the support Z distance):
-    //   at layer i the flagged part yields to the footprint of the OTHER model parts at every layer from the bed up to
-    //   the highest layer whose gap to layer i is still smaller than support_top_z_distance, grown by 0.75 x nozzle.
+    // PING (CFB 2026-09-22, reworked 2026-10-29 c-1029-CFG-01 and 2026-11-12 c-1112-CFC-03): area a part flagged
+    // ping_keep_clear_of_parts must never take, per region id and per layer ("Z overrides X/Y", same idea as the
+    // support Z distance), grown by 0.75 x nozzle:
+    //   * the OTHER model parts at layer i and at every layer whose gap to layer i is still smaller than
+    //     support_top_z_distance, above (overhang over the block) and below (the block never sits on the body);
+    //   * further down, only the "flat tops" of the other parts: where a layer sticks out more than
+    //     tan(45 deg) x layer height beyond the layer above it (a platform, the top of a body lower than the block).
     // * a vertical wall: the gap is 0.75 x nozzle at every layer (it was 1 x nozzle, Eric 2026-10-29: too wide).
     // * a body leaning outwards over the block: the block follows its outline layer by layer and stops below the
-    //   overhang with the Z gap. The 09-22 rule took the footprint of ALL layers, which pushed the block away from a
-    //   narrow bottom (5 deg lean: 2.14 mm at the first layer) and erased a 12 mm block entirely from 15 deg on.
-    // * the footprint is cumulative from the bed up, thus above the top of the other parts (block taller than the
-    //   body, 2026-09-22) or above a lower, wider part the block still never prints on top of them.
+    //   overhang with the Z gap.
+    // * a body face receding inwards by at most 45 deg from vertical (narrower towards the top, slanted ribs): the
+    //   block follows it layer by layer. Until T110 the footprint of all layers from the bed up was kept clear, which
+    //   left a gap growing with the height on such faces (#101: 6.98 mm at 50 mm on slanted ribs, 5.99 mm at 10 mm on
+    //   a 30 deg face). Eric 2026-11-12 (#101 Q1 A): follow receding faces up to 45 deg; flatter ones stay blocked.
+    // * a platform or the top of a body lower than the block (2026-09-22) is a flat top: the block still never
+    //   prints above it.
     static constexpr double keep_clear_nozzle_factor = 0.75;
+    // tan of the steepest receding face (from vertical) the flagged part follows (#101, Eric 2026-11-12: 45 deg).
+    static constexpr double keep_clear_follow_tan = 1.0;
     std::vector<std::pair<int, std::vector<ExPolygons>>> keep_clear_masks;
     {
         std::vector<ObjectID> others;
@@ -302,16 +310,61 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
             if (n_layers > 0)
                 while (n_needed < zs.size() && zs[n_needed] - zs[n_layers - 1] < z_gap + thickness(n_layers - 1) - EPSILON)
                     ++ n_needed;
-            // Footprint of the other parts accumulated from the bed up to layer k.
-            std::vector<ExPolygons> cumulative(n_needed);
+            // Footprint of the other parts at layer k.
+            std::vector<ExPolygons> footprint(n_needed);
             for (size_t k = 0; k < n_needed; ++ k) {
                 Polygons layer;
-                if (k > 0)
-                    polygons_append(layer, to_polygons(cumulative[k - 1]));
                 for (const VolumeSlices &vs : volume_slices)
                     if (k < vs.slices.size() && std::binary_search(others.begin(), others.end(), vs.volume_id))
                         polygons_append(layer, to_polygons(vs.slices[k]));
-                cumulative[k] = union_ex(layer);
+                footprint[k] = union_ex(layer);
+            }
+            // Flat tops of the other parts accumulated from the bed up to layer k. Only needed below the flagged parts.
+            //  * the part of a layer sticking out more than keep_clear_follow_tan x layer height (plus a tolerance, so that
+            //    an exact 45 deg chamfer is followed whatever the rounding) beyond the layer above it; slivers narrower than
+            //    twice the tolerance are dropped (rounding noise on a 45 deg face, mitred corners). In effect the faces
+            //    followed go up to about 49 deg at 0.2 mm layers (52 deg at 0.1 mm);
+            //  * closed up to the wall of the layer above where the follow limit left a strip next to a platform (layer
+            //    height larger than the 0.75 x nozzle gap would leave a ring above the platform otherwise);
+            //  * the bottom of every pocket opening in the layer above (blind hole, groove closed all round), whatever the
+            //    wall angle: a block island inside a pocket could never connect to the rest of the block.
+            static constexpr double keep_clear_follow_tol = 0.01;
+            std::vector<ExPolygons> flat_cumulative(n_layers);
+            for (size_t k = 0; k < n_layers; ++ k) {
+                ExPolygons flat;
+                if (! footprint[k].empty()) {
+                    if (k + 1 < n_needed && ! footprint[k + 1].empty()) {
+                        const float follow = float(scale_(keep_clear_follow_tan * thickness(k) + keep_clear_follow_tol));
+                        flat = opening_ex(diff_ex(footprint[k], offset(footprint[k + 1], follow)), float(scale_(keep_clear_follow_tol)));
+                        Polygons parts = to_polygons(flat);
+                        if (! flat.empty())
+                            polygons_append(parts, to_polygons(intersection_ex(diff_ex(footprint[k], footprint[k + 1]), offset(flat, follow))));
+                        for (const ExPolygon &expoly : footprint[k + 1])
+                            for (Polygon hole : expoly.holes) {
+                                hole.make_counter_clockwise();
+                                // Islands standing inside the pocket (a pillar in a closed frame) keep the follow rule.
+                                ExPolygons islands;
+                                for (const ExPolygon &other : footprint[k + 1])
+                                    if (&other != &expoly && ! other.contour.empty() && hole.contains(other.contour.points.front()))
+                                        islands.emplace_back(other);
+                                ExPolygons bottom = intersection_ex(footprint[k], Polygons{ hole });
+                                if (! bottom.empty() && ! islands.empty())
+                                    bottom = diff_ex(bottom, offset(islands, follow));
+                                polygons_append(parts, to_polygons(bottom));
+                            }
+                        flat = union_ex(parts);
+                    } else
+                        flat = footprint[k];
+                }
+                if (k == 0)
+                    flat_cumulative[k] = std::move(flat);
+                else if (flat.empty())
+                    flat_cumulative[k] = flat_cumulative[k - 1];
+                else {
+                    Polygons acc = to_polygons(flat_cumulative[k - 1]);
+                    polygons_append(acc, to_polygons(flat));
+                    flat_cumulative[k] = union_ex(acc);
+                }
             }
             for (const PrintObjectRegions::LayerRangeRegions &layer_range : print_object_regions.layer_ranges)
                 for (const PrintObjectRegions::VolumeRegion &region : layer_range.volume_regions)
@@ -326,8 +379,16 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                                 size_t upper = i;
                                 while (upper + 1 < n_needed && zs[upper + 1] - zs[i] < z_gap + thickness(i) - EPSILON)
                                     ++ upper;
-                                if (! cumulative[upper].empty())
-                                    masks[i] = offset_ex(cumulative[upper], grow);
+                                size_t lower = i;
+                                while (lower > 0 && zs[i] - zs[lower - 1] < z_gap + thickness(lower - 1) - EPSILON)
+                                    -- lower;
+                                Polygons keep_clear;
+                                for (size_t k = lower; k <= upper; ++ k)
+                                    polygons_append(keep_clear, to_polygons(footprint[k]));
+                                if (lower > 0)
+                                    polygons_append(keep_clear, to_polygons(flat_cumulative[lower - 1]));
+                                if (! keep_clear.empty())
+                                    masks[i] = offset_ex(union_ex(keep_clear), grow);
                             }
                             keep_clear_masks.emplace_back(id, std::move(masks));
                         }
