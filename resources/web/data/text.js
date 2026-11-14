@@ -111,6 +111,8 @@ var LangText = {
     orca3: "Stealth Mode",
     orca4: "This stops the transmission of data to Bambu's cloud services. Users who don't use BBL machines or use LAN mode only can safely turn on this function.",
     orca5: "Enable Stealth Mode.",
+    ping1: "STEP Defect Check",
+    ping2: "Find defects · read-only",
   },
   ca_ES: {
     t1: "Benvingut a PING Slicer",
@@ -1010,6 +1012,8 @@ var LangText = {
     wk16: "使用３Ｄ文字工具，使用者可以輕鬆地在項目中建立各種３Ｄ文字形狀，使模型更加個性化。PING Slicer 提供了數十種字體，並支援粗體和斜體樣式，使文字具有更大的靈活性。",
     orca1: "編輯專案資訊",
     orca2: "沒有模型相關資訊",
+    ping1: "STEP 破面檢查",
+    ping2: "找出破面位置・不改原檔",
   },
   ru_RU: {
     t1: "Приветствуем в PING Slicer!",
