@@ -97,8 +97,10 @@
 		<div class="MenuItem" onClick="OnClickStepRepair()">
 			<div class="MenuIcon"><img src="img/step_repair.svg"></div>
 			<div>
-				<div class="TextS1">STEP 破面檢查</div>
-				<div class="MenuDesc">找出破面位置・不改原檔</div>
+				<!-- 待排件 #58（2026-11-14）：原本寫死中文、英文介面沒翻到。預設字＝英文（其他語言沒有這兩個 tid 時就顯示英文），
+				     中文放 text.js 的 zh_TW（zh_CN 在 TranslatePage() 會被導到 zh_TW）。英文用詞對齊 C++ 既有的 "Open STEP defect check"。 -->
+				<div class="TextS1 trans" tid="ping1">STEP Defect Check</div>
+				<div class="MenuDesc trans" tid="ping2">Find defects · read-only</div>
 			</div>
 		</div>
 	</div>
