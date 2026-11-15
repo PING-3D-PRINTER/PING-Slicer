@@ -185,7 +185,7 @@
     "small_perimeter_threshold": "0",
     "solid_infill_direction": "45",
     "solid_infill_filament": "1",
-    "sparse_infill_acceleration": "10000",
+    "sparse_infill_acceleration": "5000",
     "sparse_infill_density": "0%",
     "sparse_infill_filament": "1",
     "sparse_infill_line_width": "0.4",

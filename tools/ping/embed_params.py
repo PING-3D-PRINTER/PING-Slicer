@@ -1346,6 +1346,79 @@ def normalize_wall_accel(proc):
     proc["wall_direction"] = "ccw"
     return proc
 
+# ★ 製程加速度不超過相容機型的加速度上限（2026-11-16，回報中心 #247；牌 c-1116-QA-01）
+#   起因＝FD300 同進用預設製程切片就跳「加速度設定已超過列印設備的最大加速度值
+#   (machine_max_acceleration_extruding)」。Print.cpp 的 check acceleration 在 Klipper flavor 下拿下面九個鍵
+#   逐一比機型檔的 machine_max_acceleration_extruding，任何一個超過就警告；而 GCodeWriter 本來就會把
+#   每一段加速度夾在同一個值（見 4b-4 的更正註解）⇒ 製程寫 5000、機型上限 3000，切出來一直是 3000，
+#   只是每次切片多一則警告，製程頁顯示的 5000 也不是實際值。
+#   11-09 把鈑金框 FD300 系機型上限降成 3000 時製程沒跟著動（當時的判斷「引擎會夾、製程不必動」
+#   對 G-code 成立，漏了這則警告）；FF（上限 1500）與照片磚（sparse 10000）是更早就有的同一型。
+#   做法＝產生器最後一步把葉檔寫成「實際會用到的值」＝min(規則值, 機型上限)：
+#   - 各規則表（normalize_fast_speed 的 5000、照片磚 10000、高流量 2000…）仍是「規則值」不動，這裡只做最後的夾值；
+#     哪天機型上限調高，重產就自動跟上，不必回頭改每一張表。
+#   - 百分比值不動（基準是 default_acceleration／外牆，基準夾了它就跟著對）；0＝沿用預設，不動；
+#     Classic 前代九鍵全 0（Marlin 隔離）⇒ 天然不受影響。
+#   - 一支製程相容多台機器時取最小的上限。
+#   切出來的 G-code 不變（夾值本來就在引擎裡發生）；變的只有製程頁顯示值與那則警告。
+ACCEL_CAP_KEYS = ("default_acceleration", "inner_wall_acceleration", "outer_wall_acceleration",
+                  "bridge_acceleration", "initial_layer_acceleration", "sparse_infill_acceleration",
+                  "internal_solid_infill_acceleration", "top_surface_acceleration", "travel_acceleration")
+
+def _machine_leaf_value(mname, key, _depth=0):
+    """沿 inherits 往上找機器檔的 key（葉檔沒寫就看父檔）；找不到回 None。"""
+    if not mname or _depth > 8:
+        return None
+    p = os.path.join(PINGDIR, "machine", "%s.json" % mname)
+    if not os.path.isfile(p):
+        return None
+    d = json.load(io.open(p, encoding="utf-8"))
+    if key in d:
+        return d[key]
+    return _machine_leaf_value(d.get("inherits"), key, _depth + 1)
+
+def clamp_process_accel_to_machine(proc_entries):
+    """把 proc_entries（PING.json process_list 那種 {name, sub_path}）每支製程的九個加速度鍵夾到
+    相容機型的 machine_max_acceleration_extruding。回傳 (改了幾支, 改了幾鍵)。
+    找不到相容機型或機型沒有上限＝停手（寧可不產，也不要產出一支沒人檢查過的製程）。"""
+    n_files = n_keys = 0
+    for e in proc_entries:
+        p = os.path.join(PINGDIR, "process", "%s.json" % e["name"])
+        d = json.load(io.open(p, encoding="utf-8"))
+        if d.get("instantiation") != "true":
+            continue
+        compat = d.get("compatible_printers") or []
+        if not compat:
+            raise SystemExit("[停手] 製程加速度夾值：%s 沒有 compatible_printers，判不出機型上限" % e["name"])
+        caps = []
+        for m in compat:
+            v = _machine_leaf_value(m, "machine_max_acceleration_extruding")
+            try:
+                caps.append(float(v[0] if isinstance(v, list) else v))
+            except (TypeError, ValueError, IndexError):
+                raise SystemExit("[停手] 製程加速度夾值：機型 %s（製程 %s）讀不到 machine_max_acceleration_extruding"
+                                 % (m, e["name"]))
+        cap = min(caps)
+        if cap <= 0:
+            continue            # 機型不設上限＝引擎不夾、也不警告
+        hit = 0
+        for k in ACCEL_CAP_KEYS:
+            v = d.get(k)
+            if not isinstance(v, str) or v.strip().endswith("%"):
+                continue
+            try:
+                fv = float(v)
+            except ValueError:
+                continue
+            if fv > cap:
+                d[k] = "%g" % cap
+                hit += 1
+        if hit:
+            jdump(p, d)
+            n_files += 1
+            n_keys += hit
+    return n_files, n_keys
+
 # ★ 棧板雙版本製程（2026-07-08 Eric 拍板，同上規格檔）：FD 單料頭/同進＋FP300 出「_棧板」雙生
 #（raft 六鍵＝既有 ABS+SUP 黃金配方定稿值，與 0.2mm ABS+SUP @FD300 (0.4).json 全等）。
 #  2026-09-17 Eric 同日兩裁：先只改易拆+筏層、後裁「三族都改 3」⇒ 本表 raft_layers 同步為 3，
@@ -4106,6 +4179,12 @@ def main(src_base):
         jdump(os.path.join(PINGDIR, "process", "%s.json" % t06["name"]), t06)
         proc_list.append({"name": t06["name"], "sub_path": "process/%s.json" % t06["name"]})
     print("  0.6 口徑樹狀製程：%d 支（主段 PINGP%03d 止）" % (len(tree06_twins), gp - 1))
+
+    # 4c-5. ★ 製程加速度夾到相容機型上限（2026-11-16，回報中心 #247，牌 c-1116-QA-01；規則見 ACCEL_CAP_KEYS 註解）。
+    #        🔴 落點刻意在所有製程都寫完之後（4c-4 是最後一個新增製程族）、且在 4b-4 機器動力學之後：
+    #        這一步讀的是「本輪已收斂」的製程葉檔與機器葉檔。⚠ 之後再新增製程族，請排在本段之前。
+    _acc_files, _acc_keys = clamp_process_accel_to_machine(proc_list)
+    print("  製程加速度夾到機型上限：改 %d 支／%d 鍵" % (_acc_files, _acc_keys))
 
     # 4d-0. LAY-11（ping-ux）：machine_model_list 同型號變體相鄰成組——
     # 家族依 FAMS 順序，家族內：基本款 → 同進 → 3in1 → 單料頭。
