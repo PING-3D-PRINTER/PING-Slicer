@@ -55,6 +55,13 @@ EASY_TREE_ALLOWED_DIFF = {"name", "setting_id", "renamed_from", "support_type", 
 COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE}
 # 🆕 2026-11-04（回報中心 #206，牌 c-1104-QA-01）：0.6 口徑易拆樹狀換同事手調的樹狀七鍵。
 #   與 embed_params.EASY_TREE06_OVERRIDES 同值各一份；「易拆樹狀族」區塊 exact 鎖、並准許與易拆雙生差這七鍵。
+# 🆕 2026-11-15（牌 c-1115-ETE-02）：0.4 口徑易拆樹狀末端三值 2／3.5／3（Eric「全部照建議」）。
+#   與 embed_params.EASY_TREE04_OVERRIDES 同值各一份；鎖法同 0.6 那組。
+EASY_TREE04_NZ = "0.4"
+EASY_TREE04_VALUES = {
+    "tree_support_tip_diameter": "2", "tree_support_branch_diameter_organic": "3.5",
+    "tree_support_branch_distance_organic": "3",
+}
 EASY_TREE06_NZ = "0.6"
 EASY_TREE06_VALUES = {
     "tree_support_tip_diameter": "3", "tree_support_branch_distance_organic": "5",
@@ -703,6 +710,9 @@ for name, (kind, d) in presets.items():
                         continue
                     if _et06 and key in EASY_TREE06_VALUES:
                         continue
+                    if (key in EASY_TREE04_VALUES and name.endswith("(%s)" % EASY_TREE04_NZ)
+                            and (_ctok == COMBO_CAT_EASYTREE or _is_classic_pro_tree(name))):
+                        continue   # 1115：0.4 易拆樹狀的 _organic 鍵由「易拆樹狀族」區塊 exact 鎖
                     if d.get(key) != value:
                         err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
                 # ★ Classic 前代：確認新工藝**確實有套**（Eric 2026-07-25 裁「Classic 套新工藝」，
@@ -2356,6 +2366,11 @@ for _n, (_k, _d) in sorted(presets.items()):
         for _key, _val in EASY_TREE06_VALUES.items():
             if _d.get(_key) != _val:
                 err(f"[易拆樹狀・0.6 樹狀七鍵 #206] {_n}: {_key}={_d.get(_key)!r}, expected {_val!r}")
+    if _n.endswith("(%s)" % EASY_TREE04_NZ):   # 1115：0.4 口徑另准差末端三值，且值 exact 鎖
+        _allow |= set(EASY_TREE04_VALUES)
+        for _key, _val in EASY_TREE04_VALUES.items():
+            if _d.get(_key) != _val:
+                err(f"[易拆樹狀・0.4 末端三值 c-1115-ETE-02] {_n}: {_key}={_d.get(_key)!r}, expected {_val!r}")
     _dk = sorted(k for k in set(_d) | set(_sd) if _d.get(k) != _sd.get(k) and k not in _allow)
     if _dk:
         err(f"[易拆樹狀・與易拆雙生的差異超出允許] {_n}: {_dk[:6]}"

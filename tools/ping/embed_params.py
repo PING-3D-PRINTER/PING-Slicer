@@ -1721,6 +1721,23 @@ EASY_TREE06_OVERRIDES = {
     "tree_support_angle_slow": "25",
 }
 
+# ★ 0.4 口徑易拆樹狀的末端三值（Eric 2026-11-15 對決策單四題回「全部照建議」；牌 c-1115-ETE-02）
+#   起因＝氣象署雷達車失敗件（FD300 Pro 0.4 易拆樹狀，Z≈129 mm 樹狀支撐倒下）：樹冠小圈很密，
+#   噴頭在圈與圈之間不回抽不抬升地短跳。末端直徑 1.2→2、分支直徑 2.6→3.5、分支距離 1→3。
+#   末端 2＝0.6 口徑改後「末端÷支撐線寬＝6 倍」同比例（0.35×6＝2.1 取 2）；分支距離同比例 3.5 取 3。
+#   無頭切片（自製測試件、非客戶模型）：樹冠未回抽短跳 −42%、支撐料 +3.9%。⬜ 未實印——先進廠內測試版，
+#   工程端實印過才進出貨版。範圍＝0.4 口徑（「0.2mm 易拆樹狀」那組）FD300／FD300 Pro／FD300 關門／
+#   FD450／600／800 Pro；Classic「易拆樹狀_PRO」在 4c-3 從 FD Pro 複製 ⇒ 自動跟著。0.25／1.0 不動
+#   （0.25 比例已同 0.6；1.0 沒有實調值）。牆數 0＋直線不動。
+#   引擎檢查（Print.cpp 有機樹）：末端 ≥ 支撐線寬 0.35、分支直徑 ≥ 2×線寬且 ≥ 末端 ⇒ 2／3.5 都過。
+#   verify 有同名同值一份（EASY_TREE04_VALUES）。
+#   決策單與證據＝ORCA 專案 00治理文件/決策單_易拆樹狀04口徑_末端與牆數_20261115.html。
+EASY_TREE04_NZ = "0.4"
+EASY_TREE04_OVERRIDES = {
+    "tree_support_tip_diameter": "2", "tree_support_branch_diameter_organic": "3.5",
+    "tree_support_branch_distance_organic": "3",
+}
+
 def easy_tree_pname(lh, model, nz):
     return "%smm %s @%s (%s)" % (lh, EASY_TREE_TOKEN, model, nz)
 
@@ -2796,6 +2813,8 @@ def main(src_base):
                         et = dict(proc); et.update(EASY_TREE_OVERRIDES)
                         if nz == EASY_TREE06_NZ:   # #206（1104）：0.6 口徑換同事手調的樹狀七鍵
                             et.update(EASY_TREE06_OVERRIDES)
+                        if nz == EASY_TREE04_NZ:   # 1115：0.4 口徑末端三值（決策單四題，牌 c-1115-ETE-02）
+                            et.update(EASY_TREE04_OVERRIDES)
                         et["name"] = easy_tree_pname(lh, model, nz)
                         et.pop("renamed_from", None)
                         easy_tree_twins.append(et)
