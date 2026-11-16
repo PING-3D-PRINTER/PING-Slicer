@@ -1878,6 +1878,28 @@ TREE06_OVERRIDES = {
 }
 
 
+# ★ 0.4 口徑樹狀製程（回報中心 #251；Eric 2026-11-16 對「0.4 口徑要不要補一支樹狀製程」回「要」、Q3 回「照甲」；牌 c-1116-TR04-01）
+#   起因：FD300 Pro 同進用單料時支撐選不到樹狀——不是程式鎖住，是 0.4 口徑沒有「樹狀」這一支（0.6／1.0 有）。
+#   範圍＝每台機 0.4「標準名」那支（`<層高>mm @<機型> (0.4)`，非照片磚）各派生一支＝比照 0.6／1.0（2026-11-16 現況 38 支）。
+#   Q3 甲＝**從標準那支複製、只換七鍵**，不套 0.6／1.0 的「空心＋牆數 1」配方（那組高樹會單圈，見 ping-slicer
+#     materials.md「有機樹牆數×主體圖案」）：樹狀(自動)＋有機樹、末端 2／分支直徑 3.5／分支距離 3（＝0.4 易拆樹狀
+#     11-15 定的三值）、支撐與支撐面速度 50（＝易拆樹狀 0919「樹狀支撐的支撐速度 60>50」）。
+#   🔴 速度是**上限 50、不是寫死 50**（TREE04_SPEED_CAP）：Classic 前代機的標準支撐速度本來就 25～40
+#     （DUAL 300 雙料本體 25、外牆 40），寫死 50 會把它們變快、比外牆還快——違反 0812「Classic 整表本來就慢、
+#     不拉支撐速度」。⇒ 葉檔＝min(標準值, 50)；非 Classic 標準都 ≥60 ⇒ 實際都是 50。verify 同規則一份。
+#   Z 間距、牆數、主體圖案、介面等其餘鍵全部同標準（Classic DUAL 雙料本體的 Z 0 也跟著標準走）。
+#   樣式明寫 organic（同易拆樹狀 0919）。token「樹狀」同 0.6／1.0：Tab.cpp 不認得 ⇒ 歸「一般」家族、不觸發配料連動。
+#   先進廠內測試版，實印驗過才進出貨版（同 0.6／1.0）。verify 有同名同值一份（_TREE04_VALUES／_TREE04_SPEED_CAP）。
+TREE04_NZ = "0.4"
+TREE04_OVERRIDES = {
+    "support_type": "tree(auto)", "support_style": "organic",
+    "tree_support_tip_diameter": "2", "tree_support_branch_diameter_organic": "3.5",
+    "tree_support_branch_distance_organic": "3",
+}
+TREE04_SPEED_CAP = 50.0
+TREE04_SPEED_KEYS = ("support_speed", "support_interface_speed")
+
+
 def pva_overrides(nozzle):
     nz = float(nozzle)
     return {
@@ -4184,8 +4206,36 @@ def main(src_base):
         proc_list.append({"name": t06["name"], "sub_path": "process/%s.json" % t06["name"]})
     print("  0.6 口徑樹狀製程：%d 支（主段 PINGP%03d 止）" % (len(tree06_twins), gp - 1))
 
+    # 4c-4b. ★ 0.4 口徑樹狀製程派生＋emit（回報中心 #251；Eric 2026-11-16「要」＋Q3「照甲」；牌 c-1116-TR04-01；
+    #        規則見 TREE04_OVERRIDES 註解）。落點與來源判定同 4c-4（post-pass 都跑完之後、從本輪已收斂的標準那支複製），
+    #        id 接在 4c-4 之後發＝既有 setting_id 零位移；排在 4c-5 加速度夾值之前（4c-5 要看到所有製程）。
+    #        支撐 Z 最終掃描在其後照常跑：本族 Z＝標準值，不在該掃描的豁免裡也不會被改。
+    tree04_twins = []
+    for _e in list(proc_list):
+        _m = re.match(r"^(\d+(?:\.\d+)?)mm @(.+) \((\d+(?:\.\d+)?)\)$", _e["name"])
+        if not _m or _m.group(3) != TREE04_NZ or "照片磚" in _m.group(2):
+            continue
+        _src = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % _e["name"]), encoding="utf-8"))
+        t04 = dict(_src); t04.update(TREE04_OVERRIDES)
+        for _k in TREE04_SPEED_KEYS:
+            if _k not in _src:
+                raise SystemExit("[停手] 0.4 樹狀：來源 %s 沒寫 %s（速度上限要拿標準值比）" % (_e["name"], _k))
+            t04[_k] = "%g" % min(float(_src[_k]), TREE04_SPEED_CAP)
+        t04["name"] = tree_pname(_m.group(1), _m.group(2), _m.group(3))
+        t04.pop("renamed_from", None)      # 新品無舊名（同易拆樹狀 0919）
+        tree04_twins.append(t04)
+    if not tree04_twins:
+        raise SystemExit("[停手] 0.4 口徑樹狀製程：一支 0.4 標準名製程都沒對到（製程命名格式變了？）")
+    for t04 in tree04_twins:
+        if _ext_proc(t04["name"]): t04["setting_id"] = _ext_take_p()
+        elif _nz_proc(t04["name"]): t04["setting_id"] = _nz_take_p(t04["name"])
+        else: t04["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % t04["name"]), t04)
+        proc_list.append({"name": t04["name"], "sub_path": "process/%s.json" % t04["name"]})
+    print("  0.4 口徑樹狀製程：%d 支（主段 PINGP%03d 止）" % (len(tree04_twins), gp - 1))
+
     # 4c-5. ★ 製程加速度夾到相容機型上限（2026-11-16，回報中心 #247，牌 c-1116-QA-01；規則見 ACCEL_CAP_KEYS 註解）。
-    #        🔴 落點刻意在所有製程都寫完之後（4c-4 是最後一個新增製程族）、且在 4b-4 機器動力學之後：
+    #        🔴 落點刻意在所有製程都寫完之後（4c-4b 是最後一個新增製程族）、且在 4b-4 機器動力學之後：
     #        這一步讀的是「本輪已收斂」的製程葉檔與機器葉檔。⚠ 之後再新增製程族，請排在本段之前。
     _acc_files, _acc_keys = clamp_process_accel_to_machine(proc_list)
     print("  製程加速度夾到機型上限：改 %d 支／%d 鍵" % (_acc_files, _acc_keys))
