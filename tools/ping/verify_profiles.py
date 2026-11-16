@@ -121,9 +121,23 @@ _TREE06_VALUES = {
     "tree_support_top_rate": "30%", "tree_support_branch_diameter_angle": "5",
     "tree_support_angle_slow": "25",
 }
+# 🆕 2026-11-16（回報中心 #251；Eric「要」＋Q3「照甲」，牌 c-1116-TR04-01）：0.4 口徑樹狀製程「<層高>mm 樹狀 @<機型> (0.4)」。
+#   ＝**標準那支複製、只換七鍵**（不套 0.6／1.0 的空心＋牆數 1 配方）：下面五鍵 exact 鎖；
+#   支撐／支撐面速度＝min(標準值, 50)（_TREE04_SPEED_CAP：Classic 標準 25～40 不拉快，非 Classic 標準 ≥60 ⇒ 50），
+#   由「樹狀族」區塊另驗。其餘鍵（Z、牆數、主體圖案、介面、首層擴展…）一律＝同機標準。
+#   值與 embed_params.TREE04_OVERRIDES／TREE04_SPEED_CAP 同值各一份。
+_TREE04_RE = re.compile(r"^\S+mm 樹狀 @.+ \(0\.4\)$")
+_TREE04_VALUES = {
+    "support_type": "tree(auto)", "support_style": "organic",
+    "tree_support_tip_diameter": "2", "tree_support_branch_diameter_organic": "3.5",
+    "tree_support_branch_distance_organic": "3",
+}
+_TREE04_SPEED_CAP = 50.0
+_TREE04_SPEED_KEYS = ("support_speed", "support_interface_speed")
 # 樹狀族一覽（口徑, 名稱 regex, 值鎖, 裁定日）：下方各條家規的豁免與「樹狀族」區塊都走這張表。
 _TREE_FAMILIES = (("1.0", _TREE10_RE, _TREE10_VALUES, "1016"),
-                  ("0.6", _TREE06_RE, _TREE06_VALUES, "1023"))
+                  ("0.6", _TREE06_RE, _TREE06_VALUES, "1023"),
+                  ("0.4", _TREE04_RE, _TREE04_VALUES, "1116"))
 
 def _tree_family_values(name):
     """製程屬某口徑的「樹狀」族 ⇒ 回傳該族值鎖；否則 None。"""
@@ -2424,6 +2438,14 @@ for _n, (_k, _d) in sorted(presets.items()):
             if _d.get(_key) != _EXEMPT_SUPPORT_SPEED:
                 err(f"[支撐速度・易拆樹狀 50] {_n}: {_key}={_d.get(_key)!r}, expected {_EXEMPT_SUPPORT_SPEED!r}（Eric 2026-09-19 裁）")
         continue
+    # 🆕 0.4 樹狀族（1116，#251 Q3 甲）：上限 50 ⇒ 非 Classic 都是 exact 50（標準都 ≥60）；精確值另由「樹狀族」區塊
+    #    對照標準 min(標準, 50) 驗。Classic 已在上面分走（標準本來就 <60，不拉快）。
+    if _TREE04_RE.match(_n):
+        _easy_tree_spd += 1
+        for _key in _TREE04_SPEED_KEYS:
+            if _d.get(_key) != "%g" % _TREE04_SPEED_CAP:
+                err(f"[支撐速度・0.4 樹狀 50] {_n}: {_key}={_d.get(_key)!r}, expected '50'（#251 Q3 甲）")
+        continue
     _spd_checked += 1
     for _key, _v in _vals:
         if _v < _SPD_FLOOR:
@@ -2439,7 +2461,7 @@ if _classic_below == 0:
     err("[支撐速度・Classic 排除] Classic 前代機已無任何支撐速度 <60 ⇒ "
         "排除規則失效或被順手統一。Classic 是 Marlin 無 Input Shaper，整表本來就慢，"
         "支撐拉到 60 會比外牆還快")
-print("支撐速度下限：非 Classic %d 支全數 ≥%g｜Classic 保留 <60 者 %d 支（刻意排除）｜易拆樹狀 exact 50 者 %d 支"
+print("支撐速度下限：非 Classic %d 支全數 ≥%g｜Classic 保留 <60 者 %d 支（刻意排除）｜易拆樹狀／0.4 樹狀 exact 50 者 %d 支"
       % (_spd_checked, _SPD_FLOOR, _classic_below, _easy_tree_spd))
 
 # ★ 易拆樹狀族（Eric 2026-09-19 兩輪 grill 裁，牌 c-0919-ETR-01）：每支都必須是「同口徑易拆」的雙生，
@@ -2735,7 +2757,8 @@ for _name, (_kind, _d) in presets.items():
         _want = "6" if _is_raft else "0"
         _tfv = _tree_family_values(_name)
         if _tfv is not None:
-            _want = _tfv["raft_first_layer_expansion"]   # 樹狀族：1.0＝同事實調 10（1016）、0.6＝Eric 指定 5（1023）
+            # 樹狀族：1.0＝同事實調 10（1016）、0.6＝Eric 指定 5（1023）；0.4（1116）不改這鍵＝照一般規則
+            _want = _tfv.get("raft_first_layer_expansion", _want)
         if _d["raft_first_layer_expansion"] != _want:
             err(f"[支撐首層擴展] {_name}: raft_first_layer_expansion="
                 f"{_d['raft_first_layer_expansion']!r} ≠ {_want!r}"
@@ -2843,6 +2866,17 @@ for _fnz, _fre, _fvals, _fday in _TREE_FAMILIES:
                 err(f"[{_tag}] {_name}: 找不到來源標準製程 {_src_name!r}")
             else:
                 _allowed = set(_fvals) | {"name", "setting_id", "renamed_from"}
+                if _fre is _TREE04_RE:
+                    # 0.4（1116）：支撐／支撐面速度＝min(標準, 50)——Classic 標準 25～40 不拉快（0812），其餘降到 50
+                    _allowed |= set(_TREE04_SPEED_KEYS)
+                    for _k in _TREE04_SPEED_KEYS:
+                        try:
+                            _sv = "%g" % min(float(_src.get(_k)), _TREE04_SPEED_CAP)
+                        except (TypeError, ValueError):
+                            err(f"[{_tag}・速度] {_name}: 標準 {_src_name!r} 的 {_k}={_src.get(_k)!r} 不是數字")
+                            continue
+                        if _d.get(_k) != _sv:
+                            err(f"[{_tag}・速度上限 50] {_name}: {_k}={_d.get(_k)!r}, expected {_sv!r}（＝min(標準 {_src.get(_k)!r}, 50)）")
                 for _k in sorted((set(_d) | set(_src)) - _allowed):
                     if _d.get(_k) != _src.get(_k):
                         err(f"[{_tag}・與標準不同的鍵] {_name}: {_k}={_d.get(_k)!r} ≠ 標準 {_src.get(_k)!r}")
