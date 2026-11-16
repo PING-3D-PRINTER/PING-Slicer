@@ -51,7 +51,10 @@ COMBO_CAT_EASYPAL                    = "易拆+筏層"
 #   它**沒有舊名**（新品）⇒ renamed_from 回溯鏈改驗「不得存在」，專屬斷言見「易拆樹狀族」區塊。
 COMBO_CAT_EASYTREE                   = "易拆樹狀"
 EASY_TREE_ALLOWED_DIFF = {"name", "setting_id", "renamed_from", "support_type", "support_style",
-                          "support_speed", "support_interface_speed"}
+                          "support_speed", "support_interface_speed", "tree_support_model_contact_expansion"}
+# 🆕 2026-11-16（回報中心 #253，牌 c-1116-MFT-01）：易拆樹狀全族「模型上支撐擴展」3 mm；其他製程一支都不准寫非 0。
+#   與 embed_params.EASY_TREE_OVERRIDES 同值各一份；鎖法見「易拆樹狀族」區塊與其後的全庫守衛。
+EASY_TREE_MODEL_FOOT = ("tree_support_model_contact_expansion", "3")
 COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE}
 # 🆕 2026-11-04（回報中心 #206，牌 c-1104-QA-01）：0.6 口徑易拆樹狀換同事手調的樹狀七鍵。
 #   與 embed_params.EASY_TREE06_OVERRIDES 同值各一份；「易拆樹狀族」區塊 exact 鎖、並准許與易拆雙生差這七鍵。
@@ -2471,6 +2474,24 @@ for _n, (_k, _d) in sorted(presets.items()):
             f"（只准差 support_type／support_style／兩個支撐速度）")
 if _et_n == 0:
     err("[易拆樹狀・防空轉] 一支易拆樹狀製程都沒掃到 ⇒ 產生器沒產或 token 判定壞了")
+# 🆕 #253（c-1116-MFT-01）：模型上支撐擴展——易拆樹狀全族 exact 3；Classic「易拆樹狀_PRO」逐鍵＝FD Pro 來源，自然同值也一併鎖；
+#   其他任何製程寫了非 0 都紅（預設 0＝不擴＝舊行為）。另有防空轉：鎖到的支數必須 ≥ 易拆樹狀族支數。
+_mf_key, _mf_val = EASY_TREE_MODEL_FOOT
+_mf_on = 0
+for _n, (_k, _d) in sorted(presets.items()):
+    if _k != "process":
+        continue
+    _v = _d.get(_mf_key)
+    if combo_token(_n) == COMBO_CAT_EASYTREE or "易拆樹狀_PRO" in _n:
+        if _v != _mf_val:
+            err(f"[易拆樹狀・模型上支撐擴展 #253] {_n}: {_mf_key}={_v!r}, expected {_mf_val!r}")
+        else:
+            _mf_on += 1
+    elif _v not in (None, "0", "0.0"):
+        err(f"[模型上支撐擴展・只准易拆樹狀 #253] {_n}: {_mf_key}={_v!r}（其他製程不准寫非 0）")
+if _mf_on < _et_n:
+    err(f"[模型上支撐擴展・防空轉 #253] 只鎖到 {_mf_on} 支、少於易拆樹狀族 {_et_n} 支")
+print("模型上支撐擴展（#253）：%d 支易拆樹狀＝%s mm，其他製程皆未寫或 0" % (_mf_on, _mf_val))
 print("易拆樹狀：%d 支（逐支與同口徑易拆雙生比對，只准差支撐類型／樣式／速度）" % _et_n)
 
 # ★ Classic Pro 噴頭族（Eric 2026-10-23，牌 c-1023-CDP-01）：DUAL 300／450／600／800 **雙料本體**的每個口徑恰各一支

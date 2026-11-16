@@ -2895,6 +2895,8 @@ void TabPrint::build()
         // Eric 09-30「主要是我沒有找到它可以調」。放首層擴展正下方（Eric 09-30「照建議」Q1 甲）：紅底＝首層擴展＋筏層擴展，
         // 兩格並排才看得出這個關係。只加欄位，不改任何製程值；有沒有筏層的切換在 ConfigManipulation。
         optgroup->append_single_option_line("raft_expansion", "support_settings_raft");
+        // PING (#253, c-1116-MFT-01)：有機樹落在模型上的那一腳往外擴。跟首層擴展、筏層擴展排在一起，三種「擴展」一眼看得到。
+        optgroup->append_single_option_line("tree_support_model_contact_expansion", "support_settings_support#initial-layer-expansion");
         optgroup->append_single_option_line("support_on_build_plate_only", "support_settings_support#on-build-plate-only");
         optgroup->append_single_option_line("support_critical_regions_only", "support_settings_support#support-critical-regions-only");
         optgroup->append_single_option_line("support_remove_small_overhang", "support_settings_support#ignore-small-overhangs");

@@ -6169,6 +6169,21 @@ void PrintConfigDef::init_fff_params()
     def->mode     = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(1.));
 
+    // PING (#253, Eric 2026-11-16「照建議開工」, c-1116-MFT-01)：有機樹落在模型上的那一腳往外擴，比照床面的首層擴展，
+    // 但跟首層擴展分開（Eric 8 月實印定床面首層擴展 0 最好，共用會綁在一起）。擴出去的部分只留在模型頂面上。
+    // 預設 0＝不擴＝舊行為；PING 內建只有「易拆樹狀」寫 3（embed_params.py）。
+    def           = this->add("tree_support_model_contact_expansion", coFloat);
+    def->label    = L("Expansion on model");
+    def->category = L("Support");
+    def->tooltip  = L("Expand the bottom of organic tree supports that rest on the model, so they have more contact area and "
+                      "are less likely to fall over. The expanded part only stays on the top surface of the model. "
+                      "It does not affect supports that start on the build plate (see First layer expansion). 0 to disable.");
+    def->sidetext = L("mm");	// milimeters, CIS languages need translation
+    def->min      = 0;
+    def->max      = 10;
+    def->mode     = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
     def = this->add("tree_support_top_rate", coPercent);
     def->label = L("Branch Density");
     def->category = L("Support");

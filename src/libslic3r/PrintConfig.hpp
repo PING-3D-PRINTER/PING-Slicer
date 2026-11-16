@@ -1010,6 +1010,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,              make_overhang_printable_angle))
     ((ConfigOptionFloat,              make_overhang_printable_hole_size))
     ((ConfigOptionFloat,              tree_support_branch_distance_organic))
+    // PING (#253, c-1116-MFT-01)
+    ((ConfigOptionFloat,              tree_support_model_contact_expansion))
     ((ConfigOptionPercent,            tree_support_top_rate))
     ((ConfigOptionFloat,              tree_support_branch_diameter_organic))
     ((ConfigOptionFloat,              tree_support_branch_angle_organic))

@@ -78,6 +78,8 @@ struct TreeSupportMeshGroupSettings {
         this->support_roof_layers       = config.support_interface_top_layers.value;
         this->support_floor_enable      = config.support_interface_bottom_layers.value > 0;
         this->support_floor_layers      = config.support_interface_bottom_layers.value;
+        // PING (#253, c-1116-MFT-01): grow organic tree feet that rest on the model.
+        this->support_model_contact_expansion = scaled<coord_t>(std::max(0., config.tree_support_model_contact_expansion.value));
         this->support_roof_pattern      = config.support_interface_pattern;
         this->support_pattern           = config.support_base_pattern;
         this->support_line_spacing      = scaled<coord_t>(config.support_base_pattern_spacing.value);
@@ -158,6 +160,8 @@ struct TreeSupportMeshGroupSettings {
     coord_t                         support_roof_layers                     { 2 };
     bool                            support_floor_enable                    { false };
     coord_t                         support_floor_layers                    { 2 };
+    // PING (#253): how far a foot resting on the model is grown, staying on the model's top surface. 0 = off.
+    coord_t                         support_model_contact_expansion         { 0 };
     // Minimum Support Roof Area
     // Minimum area size for the roofs of the support. Polygons which have an area smaller than this value will be printed as normal support.
     double                          minimum_roof_area                       { scaled<double>(scaled<double>(1.)) };
@@ -514,6 +518,7 @@ public:
                increase_radius_until_radius == other.increase_radius_until_radius && support_bottom_layers == other.support_bottom_layers && layer_height == other.layer_height && z_distance_top_layers == other.z_distance_top_layers && resolution == other.resolution && // Infill generation depends on deviation and resolution.
                support_roof_line_distance == other.support_roof_line_distance && interface_preference == other.interface_preference
                && min_feature_size == other.min_feature_size // interface_preference should be identical to ensure the tree will correctly interact with the roof.
+               && settings.support_model_contact_expansion == other.settings.support_model_contact_expansion // PING (#253)
                // The infill class now wants the settings object and reads a lot of settings, and as the infill class is used to calculate support roof lines for interface-preference. Not all of these may be required to be identical, but as I am not sure, better safe than sorry
 #if 0
                 && (interface_preference == InterfacePreference::InterfaceAreaOverwritesSupport || interface_preference == InterfacePreference::SupportAreaOverwritesInterface

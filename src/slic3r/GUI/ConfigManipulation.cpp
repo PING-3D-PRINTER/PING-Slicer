@@ -795,6 +795,8 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // PING 2026-09-30 (c-0930-CFB-01): 筏層擴展只在有筏層時作用。沒筏層時灰掉、不藏起來——它排在首層擴展正下方、
     // 「筏層」群組上面，藏起來的話改筏層數的當下上面會多出一行、把正在改的欄位往下推（Eric 09-30「照建議」Q1 甲）。
     toggle_field("raft_expansion", have_raft);
+    // PING (#253, c-1116-MFT-01)：只有有機樹、而且支撐可以長在模型上時才作用；其他情況灰掉、不藏（同筏層擴展的做法，不讓下面的欄位跳動）。
+    toggle_field("tree_support_model_contact_expansion", support_is_organic && !config->opt_bool("support_on_build_plate_only"));
 
     // PING 2026-11-11 (c-1111-RAFT-02)：筏層頂面獨立設定 5 格。
     // 沒有筏層時收起來（跟筏層 Z 間距同做法：它們排在群組最下面，收起來不會把正在改的欄位往下推）；
