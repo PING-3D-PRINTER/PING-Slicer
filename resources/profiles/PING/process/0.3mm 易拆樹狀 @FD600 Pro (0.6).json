@@ -301,6 +301,7 @@
     "compatible_printers": [
         "FD600 Pro 0.6 nozzle"
     ],
+    "tree_support_model_contact_expansion": "3",
     "raft_bottom_line_width": "200%",
     "raft_bottom_density": "50%",
     "raft_bottom_speed": "25"

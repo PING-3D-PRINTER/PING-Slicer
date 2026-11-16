@@ -15,6 +15,15 @@ MAGIC_LE = 0x950412DE
 
 # 新增字串：msgid（必須與 C++ L() 字串 byte-for-byte 一致）→ 繁中翻譯
 NEW_ENTRIES = {
+    # PING（2026-11-16・牌 c-1116-MFT-01，回報中心 #253）：有機樹落在模型上的那一腳往外擴（新參數）。
+    #   tooltip 的 msgid 是 C++ 三段字串常數相接後的結果，空格要一致。
+    "Expansion on model": "模型上支撐擴展",
+    (
+        "Expand the bottom of organic tree supports that rest on the model, so they have more contact area and "
+        "are less likely to fall over. The expanded part only stays on the top surface of the model. "
+        "It does not affect supports that start on the build plate (see First layer expansion). 0 to disable."
+    ): "有機樹支撐落在模型上的那一腳往外擴，接觸面積變大、比較不會倒。擴出去的部分只會留在模型的頂面上。"
+       "不影響從列印板長出來的支撐（那是「首層擴展」管的）。設 0＝不擴。",
     # PING（2026-11-12・牌 c-1112-H600-02，回報中心 #242 Q2）：開筏層後物件被墊高、超出可印高時只提示不擋。
     #   msgid 是 C++ 兩段字串常數相接後的結果，空格要一致。
     (

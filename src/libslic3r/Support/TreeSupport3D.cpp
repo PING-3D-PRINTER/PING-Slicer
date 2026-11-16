@@ -3799,22 +3799,72 @@ void organic_draw_branches(
                         slice_z.emplace_back(float(0.5 * (bottom_z + print_z)));
                     }
                     std::vector<Polygons> slices = slice_mesh(partial_mesh, slice_z, mesh_slicing_params, throw_on_cancel);
+                    // PING (#253, c-1116-MFT-01): guard against empty slices from meshing (upstream OrcaSlicer PR 11812).
+                    if (slices.empty())
+                        continue;
                     bottom_contacts.clear();
                     //FIXME parallelize?
                     for (LayerIndex i = 0; i < LayerIndex(slices.size()); ++i) {
                         slices[i] = diff_clipped(slices[i], volumes.getCollision(0, layer_begin + i, true)); // FIXME parent_uses_min || draw_area.element->state.use_min_xy_dist);
                         slices[i] = intersection(slices[i], volumes.m_bed_area);
                     }
-                    size_t num_empty = 0;
-                    if (slices.front().empty()) {
-                        // Some of the initial layers are empty.
-                        num_empty = std::find_if(slices.begin(), slices.end(), [](auto &s) { return !s.empty(); }) - slices.begin();
-                    } else {
+                    // PING (#253, c-1116-MFT-01) — port of the organic-tree part of upstream OrcaSlicer PR 11812
+                    // ("fix bottom interface generation for organic trees", merged 2026-05-10).
+                    // Old behaviour: when the lowest slice of a branch was emptied by the collision trim (common when the
+                    // root sits right on the model), the branch got no bottom contact at all; the non-graceful path skipped
+                    // its lowest slice and was off by one. Result: "bottom interface layers" did nothing for organic trees
+                    // (#253: 1 -> 3 layers gave identical G-code). Now: trim leading empty slices first, then take the new
+                    // front slice as the contact footprint.
+                    size_t num_empty = std::find_if(slices.begin(), slices.end(), [](auto &s) { return !s.empty(); }) - slices.begin();
+                    if (num_empty >= slices.size())
+                        continue;
+                    if (num_empty > 0) {
+                        slices.erase(slices.begin(), slices.begin() + num_empty);
+                        layer_begin += LayerIndex(num_empty);
+                    }
+                    const Polygons slice_front_contact = slices.front();
+                    // PING (#253, Eric 2026-11-16 "照建議開工"): grow a foot that rests on the model, like the first layer
+                    // expansion does on the bed. The grown part only stays where the model has a top surface to rest on
+                    // (placeable areas already keep the XY distance to model walls). Never applied on the bed (layer 0).
+                    auto model_foot = [&volumes, &config](Polygons contacts, LayerIndex lidx) -> Polygons {
+                        if (config.settings.support_model_contact_expansion > 0 && lidx > 0 && config.support_rests_on_model && ! contacts.empty()) {
+                            Polygons grown = intersection(offset(contacts, float(config.settings.support_model_contact_expansion), ClipperLib::jtRound, float(scaled<double>(0.1))),
+                                                          volumes.getPlaceableAreas(0, lidx, [] {}));
+                            grown = diff(grown, volumes.getCollision(0, lidx, true));
+                            if (! grown.empty())
+                                contacts = union_(contacts, grown);
+                        }
+                        return contacts;
+                    };
+                    // Where the foot goes: into the bottom contact (dense bottom interface) when there is one,
+                    // otherwise straight into the branch's own lowest slice.
+                    auto place_foot = [&config, &bottom_contacts, &slices, &model_foot](const Polygons &footprint, LayerIndex lidx) {
+                        if (config.settings.support_floor_layers > 0) {
+                            Polygons contacts = model_foot(footprint, lidx);
+                            if (! contacts.empty())
+                                bottom_contacts.emplace_back(std::move(contacts));
+                        } else if (config.settings.support_model_contact_expansion > 0 && lidx > 0) {
+                            slices.front() = union_(slices.front(), model_foot(footprint, lidx));
+                        }
+                    };
+                    {
                         if (branch.has_root) {
                             if (branch.path.front()->state.to_model_gracious) {
-                                if (config.settings.support_floor_layers > 0)
+                                if (layer_begin > 0) {
+                                    Polygons contacts;
+                                    if (config.support_rests_on_model && config.z_distance_bottom_layers > 0)
+                                        // non-zero bottom Z gap: the contact is not on the model surface itself.
+                                        contacts = slice_front_contact;
+                                    else
+                                        contacts = intersection_clipped(slice_front_contact, volumes.getPlaceableAreas(0, layer_begin, [] {}));
+                                    // Clipping may remove the whole contact; keep the branch footprint then.
+                                    if (contacts.empty() && config.support_rests_on_model)
+                                        contacts = slice_front_contact;
+                                    place_foot(contacts, layer_begin);
+                                } else if (config.settings.support_floor_layers > 0) {
                                     //FIXME one may just take the whole tree slice as bottom interface.
                                     bottom_contacts.emplace_back(intersection_clipped(slices.front(), volumes.getPlaceableAreas(0, layer_begin, [] {})));
+                                }
                             } else if (layer_begin > 0) {
                                 // Drop down areas that do rest non - gracefully on the model to ensure the branch actually rests on something.
                                 struct BottomExtraSlice {
@@ -3837,7 +3887,7 @@ void organic_draw_branches(
                                  // Only propagate until the rest area is smaller than this threshold.
                                 //double                          support_area_min = 0.1 * support_area_min_radius;
                                 for (LayerIndex layer_idx = layer_begin - 1; layer_idx >= layer_bottommost; -- layer_idx) {
-                                    rest_support = diff_clipped(rest_support.empty() ? slices.front() : rest_support, volumes.getCollision(0, layer_idx, false));
+                                    rest_support = diff_clipped(rest_support.empty() ? slice_front_contact : rest_support, volumes.getCollision(0, layer_idx, false));
                                     double rest_support_area = area(rest_support);
                                     if (rest_support_area < support_area_stop)
                                         // Don't propagate a fraction of the tree contact surface.
@@ -3860,15 +3910,21 @@ void organic_draw_branches(
                                     }
                                 }
 #endif
-                                if (config.settings.support_floor_layers > 0)
-                                    for (int i = int(bottom_extra_slices.size()) - 2; i >= 0; -- i)
-                                        bottom_contacts.emplace_back(
-                                            intersection_clipped(bottom_extra_slices[i].polygons, volumes.getPlaceableAreas(0, layer_begin - i - 1, [] {})));
-                                layer_begin -= LayerIndex(bottom_extra_slices.size());
+                                // PING (#253): the lowest propagated slice is the footprint (upstream PR 11812 used it too, but
+                                // clipped with the placeable areas of layer_begin; here the layer the footprint really sits on).
+                                // bottom_contacts[0] must line up with slices[0] after the insertion below.
+                                const LayerIndex foot_layer = layer_begin - LayerIndex(bottom_extra_slices.size());
+                                Polygons footprint = bottom_extra_slices.empty() ? slice_front_contact : bottom_extra_slices.back().polygons;
+                                Polygons contacts  = (config.support_rests_on_model && config.z_distance_bottom_layers > 0) ? footprint :
+                                    intersection_clipped(footprint, volumes.getPlaceableAreas(0, foot_layer, [] {}));
+                                if (contacts.empty() && config.support_rests_on_model)
+                                    contacts = footprint;
+                                layer_begin = foot_layer;
                                 slices.insert(slices.begin(), bottom_extra_slices.size(), {});
                                 auto it_dst = slices.begin();
                                 for (auto it_src = bottom_extra_slices.rbegin(); it_src != bottom_extra_slices.rend(); ++ it_src)
                                     *it_dst ++ = std::move(it_src->polygons);
+                                place_foot(contacts, foot_layer);
                             }
                         }
                         
@@ -3887,11 +3943,11 @@ void organic_draw_branches(
 #endif
                     }
 
-                    layer_begin += LayerIndex(num_empty);
                     while (! slices.empty() && slices.back().empty()) {
                         slices.pop_back();
-                        -- layer_end;
                     }
+                    // PING (#253): leading empties were trimmed above, so recompute the end from what is left.
+                    layer_end = layer_begin + LayerIndex(slices.size());
                     if (layer_begin < layer_end) {
                         LayerIndex new_begin = tree.first_layer_id == -1 ? layer_begin : std::min(tree.first_layer_id, layer_begin);
                         LayerIndex new_end   = tree.first_layer_id == -1 ? layer_end : std::max(tree.first_layer_id + LayerIndex(tree.slices.size()), layer_end);
@@ -3907,18 +3963,22 @@ void organic_draw_branches(
                         } else if (LayerIndex dif = tree.first_layer_id - new_begin; dif > 0)
                             tree.slices.insert(tree.slices.begin(), tree.first_layer_id - new_begin, {});
                         tree.slices.insert(tree.slices.end(), new_size - tree.slices.size(), {});
-                        layer_begin -= LayerIndex(num_empty);
                         for (LayerIndex i = layer_begin; i != layer_end; ++ i) {
                             int j = i - layer_begin;
-                            if (Polygons &src = slices[j]; ! src.empty()) {
+                            Polygons &src = slices[j];
+                            // PING (#253, upstream PR 11812): keep bottom contacts even if the base polygons are empty.
+                            const bool has_bottom_contacts = j < int(bottom_contacts.size()) && ! bottom_contacts[j].empty();
+                            if (! src.empty() || has_bottom_contacts) {
                                 Slice &dst = tree.slices[i - new_begin];
                                 if (++ dst.num_branches > 1) {
-                                    append(dst.polygons, std::move(src));
-                                    if (j < int(bottom_contacts.size()))
+                                    if (! src.empty())
+                                        append(dst.polygons, std::move(src));
+                                    if (has_bottom_contacts)
                                         append(dst.bottom_contacts, std::move(bottom_contacts[j]));
                                 } else {
-                                    dst.polygons = std::move(std::move(src));
-                                    if (j < int(bottom_contacts.size()))
+                                    if (! src.empty())
+                                        dst.polygons = std::move(src);
+                                    if (has_bottom_contacts)
                                         dst.bottom_contacts = std::move(bottom_contacts[j]);
                                 }
                             }
@@ -3935,8 +3995,11 @@ void organic_draw_branches(
             Tree &tree = trees[tree_id];
             for (Slice &slice : tree.slices)
                 if (slice.num_branches > 1) {
-                    slice.polygons        = union_(slice.polygons);
-                    slice.bottom_contacts = union_(slice.bottom_contacts);
+                    // PING (#253, upstream PR 11812): avoid union_ on empty containers.
+                    if (! slice.polygons.empty())
+                        slice.polygons = union_(slice.polygons);
+                    if (! slice.bottom_contacts.empty())
+                        slice.bottom_contacts = union_(slice.bottom_contacts);
                     slice.num_branches = 1;
                 }
             throw_on_cancel();
@@ -3951,17 +4014,24 @@ void organic_draw_branches(
     std::vector<Slice> slices(num_layers, Slice{});
     for (Tree &tree : trees)
         if (tree.first_layer_id >= 0) {
-            for (LayerIndex i = tree.first_layer_id; i != tree.first_layer_id + LayerIndex(tree.slices.size()); ++ i)
-                if (Slice &src = tree.slices[i - tree.first_layer_id]; ! src.polygons.empty()) {
+            for (LayerIndex i = tree.first_layer_id; i != tree.first_layer_id + LayerIndex(tree.slices.size()); ++ i) {
+                Slice &src = tree.slices[i - tree.first_layer_id];
+                // PING (#253, upstream PR 11812): keep bottom contacts even if the base polygons are empty.
+                if (! src.polygons.empty() || ! src.bottom_contacts.empty()) {
                     Slice &dst = slices[i];
                     if (++ dst.num_branches > 1) {
-                        append(dst.polygons,        std::move(src.polygons));
-                        append(dst.bottom_contacts, std::move(src.bottom_contacts));
+                        if (! src.polygons.empty())
+                            append(dst.polygons, std::move(src.polygons));
+                        if (! src.bottom_contacts.empty())
+                            append(dst.bottom_contacts, std::move(src.bottom_contacts));
                     } else {
-                        dst.polygons        = std::move(src.polygons);
-                        dst.bottom_contacts = std::move(src.bottom_contacts);
+                        if (! src.polygons.empty())
+                            dst.polygons = std::move(src.polygons);
+                        if (! src.bottom_contacts.empty())
+                            dst.bottom_contacts = std::move(src.bottom_contacts);
                     }
                 }
+            }
         }
 
     tbb::parallel_for(tbb::blocked_range<size_t>(0, std::min(move_bounds.size(), slices.size()), 1),

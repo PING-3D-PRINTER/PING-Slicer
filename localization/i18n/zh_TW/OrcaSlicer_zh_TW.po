@@ -21816,3 +21816,15 @@ msgstr "筏層第一層（貼床那層）的列印速度。0＝跟首層速度�
 
 msgid "With the raft, object %1% will be printed up to %2% mm, above the printer's printable height of %3% mm. Slicing continues; make sure the printer can reach this height."
 msgstr "加了筏層後，物件 %1% 會印到 %2% mm，超過機型可印高度 %3% mm。仍可切片，請確認機台印得到這個高度。"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "Expand the bottom of organic tree supports that rest on the model, so they have more contact area and are less likely to fall over. The expanded part only stays on the top surface of the model. It does not affect supports that start on the build plate (see First layer expansion). 0 to disable."
+msgstr "有機樹支撐落在模型上的那一腳往外擴，接觸面積變大、比較不會倒。擴出去的部分只會留在模型的頂面上。不影響從列印板長出來的支撐（那是「首層擴展」管的）。設 0＝不擴。"
+
+msgid "Expansion on model"
+msgstr "模型上支撐擴展"

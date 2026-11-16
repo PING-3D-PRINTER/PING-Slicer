@@ -301,6 +301,7 @@
     "compatible_printers": [
         "FD300 0.25 nozzle"
     ],
+    "tree_support_model_contact_expansion": "3",
     "raft_bottom_line_width": "200%",
     "raft_bottom_density": "50%",
     "raft_bottom_speed": "25"

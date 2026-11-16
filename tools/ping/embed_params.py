@@ -1703,7 +1703,11 @@ def abscf_fast_overrides():
 #   token「易拆樹狀」＝Tab.cpp 認得的第四個易拆家族 token（歸易拆＋自動帶 PLA-210＋SupPLA），跨層護欄在 verify。
 EASY_TREE_TOKEN = "易拆樹狀"
 EASY_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "organic",
-                       "support_speed": "50", "support_interface_speed": "50"}
+                       "support_speed": "50", "support_interface_speed": "50",
+                       # 回報中心 #253（Eric 2026-11-16「照建議開工」Q3 甲；牌 c-1116-MFT-01）：有機樹落在模型上的那一腳
+                       # 往外擴 3 mm（新參數，C++ 預設 0＝不擴；約一根樹枝直徑 3～3.5 mm）。易拆料零間隙才需要接觸面，
+                       # 只開本族、全口徑；其他製程不寫＝0。⬜ 未實印，實印後再調。verify 有同名同值一份（EASY_TREE_MODEL_FOOT）。
+                       "tree_support_model_contact_expansion": "3"}
 
 # ★ 0.6 口徑易拆樹狀的樹狀七鍵（回報中心 #206，Eric 2026-11-04 派工；牌 c-1104-QA-01）
 #   來源＝同事在 FD300 Pro 0.6「0.3mm 易拆樹狀 - 複製」手調的樹狀支撐整組（截圖藍框七項逐格判讀，無模糊）：
