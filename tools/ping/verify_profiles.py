@@ -349,6 +349,49 @@ def expected_support_type(printer_name):
         return "normal(auto)"
     return None
 
+# 製程加速度不超過相容機型上限（2026-11-16，回報中心 #247；牌 c-1116-QA-01；產生器 4c-5／ACCEL_CAP_KEYS）。
+#   葉檔寫的是「實際會用到的值」＝min(規則值, 機型 machine_max_acceleration_extruding)。
+#   下面各處「規則值」斷言（5000／照片磚 10000／高流量 2000）一律先過 _accel_capped() 再比；
+#   「九鍵都不得超過機型上限」的總守衛在製程段尾（與 Print.cpp check acceleration 同一份鍵表、同一個比法）。
+ACCEL_CAP_KEYS = ("default_acceleration", "inner_wall_acceleration", "outer_wall_acceleration",
+                  "bridge_acceleration", "initial_layer_acceleration", "sparse_infill_acceleration",
+                  "internal_solid_infill_acceleration", "top_surface_acceleration", "travel_acceleration")
+ACCEL_CAP_SEEN = {"procs": 0, "capped": 0}   # 總守衛射到幾支／其中幾支有鍵被夾（0＝判準失效，檔尾會叫）
+
+
+def _machine_accel_cap(printer_name, _depth=0):
+    """機器檔的 machine_max_acceleration_extruding（沿 inherits 回溯）；讀不到回 None。"""
+    if _depth > 8 or printer_name not in presets:
+        return None
+    _md = presets[printer_name][1]
+    _v = _md.get("machine_max_acceleration_extruding")
+    if _v:
+        try:
+            return float(_v[0] if isinstance(_v, list) else _v)
+        except (TypeError, ValueError, IndexError):
+            return None
+    _inh = _md.get("inherits")
+    return _machine_accel_cap(_inh, _depth + 1) if _inh else None
+
+
+def _accel_cap(compatible):
+    """一支製程的加速度上限＝相容機型裡最小的那個；任何一台讀不到＝None（呼叫端報錯）。"""
+    _caps = [_machine_accel_cap(p) for p in compatible]
+    if not _caps or any(c is None for c in _caps):
+        return None
+    return min(_caps)
+
+
+def _accel_capped(rule_value, cap):
+    """規則值（字串）過機型上限後葉檔該寫的字串；上限 0 或 None＝不夾。"""
+    if not cap or cap <= 0:
+        return rule_value
+    try:
+        return rule_value if float(rule_value) <= cap else "%g" % cap
+    except (TypeError, ValueError):
+        return rule_value
+
+
 FD300_SHEET_ACCEL_SEEN = []   # 檢查 10-b 射到幾支（0 支＝改名後判準失效，下面會叫）
 for name, (kind, d) in presets.items():
     if kind == "machine_model":
@@ -600,9 +643,44 @@ for name, (kind, d) in presets.items():
                 expected["seam_position"] = "back"
             # jerk：F 系對齊機器上限（Eric 2026-07-20 裁）＝FD/FP 7、FF 40；Classic 維持 0（Marlin 停用）
             expected["default_jerk"] = "0" if is_classic else ("40" if "@FF" in name else "7")
+            # 🆕 1116（回報中心 #247）：加速度的規則值先過相容機型上限——葉檔寫的是實際會用到的值
+            #    （鈑金框 FD300 系 5000→3000、FF 5000／2000→1500、照片磚 10000→機型上限）。
+            _acap = _accel_cap(compatible)
+            if _acap is None:
+                err(f"[製程加速度上限 1116] {name}: 相容機型 {compatible!r} 讀不到 machine_max_acceleration_extruding")
+            for _ak in ("sparse_infill_acceleration", "travel_acceleration"):
+                if _ak in expected:
+                    expected[_ak] = _accel_capped(expected[_ak], _acap)
             for key, value in expected.items():
                 if d.get(key) != value:
                     err(f"[process safety default] {name}: {key}={d.get(key)!r}, expected {value!r}")
+            # 🆕 1116 總守衛：九個加速度鍵都不得超過相容機型上限（＝Print.cpp check acceleration 會跳警告的條件）。
+            #    只在 default_acceleration > 0 且機型有上限時成立（同引擎；Classic 九鍵全 0 天然不進來）。
+            ACCEL_CAP_SEEN["procs"] += 1
+            try:
+                _da = float(d.get("default_acceleration") or 0)
+            except ValueError:
+                _da = 0.0
+            if _acap and _acap > 0 and _da > 0:
+                for _ak in ACCEL_CAP_KEYS:
+                    _av = d.get(_ak)
+                    if not isinstance(_av, str) or not _av.strip():
+                        continue
+                    if _av.strip().endswith("%"):
+                        # 百分比的基準（default／外牆）已受本守衛約束 ⇒ ≤100% 一定不超；>100% 這裡判不了，直接擋
+                        if float(_av.strip()[:-1]) > 100:
+                            err(f"[製程加速度超過機型上限 1116] {name}: {_ak}={_av!r} 百分比超過 100%，無法保證不超過機型上限 {_acap:g}")
+                        continue
+                    try:
+                        _afv = float(_av)
+                    except ValueError:
+                        err(f"[製程加速度超過機型上限 1116] {name}: {_ak}={_av!r} 不是數字")
+                        continue
+                    if _afv > _acap:
+                        err(f"[製程加速度超過機型上限 1116] {name}: {_ak}={_av} > 機型上限 {_acap:g}（{compatible!r}）"
+                            f"——預設就會跳「加速度設定已超過列印設備的最大加速度值」；值由產生器 4c-5 夾，不要手改葉檔")
+                    elif _afv == _acap:
+                        ACCEL_CAP_SEEN["capped"] += 1
             # 檢查 7/8（Eric 2026-07-17 裁）：支撐幾何口徑連動＋洗料塔寬 25（照片磚不在 release 線）
             m_nz = re.search(r"\(([\d.]+)\)\s*$", name)
             if m_nz:   # 2026-07-25 Eric 裁「支撐參數全部統一」：照片磚不再豁免（原 and "照片磚" not in name）
@@ -1273,6 +1351,18 @@ print(f"Classic 預擠線（#193）：床邊預擠線 {_p193_census['預擠線']
 if len(FD300_SHEET_ACCEL_SEEN) != 14:
     err(f"[鈑金框 FD300 加速度 3000 射程] 應恰 14 支機器檔，實得 {len(FD300_SHEET_ACCEL_SEEN)}：{sorted(FD300_SHEET_ACCEL_SEEN)}")
 print(f"鈑金框 FD300 系加速度上限 3000（c-1109-FDA-01）：{len(FD300_SHEET_ACCEL_SEEN)} 支機器檔")
+# 製程加速度不超過機型上限（c-1116-QA-01）的射程自查：總守衛一支都沒射到、或沒有任何一鍵貼著上限＝判準可能失效。
+#   另釘回報中心 #247 的原案例：FD300 同進 0.4 的標準製程，稀疏填充／空駛加速度必須是機型上限 3000（規則值 5000）。
+if ACCEL_CAP_SEEN["procs"] == 0 or ACCEL_CAP_SEEN["capped"] == 0:
+    err(f"[製程加速度超過機型上限 1116・射程] 總守衛射到 {ACCEL_CAP_SEEN['procs']} 支、貼著上限的鍵 {ACCEL_CAP_SEEN['capped']} 個——其中一個是 0＝判準失效")
+_q247 = presets.get("0.2mm @FD300 同進 (0.4)")
+if not _q247 or _q247[0] != "process":
+    err("[製程加速度超過機型上限 1116・原案例] 找不到 0.2mm @FD300 同進 (0.4)（改名了？請把這條改指新名）")
+else:
+    for _ak in ("sparse_infill_acceleration", "travel_acceleration"):
+        if _q247[1].get(_ak) != "3000":
+            err(f"[製程加速度超過機型上限 1116・原案例] 0.2mm @FD300 同進 (0.4): {_ak}={_q247[1].get(_ak)!r} 應 '3000'（鈑金框 FD300 機型上限）")
+print(f"製程加速度不超過機型上限（c-1116-QA-01）：查 {ACCEL_CAP_SEEN['procs']} 支製程、貼著上限的鍵 {ACCEL_CAP_SEEN['capped']} 個")
 
 # Classic 全套 11 支（Eric 2026-08-07 裁「全套跟 Fast 對齊」：原 4 支 ＋ 新 7 支）。
 # 下面逐支斷言：PA 全關（Marlin 無 PA）＋ start gcode 不得帶 Klipper 的 SET_RETRACTION。
@@ -1362,6 +1452,10 @@ for _hn, (_lh, _flh, _nz) in HF_PROCS.items():
                      ("sparse_infill_pattern", "gyroid"), ("seam_position", "back"),
                      ("support_threshold_angle", "35"), ("instantiation", "true"),
                      ("compatible_printers", ["FF800 同進 %s nozzle" % _nz])):
+        # 🆕 1116：加速度的規則值先過機型上限（FF800 同進上限 1500 ⇒ travel／sparse 的規則值 2000 葉檔寫 1500；
+        #    規則值本身沒變，哪天機型上限調高、重產就回到 2000）
+        if _hk.endswith("_acceleration"):
+            _hw = _accel_capped(_hw, _accel_cap(_hd.get("compatible_printers") or []))
         if _hd.get(_hk) != _hw:
             err(f"[高流量製程組 0730] {_hn}: {_hk}={_hd.get(_hk)!r} 應 {_hw!r}")
 # 範圍鎖：高流量製程現階段僅 FF800 同進三口徑（Eric 裁「實印驗過再擴」——FF600/四色/3in1 出現即紅）
