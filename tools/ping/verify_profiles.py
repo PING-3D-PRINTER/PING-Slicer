@@ -3171,6 +3171,33 @@ if _rb_bad > 8:
 if _rb_seen == 0:
     err("[筏層首層三值 1112] 沒有掃到任何製程 ⇒ 判定失效")
 print(f"筏層首層三值（200%／50%／25）：{_rb_seen - _rb_bad}／{_rb_seen} 支製程合格")
+
+# 🆕 稀疏填充圖案＝直線排列（Eric 2026-11-19 裁 C，回報中心 #269；牌 c-1119-QA269-01；產生器 normalize_unified_values ⑧
+#    ＋HF_PROC_OVERRIDES）。回歸型：每支系統製程都要是預期值；三族例外各自鎖值，任一族掃到 0 支＝判定失效。
+#    例外：「高流量」＝gyroid（0730 家規）／「高速」＝grid（1008 兔子試印值）／照片磚＝不查（填充 0%，圖案無作用）。
+#    綠燈＝預設值對，**不等於**直線排列真的比較不塌（那要實印）。
+_SIP = {"alignedrectilinear": 0, "gyroid": 0, "grid": 0, "skip": 0}
+_sip_bad = 0
+for _n, (_k, _d) in presets.items():
+    if _k != "process" or _n.startswith("fdm_") or _d.get("instantiation") != "true":
+        continue
+    if "照片磚" in _n:
+        _SIP["skip"] += 1
+        continue
+    _want = "gyroid" if "高流量" in _n else ("grid" if " 高速 @" in _n else "alignedrectilinear")
+    _got = _d.get("sparse_infill_pattern")
+    if _got != _want:
+        _sip_bad += 1
+        if _sip_bad <= 8:
+            err(f"[稀疏填充直線排列 1119] {_n}: {_got!r}，應為 {_want!r}")
+    else:
+        _SIP[_want] += 1
+if _sip_bad > 8:
+    err(f"[稀疏填充直線排列 1119] 另有 {_sip_bad - 8} 支未列出")
+if _SIP["alignedrectilinear"] == 0 or _SIP["gyroid"] == 0 or _SIP["grid"] == 0:
+    err(f"[稀疏填充直線排列 1119] 有一族掃到 0 支 ⇒ 判定失效：{_SIP!r}")
+print(f"稀疏填充圖案：直線排列 {_SIP['alignedrectilinear']}／高流量 gyroid {_SIP['gyroid']}"
+      f"／高速 grid {_SIP['grid']}／照片磚不查 {_SIP['skip']}；不合 {_sip_bad}")
 if errors:
     print(f"\n[FAIL] {len(errors)} 個問題：")
     for e in errors:

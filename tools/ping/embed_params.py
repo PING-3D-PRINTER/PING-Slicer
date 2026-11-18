@@ -1105,6 +1105,17 @@ def normalize_unified_values(proc, ff=False):
     #    ⚠ 照片磚不跟（Eric 同日 Q1「照建議」）：磚體 0% 填充、頂部第一層內部橋接要跨整個空腔＝增厚正在幫忙；
     #      照片磚本來就不走本函式（emit_phototile），要改得去那裡。Classic 前代複製 Fast 已正規化的製程＝自然跟進。
     proc["thick_internal_bridges"] = "0"
+    # ⑧ 稀疏填充圖案＝**直線排列 alignedrectilinear**（🔴 Eric 2026-11-19 裁 C＝全庫預設，回報中心 #269；牌 c-1119-QA269-01）。
+    #    取代原本參數端交付 config 帶來的 gyroid（螺旋體）。原話：「C初步驗證確實是有這樣的情形。若取捨外觀表面與強度，
+    #    我會選擇外觀表面為優先。如果客戶強度有需求的話，再另外告知客戶可以改這個參數」。
+    #    為什麼：直線排列每層同一角度（FillAlignedRectilinear::_layer_angle＝0）＝疊成一片片平行薄牆，
+    #    頂面第一層內部橋接跨等距直牆 ⇒ 較不塌（同事 FD600 Pro 單料頭 0.6 ABS-CF 實印經驗＋Eric 初步驗證）。
+    #    代價（Eric 知情後仍選）：強度有方向性——沿薄牆方向強、垂直方向弱；gyroid 各向較均勻。
+    #    ⚠ enum 對映：UI「直線排列」=alignedrectilinear；「直線」=rectilinear（每層轉 90°，不是這個）。
+    #    例外（都在後段蓋回、或根本不走本函式，皆維持原值）：①「高流量」製程組 3 支＝`HF_PROC_OVERRIDES` 蓋回 gyroid
+    #    （0730 家規、verify exact 鎖；雙生是從本函式正規化後的 FF800 同進複製出來的，所以例外只能寫在那裡）
+    #    ②「0.2mm 高速」7 支＝4a-10 後段蓋 grid ③照片磚不走本函式（填充 0%，圖案無作用）。
+    proc["sparse_infill_pattern"] = "alignedrectilinear"
     return proc
 
 # ★ 支撐介面值（Eric 2026-08-04 裁，V2.1「密度表示」→Orca「間距表示」換算；蓋 0714「間距一律 0.1」）：
@@ -1453,6 +1464,9 @@ HF_PROC_OVERRIDES = {
     "initial_layer_speed": "100", "initial_layer_infill_speed": "100",
     "travel_acceleration": "2000", "sparse_infill_acceleration": "2000",
     "top_shell_thickness": "1.2", "bottom_shell_thickness": "1.2",
+    # 🆕 2026-11-19：全庫預設改直線排列（#269，normalize_unified_values ⑧）後，高流量組照 0730 家規維持 gyroid
+    #    ——雙生從已正規化的 FF800 同進複製，不在這裡蓋回就會跟著變（c-1119-QA269-01 第一次 regen 實錯）。
+    "sparse_infill_pattern": "gyroid",
 }
 _HF_FF800_RE = re.compile(r"@FF800 同進 \(([\d.]+)\)\s*$")
 
