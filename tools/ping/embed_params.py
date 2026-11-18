@@ -1112,9 +1112,9 @@ def normalize_unified_values(proc, ff=False):
     #    頂面第一層內部橋接跨等距直牆 ⇒ 較不塌（同事 FD600 Pro 單料頭 0.6 ABS-CF 實印經驗＋Eric 初步驗證）。
     #    代價（Eric 知情後仍選）：強度有方向性——沿薄牆方向強、垂直方向弱；gyroid 各向較均勻。
     #    ⚠ enum 對映：UI「直線排列」=alignedrectilinear；「直線」=rectilinear（每層轉 90°，不是這個）。
-    #    例外（都在後段蓋回、或根本不走本函式，皆維持原值）：①「高流量」製程組 3 支＝`HF_PROC_OVERRIDES` 蓋回 gyroid
-    #    （0730 家規、verify exact 鎖；雙生是從本函式正規化後的 FF800 同進複製出來的，所以例外只能寫在那裡）
-    #    ②「0.2mm 高速」7 支＝4a-10 後段蓋 grid ③照片磚不走本函式（填充 0%，圖案無作用）。
+    #    「高流量」製程組 3 支也跟（Eric 同日追裁「名稱有「高流量」的設定-高流量仍然是螺旋體嗎？請幫我也改成直線排列」；
+    #    0730 家規的 gyroid 只是當時「其餘維持 PING 現值」順手留下，非特調）——雙生從本函式正規化後的 FF800 同進複製＝自然跟進。
+    #    例外（後段蓋掉、或根本不走本函式）：①「0.2mm 高速」7 支＝4a-10 後段蓋 grid ②照片磚不走本函式（填充 0%，圖案無作用）。
     proc["sparse_infill_pattern"] = "alignedrectilinear"
     return proc
 
@@ -1449,7 +1449,7 @@ PALLET_OVERRIDES = {"raft_layers": "3", "raft_contact_distance": "0.1", "raft_ex
 #   ＋sparse_infill 5000→2000（default 1500/首層 500/頂面 800/內外牆 1500 現值更保守、全維持）；
 #   頂底厚 0.8→1.2（客戶值；高速印薄頂易露填充。layers 4 承基底＝下限語意，1.0 口徑實得 4 層）；
 #   層高照口徑連動 0.5×口徑（0.6＝客戶實測 0.3/0.35；0.4/1.0 推 0.2/0.25、0.5/0.55，首層＝層高+0.05）。
-#   其餘全維持 PING 現值（支撐角 35／gyroid／aligned／溫度／回抽——客戶的 Cura 慣例不吃，
+#   其餘全維持 PING 現值（支撐角 35／gyroid〔1119 #269 起改直線排列〕／aligned／溫度／回抽——客戶的 Cura 慣例不吃，
 #   巡檢報告逐項裁定；支撐角客戶 Cura 60＝Orca 30，0724 已踩過的換算坑、維持 35 實測收斂值）。
 #   範圍＝FF800 同進三口徑（0.4/0.6/1.0）；FF600/四色/3in1 等實印驗過再擴（verify 有範圍鎖）。
 #   派生＝emit_ff_extra 正規化完成後複製雙生、id 統一接尾（4a-6，同棧板/PVA 模式＝既有 id 零位移）。
@@ -1464,9 +1464,7 @@ HF_PROC_OVERRIDES = {
     "initial_layer_speed": "100", "initial_layer_infill_speed": "100",
     "travel_acceleration": "2000", "sparse_infill_acceleration": "2000",
     "top_shell_thickness": "1.2", "bottom_shell_thickness": "1.2",
-    # 🆕 2026-11-19：全庫預設改直線排列（#269，normalize_unified_values ⑧）後，高流量組照 0730 家規維持 gyroid
-    #    ——雙生從已正規化的 FF800 同進複製，不在這裡蓋回就會跟著變（c-1119-QA269-01 第一次 regen 實錯）。
-    "sparse_infill_pattern": "gyroid",
+    # 稀疏填充圖案刻意不在這裡寫：跟著已正規化的 FF800 同進走直線排列（#269，Eric 2026-11-19 追裁高流量也改）。
 }
 _HF_FF800_RE = re.compile(r"@FF800 同進 \(([\d.]+)\)\s*$")
 
