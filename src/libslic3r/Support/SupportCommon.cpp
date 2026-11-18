@@ -742,6 +742,58 @@ void fill_expolygons_with_sheath_generate_paths(
     }
 }
 
+// PING(c-1118-QA-01／回報 #258)：有機樹＋非空心主體圖案（直線、交錯直線、蜂巢）照「支撐牆數」畫圈。
+// 原本這條路一律只畫一圈（TreeSupport3D 把 with_sheath 強制成 true），牆數只決定內部填充圖樣：
+// 0＝ipSupportBase（自帶沿外框繞的線）＋那一圈＝看起來兩圈；1、2＝直線＋一圈（1 與 2 輸出逐行相同）。
+// ⇒ 使用者看到「0 比 2 多一圈」。改成跟空心那條路（tree_supports_generate_paths）同一套門檻
+// tree_branch_diameter_double_wall_area_scaled（SupportParameters.hpp）：
+// 0＝自動（截面大於直徑 5 mm 圓畫兩圈、其餘一圈）、1＝一圈、2＝兩圈；圈內一律用直線類圖樣填。
+static void ping_organic_fill_with_walls(
+    ExtrusionEntitiesPtr    &dst,
+    const Polygons          &polygons,
+    Fill                    *filler,
+    float                    density,
+    const Flow              &flow,
+    const SupportParameters &support_params)
+{
+    if (polygons.empty())
+        return;
+    FillParams fill_params;
+    fill_params.density     = density;
+    fill_params.dont_adjust = true;
+    const double spacing     = flow.scaled_spacing();
+    const double clip_length = spacing * 0.15;
+    for (ExPolygon &expoly : closing_ex(polygons, float(SCALED_EPSILON), float(SCALED_EPSILON + 0.5 * flow.scaled_width()))) {
+        const int walls = (support_params.tree_branch_diameter_double_wall_area_scaled > 0 &&
+                           expoly.area() > support_params.tree_branch_diameter_double_wall_area_scaled) ? 2 : 1;
+        if (walls == 1) {
+            // 一圈：跟原本 fill_expolygons_with_sheath_generate_paths（no_sort=false）一模一樣，牆數 1 的輸出不變。
+            extrusion_entities_append_paths(dst, draw_perimeters(expoly, clip_length), ExtrusionRole::erSupportMaterial,
+                flow.mm3_per_mm(), flow.width(), flow.height());
+            fill_expolygons_generate_paths(dst, offset_ex(expoly, - float(0.4 * spacing)), filler, fill_params, density,
+                ExtrusionRole::erSupportMaterial, flow);
+            continue;
+        }
+        auto eec = std::make_unique<ExtrusionEntityCollection>();
+        // 同一塊的外圈、內圈、填充照順序印，不重排。
+        eec->no_sort = true;
+        ExPolygons ring{ expoly };
+        int        drawn = 0;
+        for (int i = 0; i < walls && ! ring.empty(); ++ i) {
+            for (const ExPolygon &r : ring)
+                extrusion_entities_append_paths(eec->entities, draw_perimeters(r, clip_length), ExtrusionRole::erSupportMaterial,
+                    flow.mm3_per_mm(), flow.width(), flow.height());
+            ++ drawn;
+            ring = offset_ex(ring, - float(spacing));
+        }
+        // 填充區＝最內圈再往內 0.4 線距（同 fill_expolygons_with_sheath_generate_paths 的一圈版）。
+        fill_expolygons_generate_paths(eec->entities, offset_ex(expoly, - float((drawn - 1 + 0.4) * spacing)), filler, fill_params, density,
+            ExtrusionRole::erSupportMaterial, flow);
+        if (! eec->empty())
+            dst.emplace_back(eec.release());
+    }
+}
+
 // Support layers, partially processed.
 struct SupportGeneratorLayerExtruded
 {
@@ -1592,6 +1644,8 @@ void generate_support_toolpaths(
         auto filler_support         = std::unique_ptr<Fill>(Fill::new_from_type(support_params.base_fill_pattern));
         // PING(c-1111-RAFT-02)：本體坐的那一層（筏層最上面那層）改用直線圖樣時另開的填充器，用到才建。
         std::unique_ptr<Fill> filler_ping_raft_top;
+        // PING(c-1118-QA-01／#258)：有機樹非空心主體、牆數 0 時 base_fill_pattern 是 ipSupportBase，圈內改用直線另開填充器，用到才建。
+        std::unique_ptr<Fill> filler_ping_organic;
         filler_interface->set_bounding_box(bbox_object);
         if (filler_first_layer_ptr)
             filler_first_layer_ptr->set_bounding_box(bbox_object);
@@ -1802,6 +1856,21 @@ void generate_support_toolpaths(
                     if (support_layer.print_z > 100.0)
                         support_params2.tree_branch_diameter_double_wall_area_scaled = 0.1;
                     tree_supports_generate_paths(base_layer.extrusions, base_layer.polygons_to_extrude(), flow, support_params2);
+                    done = true;
+                } else if (support_params.support_style == SupportMaterialStyle::smsTreeOrganic && sheath) {
+                    // PING(c-1118-QA-01／回報 #258)：非空心主體也照「支撐牆數」畫圈，見 ping_organic_fill_with_walls。
+                    Fill *f = filler;
+                    if (support_params.base_fill_pattern == ipSupportBase) {
+                        if (! filler_ping_organic) {
+                            filler_ping_organic.reset(Fill::new_from_type(ipRectilinear));
+                            filler_ping_organic->set_bounding_box(bbox_object);
+                        }
+                        filler_ping_organic->angle           = filler->angle;
+                        filler_ping_organic->spacing         = filler->spacing;
+                        filler_ping_organic->link_max_length = filler->link_max_length;
+                        f = filler_ping_organic.get();
+                    }
+                    ping_organic_fill_with_walls(base_layer.extrusions, base_layer.polygons_to_extrude(), f, density, flow, support_params);
                     done = true;
                 }
                 if (! done)
