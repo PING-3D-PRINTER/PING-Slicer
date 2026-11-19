@@ -1444,7 +1444,7 @@ elif (_se[1].get("nozzle_temperature") != ["210"]
 # ★ 高流量製程組（Eric 2026-07-30 裁・客戶（建誌）FF800 同進 0.6 實測參數移植；0.4/1.0 口徑連動推）：
 # 三支 exact——六類速度全跟客戶（外100/內125/填充150/頂面150/實心150/支撐與介面100）＋首層 100
 #（Eric 追裁）＋加速度逐項取保守（實際變更僅 travel/sparse 2000；default 1500/首層 500/頂面 800
-#  現值更保守維持）＋層高 0.5×口徑（首層＋0.05）＋頂底厚 1.2；支撐角 35/gyroid/aligned 維持家規
+#  現值更保守維持）＋層高 0.5×口徑（首層＋0.05）＋頂底厚 1.2；支撐角 35/gyroid〔1119 #269 起改直線排列〕/aligned 維持家規
 #（客戶 Cura 慣例不吃——support_angle 60 是 Cura 語意＝Orca 30、0724 已踩過的換算坑）。
 HF_PROCS = {"0.2mm 高流量 @FF800 同進 (0.4)": ("0.2", "0.25", "0.4"),
             "0.3mm 高流量 @FF800 同進 (0.6)": ("0.3", "0.35", "0.6"),
@@ -1466,7 +1466,7 @@ for _hn, (_lh, _flh, _nz) in HF_PROCS.items():
                      ("top_surface_acceleration", "800"),
                      ("outer_wall_acceleration", "1500"), ("inner_wall_acceleration", "1500"),
                      ("top_shell_thickness", "1.2"), ("bottom_shell_thickness", "1.2"),
-                     ("sparse_infill_pattern", "gyroid"), ("seam_position", "back"),
+                     ("sparse_infill_pattern", "alignedrectilinear"), ("seam_position", "back"),  # 1119 #269 追裁：原 0730 gyroid
                      ("support_threshold_angle", "35"), ("instantiation", "true"),
                      ("compatible_printers", ["FF800 同進 %s nozzle" % _nz])):
         # 🆕 1116：加速度的規則值先過機型上限（FF800 同進上限 1500 ⇒ travel／sparse 的規則值 2000 葉檔寫 1500；
@@ -3171,6 +3171,35 @@ if _rb_bad > 8:
 if _rb_seen == 0:
     err("[筏層首層三值 1112] 沒有掃到任何製程 ⇒ 判定失效")
 print(f"筏層首層三值（200%／50%／25）：{_rb_seen - _rb_bad}／{_rb_seen} 支製程合格")
+
+# 🆕 稀疏填充圖案＝直線排列（Eric 2026-11-19 裁 C，回報中心 #269；牌 c-1119-QA269-01；產生器 normalize_unified_values ⑧
+#    ＋HF_PROC_OVERRIDES）。回歸型：每支系統製程都要是預期值；三族例外各自鎖值，任一族掃到 0 支＝判定失效。
+#    高流量 3 支同日追裁也改直線排列（另計數，掃到 0 支＝判定失效）。例外：「高速」＝grid（1008 兔子試印值）／照片磚＝不查。
+#    綠燈＝預設值對，**不等於**直線排列真的比較不塌（那要實印）。
+_SIP = {"alignedrectilinear": 0, "grid": 0, "skip": 0, "hf": 0}
+_sip_bad = 0
+for _n, (_k, _d) in presets.items():
+    if _k != "process" or _n.startswith("fdm_") or _d.get("instantiation") != "true":
+        continue
+    if "照片磚" in _n:
+        _SIP["skip"] += 1
+        continue
+    _want = "grid" if " 高速 @" in _n else "alignedrectilinear"
+    if "高流量" in _n and _d.get("sparse_infill_pattern") == _want:
+        _SIP["hf"] += 1
+    _got = _d.get("sparse_infill_pattern")
+    if _got != _want:
+        _sip_bad += 1
+        if _sip_bad <= 8:
+            err(f"[稀疏填充直線排列 1119] {_n}: {_got!r}，應為 {_want!r}")
+    else:
+        _SIP[_want] += 1
+if _sip_bad > 8:
+    err(f"[稀疏填充直線排列 1119] 另有 {_sip_bad - 8} 支未列出")
+if _SIP["alignedrectilinear"] == 0 or _SIP["hf"] == 0 or _SIP["grid"] == 0:
+    err(f"[稀疏填充直線排列 1119] 有一族掃到 0 支 ⇒ 判定失效：{_SIP!r}")
+print(f"稀疏填充圖案：直線排列 {_SIP['alignedrectilinear']}（含高流量 {_SIP['hf']}）"
+      f"／高速 grid {_SIP['grid']}／照片磚不查 {_SIP['skip']}；不合 {_sip_bad}")
 if errors:
     print(f"\n[FAIL] {len(errors)} 個問題：")
     for e in errors:
