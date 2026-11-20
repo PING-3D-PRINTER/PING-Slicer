@@ -59,6 +59,13 @@ if(NOT WIN32)
     evaluate_detection_results(EXPAT_WITH_SYS_GETRANDOM HAVE_SYSCALL_GETRANDOM "syscall SYS_getrandom" "Syscall SYS_getrandom")
 endif()
 
+# PING (#114): turn on XML_DTD so expat 2.5.0 compiles in its billion-laughs /
+# entity-amplification protection (accountingDiffTolerated etc. live under
+# #ifdef XML_DTD). Without it a crafted 3MF/AMF with nested entities could
+# exhaust memory. Upstream expat's own CMake defaults EXPAT_DTD=ON; the vendored
+# copy dropped that option. Minimal fix instead of bumping to 2.10.0 (OrcaSlicer PR 17290).
+set(XML_DTD 1)
+
 configure_file(expat_configure.h.cmake "${CMAKE_CURRENT_BINARY_DIR}/expat_configure.h")
 
 if (BUILD_SHARED_LIBS AND MSVC)
