@@ -5378,8 +5378,12 @@ void GCodeProcessor::process_M1020(const GCodeReader::GCodeLine &line)
                 BOOST_LOG_TRIVIAL(error) << "Invalid M1020 command (" << line.raw() << ").";
         }
         else {
-            if (eid >= m_result.filaments_count)
+            if (eid >= m_result.filaments_count) {
+                // Orca upstream #12856 (M1020 half; PING already fixed the T half below):
+                // log and return instead of indexing filament maps with an out-of-range id.
                 BOOST_LOG_TRIVIAL(error) << "Invalid M1020 command (" << line.raw() << ").";
+                return;
+            }
             process_filament_change(eid);
         }
     }
