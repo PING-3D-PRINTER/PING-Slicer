@@ -87,3 +87,22 @@ SCENARIO("PrintObject: object layer heights", "[PrintObject][.]") {
 #endif
     }
 }
+
+// Orca upstream #17013: an object too thin for any layer must fail with a slicing error, not crash.
+TEST_CASE("An object too thin for any layer fails with a slicing error", "[PrintObject][Regression]")
+{
+    const int  raft_layers      = GENERATE(0, 2);
+    const bool precise_z_height = GENERATE(false, true);
+    DYNAMIC_SECTION("raft_layers " << raft_layers << ", precise_z_height " << precise_z_height) {
+        Slic3r::Print print;
+        Slic3r::Model model;
+        Slic3r::Test::init_print({make_cube(20, 20, 0.002)}, print, model, {
+            { "layer_height",               0.2 },
+            { "initial_layer_print_height", 0.2 },
+            { "min_layer_height",           0.07 },
+            { "raft_layers",                raft_layers },
+            { "precise_z_height",           precise_z_height }
+        });
+        REQUIRE_THROWS_WITH(print.process(), Catch::Matchers::ContainsSubstring("No layers were detected"));
+    }
+}
