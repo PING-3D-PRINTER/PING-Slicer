@@ -1790,6 +1790,9 @@ void Selection::notify_instance_update(int object_idx, int instance_idx)
         for (unsigned int i : m_list)
         {
             int obj_index = (*m_volumes)[i]->object_idx();
+            // Orca upstream #14499: skip the wipe tower; its synthetic id (>= 1000) is not an index into m_model->objects.
+            if (obj_index >= 1000)
+                continue;
             //-1 means all the instance in this object
             if (instance_idx == -1)
             {

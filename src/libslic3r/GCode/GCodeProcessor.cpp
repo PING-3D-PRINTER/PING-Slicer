@@ -4776,7 +4776,10 @@ void GCodeProcessor::process_G10(const GCodeReader::GCodeLine& line)
     GCodeReader::GCodeLine g10;
     g10.set(Axis::E, -this->m_parser.config().retraction_length.get_at(m_extruder_id));
     g10.set(Axis::F,  this->m_parser.config().retraction_speed.get_at(m_extruder_id) * 60);
+    //Orca: Firmware retract emulation must not change the modal G1 feedrate.
+    const float feedrate = m_feedrate;
     process_G1(g10);
+    m_feedrate = feedrate;
 }
 
 void GCodeProcessor::process_G11(const GCodeReader::GCodeLine& line)
@@ -4784,7 +4787,10 @@ void GCodeProcessor::process_G11(const GCodeReader::GCodeLine& line)
     GCodeReader::GCodeLine g11;
     g11.set(Axis::E, this->m_parser.config().retraction_length.get_at(m_extruder_id) + this->m_parser.config().retract_restart_extra.get_at(m_extruder_id));
     g11.set(Axis::F, this->m_parser.config().deretraction_speed.get_at(m_extruder_id) * 60);
+    // Orca: Firmware unretract emulation must not change the modal G1 feedrate.
+    const float feedrate = m_feedrate;
     process_G1(g11);
+    m_feedrate = feedrate;
 }
 
 void GCodeProcessor::process_G20(const GCodeReader::GCodeLine& line)
@@ -5378,8 +5384,12 @@ void GCodeProcessor::process_M1020(const GCodeReader::GCodeLine &line)
                 BOOST_LOG_TRIVIAL(error) << "Invalid M1020 command (" << line.raw() << ").";
         }
         else {
-            if (eid >= m_result.filaments_count)
+            if (eid >= m_result.filaments_count) {
+                // Orca upstream #12856 (M1020 half; PING already fixed the T half below):
+                // log and return instead of indexing filament maps with an out-of-range id.
                 BOOST_LOG_TRIVIAL(error) << "Invalid M1020 command (" << line.raw() << ").";
+                return;
+            }
             process_filament_change(eid);
         }
     }

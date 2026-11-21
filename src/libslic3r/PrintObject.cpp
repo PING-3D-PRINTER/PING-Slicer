@@ -795,6 +795,10 @@ void PrintObject::generate_support_material()
             this->_generate_support_material();
             m_print->throw_if_canceled();
         }
+        // Orca upstream #16066: the tree support collision/avoidance caches and support nodes are only used while this
+        // step runs (alloc_tree_support_preview_cache() rebuilds them on demand), so don't keep them resident until the
+        // next slice.
+        this->clear_tree_support_preview_cache();
         // PING(c-1111-RAFT-02)：支撐筆刷的預覽（generate_support_preview）切完層就直接產生支撐、沒有經過填充，
         // 勾了「頂面與本體第一層垂直」時讀不到本體方向，筏層頂面是照現行算法畫的。這種情況不把步驟標成完成
         // （留在「已開始」，跟切到一半被取消時一樣），之後按切片、填充算完，會重新產生成垂直的。

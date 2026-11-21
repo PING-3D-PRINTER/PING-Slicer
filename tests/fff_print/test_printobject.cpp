@@ -3,6 +3,7 @@
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/Layer.hpp"
+#include "libslic3r/Model.hpp"
 
 #include "test_data.hpp"
 
@@ -85,5 +86,34 @@ SCENARIO("PrintObject: object layer heights", "[PrintObject][.]") {
             }
         }
 #endif
+    }
+}
+
+// Orca upstream #17013: an object too thin for any layer must fail with a slicing error, not crash.
+TEST_CASE("An object too thin for any layer fails with a slicing error", "[PrintObject][Regression]")
+{
+    const int  raft_layers      = GENERATE(0, 2);
+    const bool precise_z_height = GENERATE(false, true);
+    DYNAMIC_SECTION("raft_layers " << raft_layers << ", precise_z_height " << precise_z_height) {
+        Slic3r::Print print;
+        Slic3r::Model model;
+        // PING: build the model by hand instead of Test::init_print(): our init_print() auto-arranges,
+        // and the arranger rejects a 0.002 mm thin object ("Objects could not fit on the bed").
+        DynamicPrintConfig config = DynamicPrintConfig::full_print_config();
+        config.set_deserialize_strict({
+            { "layer_height",               0.2 },
+            { "initial_layer_print_height", 0.2 },
+            { "min_layer_height",           0.07 },
+            { "raft_layers",                raft_layers },
+            { "precise_z_height",           precise_z_height }
+        });
+        ModelObject *object = model.add_object();
+        object->name = "thin.stl";
+        object->add_volume(make_cube(20, 20, 0.002));
+        object->add_instance()->set_offset(Vec3d(100., 100., 0.));
+        object->ensure_on_bed();
+        print.auto_assign_extruders(object);
+        print.apply(model, config);
+        REQUIRE_THROWS_WITH(print.process(), Catch::Matchers::ContainsSubstring("No layers were detected"));
     }
 }
