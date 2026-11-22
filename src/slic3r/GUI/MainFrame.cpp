@@ -3002,7 +3002,10 @@ static wxMenu* generate_help_menu()
             wxLaunchDefaultBrowser(wxString::FromUTF8(html_path.c_str()));
         });
 
-    // PING C-1 閘門①：照片磚引擎 wx 整合 smoke。**只在開發者模式出現**（客戶端看不到）。
+    // PING C-1 閘門①：照片磚引擎 wx 整合 smoke。開發者模式才可按。
+    // PING #118（2026-11-22）：最後那個參數只管「能不能按」（灰掉），項目本身還是會出現——出貨版 V3.6.3 的「幫助」
+    // 選單就露出這兩個灰色開發項目。出貨版（PING_TEST_BUILD 空字串）改成根本不放；測試版／本機 DEV 版照舊。
+    if (*PING_TEST_BUILD)
     append_menu_item(helpMenu, wxID_ANY,
         wxString::FromUTF8("照片磚引擎 smoke（開發）"),
         wxString::FromUTF8("量 wx 事件圈成本並與守夜基準比對 SHA-256（C-1 閘門①）"),
@@ -3014,7 +3017,9 @@ static wxMenu* generate_help_menu()
     /* PING P3「子」：AI 生圖服務金鑰設定。**只在開發者模式出現**——
        Eric 2026-08-16 裁「做子但先不對客戶露出」；產品內生圖「丑」2026-09-02 做完、
        舊理由（沒有 AI 款式可解鎖）失效後，Eric 2026-09-03 複裁「先不要」＝門檻維持，
-       要露出等他另裁，勿因理由過期自行拿掉。裁定與安全理由見 PingAiKeyDialog.hpp。 */
+       要露出等他另裁，勿因理由過期自行拿掉。裁定與安全理由見 PingAiKeyDialog.hpp。
+       PING #118（2026-11-22）：出貨版連灰色項目都不放（同上一項）。 */
+    if (*PING_TEST_BUILD)
     append_menu_item(helpMenu, wxID_ANY,
         wxString::FromUTF8("設定 AI 生圖服務金鑰（開發）"),
         wxString::FromUTF8("填入／測試／移除 AI 生圖金鑰；存進系統憑證保管庫，不進專案檔、匯出包與 log"),

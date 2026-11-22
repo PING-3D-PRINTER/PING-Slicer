@@ -4138,10 +4138,41 @@ void PartPlateList::set_default_wipe_tower_pos_for_plate(int plate_idx, bool ini
     {
         const Pointfs &shape = part_plate->get_shape();   // 絕對座標盤形
         if (shape.size() > 4) {
+            // PING #116（2026-11-22）：上面的 wipe_tower_size 拿 prime_volume（PING 製程 45 mm³）估塔深，空盤時
+            // 約 13.5 mm；但單噴嘴多料（FD／FF 同進、雙料：single_extruder_multi_material＋purge_in_prime_tower）
+            // 每次換料是把「沖刷量」（flush_volumes_matrix × flush_multiplier，預設 280 mm³）沖進塔裡，實際塔深約
+            // 4 倍（V3.6.3 影片實拍約 55 mm）。塔是從 (x,y) 角往 +Y 長，放在床頂、用 13.5 mm 算，切片時就長出
+            // 圓床後緣、報「超出熱床邊界」。圓床這條路改用沖刷量估塔深（只影響圓床預設位置，方床不動）。
+            {
+                const auto *semm_opt  = full_config.option<ConfigOptionBool>("single_extruder_multi_material");
+                const auto *purge_opt = full_config.option<ConfigOptionBool>("purge_in_prime_tower");
+                const auto *flush_opt = proj_cfg.option<ConfigOptionFloats>("flush_volumes_matrix");
+                const auto *mult_opt  = proj_cfg.option<ConfigOptionFloats>("flush_multiplier");
+                if (semm_opt && semm_opt->value && purge_opt && purge_opt->value && flush_opt && !flush_opt->values.empty()) {
+                    const double mult      = (mult_opt && !mult_opt->values.empty()) ? mult_opt->values.front() : 1.;
+                    const double flush_max = *std::max_element(flush_opt->values.begin(), flush_opt->values.end()) * mult;
+                    if (flush_max > v) {
+                        const Vec3d semm_size = part_plate->estimate_wipe_tower_size(print_cfg, w, (float) flush_max, nozzle_nums, init_pos ? 2 : 0, false, enable_wrapping);
+                        if (semm_size(1) > wipe_tower_size(1)) {
+                            wipe_tower_size(0) = std::max(wipe_tower_size(0), semm_size(0));
+                            wipe_tower_size(1) = semm_size(1);
+                        }
+                    }
+                }
+            }
             Polygon shape_poly;
             shape_poly.points.reserve(shape.size());
             for (const Vec2d &p : shape)
                 shape_poly.points.emplace_back(scale_(p.x()), scale_(p.y()));
+            double cone_radius = 0.;
+            {
+                const auto *wall_type_opt = print_cfg.option<ConfigOptionEnum<WipeTowerWallType>>("wipe_tower_wall_type");
+                const auto *cone_angle_opt = print_cfg.option<ConfigOptionFloat>("wipe_tower_cone_angle");
+                if (wall_type_opt && wall_type_opt->value == WipeTowerWallType::wtwCone && cone_angle_opt && cone_angle_opt->value > 0.) {
+                    const double ref_height = std::max((double) wipe_tower_size(2), 100.);
+                    cone_radius = std::tan(Geometry::deg2rad(cone_angle_opt->value / 2.)) * ref_height + std::max(0.f, brim_width) + WIPE_TOWER_MARGIN;
+                }
+            }
             auto footprint_inside = [&](double lx, double ly) -> bool {
                 const double xs[2] = { lx - margin + plate_origin(0), lx + wipe_tower_size(0) + margin + plate_origin(0) };
                 const double ys[2] = { ly - margin + plate_origin(1), ly + wipe_tower_size(1) + margin + plate_origin(1) };
@@ -4149,6 +4180,21 @@ void PartPlateList::set_default_wipe_tower_pos_for_plate(int plate_idx, bool ini
                     for (double cy : ys)
                         if (!shape_poly.contains(Point(scale_(cx), scale_(cy))))
                             return false;
+                // PING #116（2026-11-22）：塔牆是「錐形」時，切片會在塔底加一圈穩定錐（Print.cpp 的
+                // first_layer_wipe_tower_corners：以塔中心為圓心、半徑 tan(錐角/2)×塔高＋brim），而且錐面只
+                // 長在盤內才合法。原本只驗方塊四角，FD300 雙料（錐角 30°、brim 3）塔放在離床頂 10 mm，
+                // 印個 40～50 mm 高的雙料起子／校正貓，錐底就超出圓床，切片報「超出熱床邊界」。這裡把錐底圓
+                // 也納入盤內檢查；預設位置在空盤時就決定（之後放物件不會重算），所以塔高取「盤上最高物件」與
+                // 參考高度 100 mm 的較大者（100 mm 內的件不用自己拖塔）。只影響圓床、錐形塔的預設位置。
+                if (cone_radius > 0.) {
+                    const double ccx = lx + wipe_tower_size(0) / 2. + plate_origin(0);
+                    const double ccy = ly + wipe_tower_size(1) / 2. + plate_origin(1);
+                    for (int k = 0; k < 40; ++k) {
+                        const double a = 2. * PI * k / 40.;
+                        if (!shape_poly.contains(Point(scale_(ccx + cone_radius * std::cos(a)), scale_(ccy + cone_radius * std::sin(a)))))
+                            return false;
+                    }
+                }
                 return true;
             };
             BoundingBoxf shape_bb(shape);
