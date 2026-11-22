@@ -4138,28 +4138,6 @@ void PartPlateList::set_default_wipe_tower_pos_for_plate(int plate_idx, bool ini
     {
         const Pointfs &shape = part_plate->get_shape();   // 絕對座標盤形
         if (shape.size() > 4) {
-            // PING #116（2026-11-22）：上面的 wipe_tower_size 拿 prime_volume（PING 製程 45 mm³）估塔深，空盤時
-            // 約 13.5 mm；但單噴嘴多料（FD／FF 同進、雙料：single_extruder_multi_material＋purge_in_prime_tower）
-            // 每次換料是把「沖刷量」（flush_volumes_matrix × flush_multiplier，預設 280 mm³）沖進塔裡，實際塔深約
-            // 4 倍（V3.6.3 影片實拍約 55 mm）。塔是從 (x,y) 角往 +Y 長，放在床頂、用 13.5 mm 算，切片時就長出
-            // 圓床後緣、報「超出熱床邊界」。圓床這條路改用沖刷量估塔深（只影響圓床預設位置，方床不動）。
-            {
-                const auto *semm_opt  = full_config.option<ConfigOptionBool>("single_extruder_multi_material");
-                const auto *purge_opt = full_config.option<ConfigOptionBool>("purge_in_prime_tower");
-                const auto *flush_opt = proj_cfg.option<ConfigOptionFloats>("flush_volumes_matrix");
-                const auto *mult_opt  = proj_cfg.option<ConfigOptionFloats>("flush_multiplier");
-                if (semm_opt && semm_opt->value && purge_opt && purge_opt->value && flush_opt && !flush_opt->values.empty()) {
-                    const double mult      = (mult_opt && !mult_opt->values.empty()) ? mult_opt->values.front() : 1.;
-                    const double flush_max = *std::max_element(flush_opt->values.begin(), flush_opt->values.end()) * mult;
-                    if (flush_max > v) {
-                        const Vec3d semm_size = part_plate->estimate_wipe_tower_size(print_cfg, w, (float) flush_max, nozzle_nums, init_pos ? 2 : 0, false, enable_wrapping);
-                        if (semm_size(1) > wipe_tower_size(1)) {
-                            wipe_tower_size(0) = std::max(wipe_tower_size(0), semm_size(0));
-                            wipe_tower_size(1) = semm_size(1);
-                        }
-                    }
-                }
-            }
             Polygon shape_poly;
             shape_poly.points.reserve(shape.size());
             for (const Vec2d &p : shape)
@@ -4183,9 +4161,11 @@ void PartPlateList::set_default_wipe_tower_pos_for_plate(int plate_idx, bool ini
                 // PING #116（2026-11-22）：塔牆是「錐形」時，切片會在塔底加一圈穩定錐（Print.cpp 的
                 // first_layer_wipe_tower_corners：以塔中心為圓心、半徑 tan(錐角/2)×塔高＋brim），而且錐面只
                 // 長在盤內才合法。原本只驗方塊四角，FD300 雙料（錐角 30°、brim 3）塔放在離床頂 10 mm，
-                // 印個 40～50 mm 高的雙料起子／校正貓，錐底就超出圓床，切片報「超出熱床邊界」。這裡把錐底圓
+                // 印個約 70 mm 高的雙料起子，錐底就超出圓床，切片報「超出熱床邊界」。這裡把錐底圓
                 // 也納入盤內檢查；預設位置在空盤時就決定（之後放物件不會重算），所以塔高取「盤上最高物件」與
                 // 參考高度 100 mm 的較大者（100 mm 內的件不用自己拖塔）。只影響圓床、錐形塔的預設位置。
+                // 實測（T120 無人值守 GUI 定位＋CLI 切片，FD300 雙料 易拆 0.4）：預設 (-12.5,122.5)，T 形件高 50 不出界、
+                // 100 超出 9.6 mm、150 超出 23 mm——塔本身很淺（PING flush_multiplier 預設 0），出界的是這圈錐。
                 if (cone_radius > 0.) {
                     const double ccx = lx + wipe_tower_size(0) / 2. + plate_origin(0);
                     const double ccy = ly + wipe_tower_size(1) / 2. + plate_origin(1);
