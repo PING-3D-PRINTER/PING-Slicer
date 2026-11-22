@@ -86,7 +86,10 @@ DWORD DownloadAndInstallWV2RT() {
     shExInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
     shExInfo.hwnd = 0;
     shExInfo.lpVerb = L"runas";
-    shExInfo.lpFile = target_file_path.generic_wstring().c_str();
+    /* PING（2026-11-11，Eric「那個兩行的小修單獨搭車」，牌 c-1111-NPK-01；開發中清單 #100）：
+       原本直接取暫時字串的 c_str()——那一行結束指標就失效，之後才交給 ShellExecuteExW（未定義行為）。 */
+    const std::wstring installer_path = target_file_path.generic_wstring();
+    shExInfo.lpFile = installer_path.c_str();
     shExInfo.lpParameters = L" /install";
     shExInfo.lpDirectory = 0;
     shExInfo.nShow = 0;
@@ -94,6 +97,7 @@ DWORD DownloadAndInstallWV2RT() {
 
     if (ShellExecuteExW(&shExInfo)) {
       WaitForSingleObject(shExInfo.hProcess, INFINITE);
+      CloseHandle(shExInfo.hProcess);
       returnCode = 0; // Install successfull
     } else {
       returnCode = 1; // Install failed
