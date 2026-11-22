@@ -85,7 +85,7 @@ var PingModeCopy = {
     "name": "3 in 1",
     "title": "3 in 1",
     "benefit": "主材流量 ×3・獨立易拆支撐",
-    "body": "三支主材合流列印主體，第四支材料獨立列印懸空面下方的支撐。",
+    "body": "三支同種材料同進列印主體，第四支是支撐材，獨立列印懸空面下方的支撐。",
     "limit": "",
     "alt": "三卷橘色主材線合流後加粗並標示 ×3，供應平放的橘色五輻輪圈；第四卷灰色材料獨立供應輪緣與輪輻下方的灰色支撐格柵，支撐具有連接底座及橫向連結。"
    }
@@ -164,7 +164,7 @@ var PingModeCopy = {
     "name": "3 in 1",
     "title": "3 in 1",
     "benefit": "3× main-material flow · Separate removable supports",
-    "body": "Three main filaments feed the part together. A fourth independently prints supports beneath the overhang.",
+    "body": "Three filaments of the same material co-feed the part. A fourth, the support material, separately prints the supports beneath the overhang.",
     "limit": "",
     "alt": "Three orange main feeds merge into a thicker orange line marked ×3 to supply a horizontal orange five-spoke wheel rim. A separate fourth gray feed supplies gray support grids beneath the rim and spokes, joined by a common base and transverse ties."
    }
@@ -243,7 +243,7 @@ var PingModeCopy = {
     "name": "3 in 1",
     "title": "3 in 1",
     "benefit": "Hauptmaterial-Durchfluss ×3 · Separate entfernbare Stützen",
-    "body": "Drei Hauptfilamente versorgen gemeinsam das Bauteil. Ein viertes druckt separat die Stützen unter dem Überhang.",
+    "body": "Drei Filamente desselben Materials werden dem Bauteil gemeinsam zugeführt. Ein viertes, das Stützmaterial, druckt separat die Stützen unter dem Überhang.",
     "limit": "",
     "alt": "Drei orangefarbene Hauptzuführungen vereinigen sich zu einer dickeren orangefarbenen Linie mit ×3 und versorgen eine waagerecht liegende orangefarbene Fünfspeichenfelge. Eine separate vierte graue Zuführung versorgt graue Stützgitter unter Felgenrand und Speichen, verbunden durch einen gemeinsamen Sockel und Querverbindungen."
    }
@@ -322,7 +322,7 @@ var PingModeCopy = {
     "name": "3 in 1",
     "title": "3 in 1",
     "benefit": "Débit du matériau principal ×3 · Supports amovibles séparés",
-    "body": "Trois filaments principaux alimentent la pièce ensemble. Un quatrième imprime séparément les supports sous le surplomb.",
+    "body": "Trois filaments du même matériau co-alimentent la pièce. Un quatrième, le matériau de support, imprime séparément les supports sous le surplomb.",
     "limit": "",
     "alt": "Trois alimentations principales orange fusionnent en une ligne orange plus épaisse marquée ×3 pour alimenter une jante horizontale orange à cinq branches. Une quatrième alimentation grise indépendante fournit les supports en treillis gris sous le bord et les branches, reliés par une base commune et des traverses."
    }
