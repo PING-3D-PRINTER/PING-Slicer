@@ -1110,7 +1110,8 @@ for name, (kind, d) in presets.items():
                 err(f"[ABS 玻璃床溫 0910] {name}: 首層={d.get('hot_plate_temp_initial_layer')!r} 應 60、其它層={d.get('hot_plate_temp')!r} 應 100")
             # 🆕 Eric 2026-11-09 裁 #220 甲案（牌 c-1109-QA-01）：`PING SupPETG`（PLA 料撐 PETG）噴溫 225（首層同）、床溫 75；
             #   限定＝只改 SupPETG 這一支，`PING PETG` 維持 235／75（乙案「兩支都改 225」未採）。
-            if name == "PING SupPETG":
+            # 🆕 Eric 2026-11-24（牌 c-1124-SPGC-01）：前代機也要 SupPETG ⇒ `PING SupPETG - Classic` 溫度同 F 系（跟 Fast 對齊）。
+            if name in ("PING SupPETG", "PING SupPETG - Classic"):
                 for _k, _want in (("nozzle_temperature", "225"), ("nozzle_temperature_initial_layer", "225"),
                                   ("hot_plate_temp", "75"), ("hot_plate_temp_initial_layer", "75"),
                                   ("cool_plate_temp", "75"), ("cool_plate_temp_initial_layer", "75")):
@@ -1388,7 +1389,9 @@ classic_filaments = ("PING PLA - Classic 210", "PING PLA - Classic 220",
                      "PING ABS - Classic", "PING ABS(玻璃) - Classic",
                      "PING SupABS - Classic", "PING PETG - Classic",
                      "PING PA-CF - Classic", "PING PVA - Classic",
-                     "PING TPE - Classic 210", "PING SupTPE - Classic")
+                     "PING TPE - Classic 210", "PING SupTPE - Classic",
+                     # 🆕 Eric 2026-11-24（牌 c-1124-SPGC-01）：前代機補 SupPETG
+                     "PING SupPETG - Classic")
 for name in classic_filaments:
     entry = presets.get(name)
     if not entry or entry[0] != "filament":
@@ -1409,6 +1412,12 @@ for name in classic_filaments:
                             "filament_z_hop", "filament_z_hop_types"))
     if _leak:
         err(f"[Classic 材料層回抽覆蓋 0807] {name}: 不得帶 {'、'.join(_leak)}（赤兔無韌體回抽，一律吃機器層）")
+_spgc = presets.get("PING SupPETG - Classic")
+if _spgc:
+    if _spgc[1].get("filament_is_support") != ["1"]:
+        err(f"[SupPETG Classic 支撐旗標 1124] filament_is_support={_spgc[1].get('filament_is_support')!r} 應 ['1']")
+    if "printer_notes=~/.*CLASSIC.*/" not in _spgc[1].get("compatible_printers_condition", ""):
+        err(f"[SupPETG Classic 只給前代機 1124] condition={_spgc[1].get('compatible_printers_condition')!r}")
 edu = presets.get("PING PLA - EDU Classic")
 if edu and any(edu[1].get(key) != ["0"] for key in
                ("hot_plate_temp", "hot_plate_temp_initial_layer", "cool_plate_temp", "cool_plate_temp_initial_layer")):

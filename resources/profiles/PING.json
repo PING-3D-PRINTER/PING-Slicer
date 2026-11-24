@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.58",
+    "version": "01.00.01.59",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -2511,6 +2511,10 @@
         {
             "name": "PING PLA - 火山口噴頭",
             "sub_path": "filament/PING PLA - 火山口噴頭.json"
+        },
+        {
+            "name": "PING SupPETG - Classic",
+            "sub_path": "filament/PING SupPETG - Classic.json"
         }
     ],
     "machine_list": [
