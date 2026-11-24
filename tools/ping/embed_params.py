@@ -2114,6 +2114,11 @@ CLASSIC_PACF    = "PING PA-CF - Classic"
 CLASSIC_PVA     = "PING PVA - Classic"
 CLASSIC_TPE_210 = "PING TPE - Classic 210"   # 帶溫度尾碼＝與 PLA - Classic 210 命名一致
 CLASSIC_SUP_TPE = "PING SupTPE - Classic"
+# 🆕 Eric 2026-11-24「要，幫前代機加 SupPETG - Classic」（牌 c-1124-SPGC-01）：
+#   F 系 `PING SupPETG`（PLA 料撐 PETG，T092 起）原本被條件式 `printer_notes!~CLASSIC` 擋在前代機外，
+#   DUAL 300 等雙料前代機的 SUP 子選單只有 SupPLA／SupABS／SupTPE／PVA。照其它 Classic 支同法衍生：
+#   母檔 SupPETG、溫度照母檔現值 225／75（1109 #220 甲案，「跟 Fast 對齊」）、Marlin 隔離由 _classic_filament 統一做。
+CLASSIC_SUP_PETG = "PING SupPETG - Classic"
 
 # ★ TPE 本體按口徑拆支（Eric 2026-10-11 裁；ping-slicer core-rules〈材料層流量上限〉0812 待裁項結案）
 #   原話「要／0.4口徑建議是5／0.6口徑 7」，同輪四題皆「照建議」：
@@ -2221,6 +2226,8 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         _classic_filament("PING PVA",       CLASSIC_PVA,     "PINGFILCLASSICPVA",    210, 60, True),
         _classic_filament("PING TPE - 210", CLASSIC_TPE_210, "PINGFILCLASSICTPE",    210, 60),
         _classic_filament("PING SupTPE",    CLASSIC_SUP_TPE, "PINGFILCLASSICSUPTPE", 210, 60, True),
+        # 放最後＝既有 Classic 支的寫檔順序與清單位置不動
+        _classic_filament("PING SupPETG",   CLASSIC_SUP_PETG, "PINGFILCLASSICSUPPETG", 225, 75, True),
     ]
     classic_fil_list = []
     for d in classic_filaments:
