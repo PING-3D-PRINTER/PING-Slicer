@@ -1536,7 +1536,7 @@ void PreferencesDialog::create_items()
     //// ONLINE > Update & sync
     g_sizer->Add(create_item_title(_L("Update & sync")), 1, wxEXPAND);
 
-    // PING(2026-10-10)：啟動時檢查更新的開關（預設開，見 AppConfig::set_defaults）
+    // PING(2026-10-10)：啟動時檢查更新的開關；2026-11-26 起預設關、舊設定檔升級時一次性關掉（見 AppConfig::set_defaults／load）
     auto item_startup_check    = create_item_checkbox(_L("Check for updates on startup"), "", "ping_check_update_on_startup");
     g_sizer->Add(item_startup_check);
 
@@ -1546,8 +1546,9 @@ void PreferencesDialog::create_items()
     auto item_user_sync        = create_item_checkbox(_L("Auto sync user presets (Printer/Filament/Process)"), "", "sync_user_preset");
     g_sizer->Add(item_user_sync);
 
-    auto item_system_sync      = create_item_checkbox(_L("Update built-in Presets automatically."), "", "sync_system_preset");
-    g_sizer->Add(item_system_sync);
+    // PING(2026-11-26)：「Update built-in Presets automatically.」（sync_system_preset）不再顯示——它原本只控制
+    // 上游 OrcaSlicer 參數線上更新，那段已整段拿掉（見 PresetUpdater::sync），留著勾選框也沒有作用、
+    // 反而讓資安審查以為還會連網。內建 PING 參數照舊隨安裝包更新（check_installed_vendor_profiles，離線）。
 
     auto item_token_storage    = create_item_checkbox(_L("Use encrypted file for token storage"),
                                                       _L("Store authentication tokens in an encrypted file instead of the system keychain. (Requires restart)"),

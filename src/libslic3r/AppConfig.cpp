@@ -45,7 +45,13 @@ namespace Slic3r {
 // feed 放出貨線 release/v3.6（2026-10-14 開發線 ping/v3.5 已廢、分支已刪；牌 c-1014-DEV-01）；用 refs/heads 指名是因為分支名含斜線，直接寫會有歧義。
 // 🔴 每次發出貨版都要更新那支檔，否則客戶收不到通知（見 SOP_轉正客戶版.md）。
 static const std::string VERSION_CHECK_URL = "https://raw.githubusercontent.com/PING-3D-PRINTER/PING-Slicer/refs/heads/release/v3.6/version.json";
-static const std::string PROFILE_UPDATE_URL = "https://api.github.com/repos/OrcaSlicer/orcaslicer-profiles/releases/tags";
+// PING(2026-11-26)：上游 OrcaSlicer 的參數線上更新（OTA）整段拿掉——它查的是上游 repo 的版本 tag，
+// 對本 fork 永遠查不到東西、每次開機白連一次 api.github.com（見 PresetUpdater::sync）。原 PROFILE_UPDATE_URL 已刪。
+
+// PING(2026-11-26)：一次性搬移的 marker。V3.6.5 以前把 ping_check_update_on_startup=true 寫進了設定檔，
+// 讀到沒有這個 marker 的舊設定檔時，把啟動檢查更新強制關一次並寫入 marker（見 load()）；
+// 之後使用者自己在偏好設定打開的，marker 已在、不再覆蓋。
+static const std::string PING_STARTUP_CHECK_MIGRATED_KEY = "ping_startup_check_off_migrated";
 static const std::string MODELS_STR = "models";
 
 const std::string AppConfig::SECTION_FILAMENTS = "filaments";
@@ -338,9 +344,14 @@ void AppConfig::set_defaults()
         set_bool("check_stable_update_only", false);
     }
 
-    // PING(2026-10-10)：啟動時檢查更新，預設開；資安敏感環境可在偏好設定關掉。
+    // PING(2026-11-26)：開機不連網——啟動時檢查更新改成預設關（客戶資安；Eric 2026-11-26 裁）。
+    // 手動按「說明 > 檢查更新」不受影響；要開機自動檢查的人到偏好設定自己打開。
+    // 新安裝（沒有設定檔）走這裡就寫入 marker，日後 load() 不會再搬移；舊設定檔的搬移見 load()。
+    if (get(PING_STARTUP_CHECK_MIGRATED_KEY).empty()) {
+        set(PING_STARTUP_CHECK_MIGRATED_KEY, "1");
+    }
     if(get("ping_check_update_on_startup").empty()) {
-        set_bool("ping_check_update_on_startup", true);
+        set_bool("ping_check_update_on_startup", false);
     }
 
     // Orca
@@ -670,6 +681,10 @@ std::string AppConfig::load()
             return err.what();
     }
 
+    // PING(2026-11-26)：建構子的 set_defaults() 已替空設定寫入 marker，但 load() 是疊在它上面讀檔、不會先清空；
+    // 先拿掉，才看得出「設定檔本身」有沒有這個 marker（沒有＝V3.6.5 以前的舊檔，要搬移）。
+    m_storage["app"].erase(PING_STARTUP_CHECK_MIGRATED_KEY);
+
     try {
         for (auto it = j.begin(); it != j.end(); it++) {
             if (it.key() == MODELS_STR) {
@@ -812,9 +827,19 @@ std::string AppConfig::load()
         }
     }
 
+    // PING(2026-11-26)：一次性搬移——舊設定檔（沒有 marker）把啟動檢查更新強制關一次並寫入 marker。
+    // 必須在 set_defaults() 之前判斷（set_defaults 會替缺的 marker 補值）。
+    const bool ping_migrate_startup_check = get(PING_STARTUP_CHECK_MIGRATED_KEY).empty();
+    if (ping_migrate_startup_check) {
+        set_bool("ping_check_update_on_startup", false);
+        set(PING_STARTUP_CHECK_MIGRATED_KEY, "1");
+        BOOST_LOG_TRIVIAL(warning) << "PING: migrated ping_check_update_on_startup -> false (startup network off)";
+    }
+
     // Override missing or keys with their defaults.
     this->set_defaults();
-    m_dirty = false;
+    // 搬移過就標髒，讓 GUI 閒置時把 marker 存回設定檔；否則下次開機又會搬一次、蓋掉使用者之後自己打開的設定。
+    m_dirty = ping_migrate_startup_check;
     return "";
 }
 
@@ -1615,10 +1640,6 @@ std::string AppConfig::version_check_url() const
     return from_settings.empty() ? VERSION_CHECK_URL : from_settings;
 }
 
-std::string AppConfig::profile_update_url() const
-{
-    return PROFILE_UPDATE_URL;
-}
 
 bool AppConfig::exists()
 {
