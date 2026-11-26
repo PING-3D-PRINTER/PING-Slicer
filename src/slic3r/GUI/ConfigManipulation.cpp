@@ -849,8 +849,13 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     toggle_line("enable_tower_interface_cooldown_during_tower",
                 have_prime_tower && config->opt_bool("enable_tower_interface_features"));
 
-    for (auto el : {"wall_filament", "sparse_infill_filament", "solid_infill_filament", "wipe_tower_filament"})
-        toggle_line(el, !bSEMM);
+    // PING(c-1126-FEAT-01)：單噴嘴多料機（PING 雙料／四料都是）也要能指定外牆／稀疏填充／實心填充用哪支料
+    // （客戶要「填充用另一支料、換料廢料排進填充」）。切片端本來就認這三格（PrintObject.cpp 的 region 設定），
+    // 上游只是在 SEMM 時把介面藏起來；換料塔用哪支料維持隱藏。
+    // 注意：物件本身綁的用料會蓋掉全域這三格，客戶要在「物件」模式設才生效。
+    for (auto el : {"wall_filament", "sparse_infill_filament", "solid_infill_filament"})
+        toggle_line(el, true);
+    toggle_line("wipe_tower_filament", !bSEMM);
 
     bool purge_in_primetower = preset_bundle->printers.get_edited_preset().config.opt_bool("purge_in_prime_tower");
 
