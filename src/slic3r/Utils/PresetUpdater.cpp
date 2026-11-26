@@ -219,7 +219,6 @@ struct PresetUpdater::priv
 	void sync_version() const;
 	void parse_version_string(const std::string& body) const;
     void sync_resources(std::string http_url, std::map<std::string, Resource> &resources, bool check_patch = false,  std::string current_version="", std::string changelog_file="");
-    void sync_config();
     void sync_tooltip(std::string http_url, std::string language);
     void sync_plugins(std::string http_url, std::string plugin_version);
     void sync_printer_config(std::string http_url);
@@ -256,11 +255,10 @@ void PresetUpdater::priv::set_download_prefs(AppConfig *app_config)
 {
 	version_check_url = app_config->version_check_url();
 
-	auto profile_update_url = app_config->profile_update_url();
-	if (!profile_update_url.empty())
-		enabled_config_update = true;
-	else
-		enabled_config_update = false;
+	// PING(2026-11-26)：原本用「上游參數 OTA 網址非空」來開這個旗標；上游 OTA 已整段拿掉，直接開。
+	// 🔴 不可改成 false：check_installed_vendor_profiles()（建構時呼叫）也吃這個旗標，它負責把安裝包內建的
+	// PING 參數更新進使用者資料夾；關掉的話客戶升級後拿不到新的 PING 參數。這條路徑完全離線。
+	enabled_config_update = true;
 }
 
 //BBS: refine the Preset Updater logic
@@ -640,126 +638,6 @@ void PresetUpdater::priv::sync_resources(std::string http_url, std::map<std::str
             BOOST_LOG_TRIVIAL(warning) << boost::format("[Orca Updater]: online version=%1%, current_version=%2%, no need to download") % online_version.to_string() % current_version.to_string();
         }
     }
-}
-
-// Orca: sync config update for currect App version
-void PresetUpdater::priv::sync_config()
-{
-    auto cache_profile_path        = cache_path;
-    auto cache_profile_update_file = cache_path / "profiles_update.json";
-    std::string asset_name;
-    if (fs::exists(cache_profile_update_file)) {
-        try {
-            boost::nowide::ifstream f(cache_profile_update_file.string());
-            json                    data = json::parse(f);
-            if (data.contains("name"))
-                asset_name = data["name"].get<std::string>();
-            f.close();
-        } catch (const std::exception& ex) {
-            BOOST_LOG_TRIVIAL(error) << "[Orca Updater]: failed to read profiles_update.json when sync_config: " << ex.what() << std::endl;
-        } catch (...) {
-            // catch any other errors (that we have no information about)
-            BOOST_LOG_TRIVIAL(error) << "[Orca Updater]: unknown failure when reading profiles_update.json in sync_config" << std::endl;
-        }
-    }
-    AppConfig *app_config = GUI::wxGetApp().app_config;
-
-    auto profile_update_url = app_config->profile_update_url() + "/" + SoftFever_VERSION;
-    // parse the assets section and get the latest asset by comparing the name
-
-    Http::get(profile_update_url)
-        .on_error([cache_profile_path, cache_profile_update_file](std::string body, std::string error, unsigned http_status) {
-            // Orca: we check the response body to see if it's "Not Found", if so, it means for the current Orca version we don't have OTA
-            // updates, we can delete the cache file
-            if (!body.empty()) {
-                try {
-                    json j = json::parse(body);
-                    if (j.contains("message") && j["message"].get<std::string>() == "Not Found") {
-                        // The current Orca version does not have any OTA updates, delete the cache file
-                        if (fs::exists(cache_profile_path / "profiles"))
-                            fs::remove_all(cache_profile_path / "profiles");
-                        if (fs::exists(cache_profile_update_file))
-                            fs::remove(cache_profile_update_file);
-                    }
-                } catch (...) {}
-            }
-            BOOST_LOG_TRIVIAL(info) << format("Error getting: `%1%`: HTTP %2%, %3%", "sync_config_orca", http_status, error);
-        })
-        .timeout_connect(5)
-        .on_complete([this, asset_name, cache_profile_path, cache_profile_update_file](std::string body, unsigned http_status) {
-            // Http response OK
-            if (http_status != 200)
-                return;
-            try {
-                json j = json::parse(body);
-
-                struct update
-                {
-                    std::string url;
-                    std::string name;
-                    int         ver = -9999;
-                } latest_update;
-
-                if (!(j.contains("message") && j["message"].get<std::string>() == "Not Found")) {
-                    json assets = j.at("assets");
-                    if (assets.is_array()) {
-                        for (auto asset : assets) {
-                            std::string name          = asset["name"].get<std::string>();
-                            int         versionNumber = -1;
-                            std::regex  regexPattern("orcaslicer-profiles_ota_.*\\.([0-9]+)\\.zip$");
-                            std::smatch matches;
-                            if (std::regex_search(name, matches, regexPattern) && matches.size() > 1) {
-                                versionNumber = std::stoi(matches[1].str());
-                            }
-                            if (versionNumber > 0 && versionNumber > latest_update.ver) {
-                                latest_update.url  = asset["browser_download_url"].get<std::string>();
-                                latest_update.name = name;
-                                latest_update.ver  = versionNumber;
-                            }
-                        }
-                    }
-                }
-
-                if (cancel)
-                    return;
-
-                if (latest_update.ver > 0) {
-                    if (latest_update.name == asset_name)
-                        return;
-                    if (fs::exists(cache_profile_path / "profiles"))
-                        fs::remove_all(cache_profile_path / "profiles");
-                    fs::create_directories(cache_profile_path / "profiles");
-                    // download the file
-                    std::string download_url  = latest_update.url;
-                    std::string download_file = (cache_path / (latest_update.name + TMP_EXTENSION)).string();
-                    if (!get_file(download_url, download_file)) {
-                        return;
-                    }
-
-                    // extract the file downloaded
-                    BOOST_LOG_TRIVIAL(info) << "[Orca Updater]start to unzip the downloaded file " << download_file;
-                    if (!extract_file(download_file, cache_profile_path)) {
-                        BOOST_LOG_TRIVIAL(warning) << "[Orca Updater]extract downloaded file"
-                                                   << " failed, path: " << download_file;
-                        return;
-                    }
-                    BOOST_LOG_TRIVIAL(info) << "[Orca Updater]finished unzip the downloaded file " << download_file;
-                    boost::nowide::ofstream f(cache_profile_update_file.string());
-                    json                    data;
-                    data["name"] = latest_update.name;
-                    f << data << std::endl;
-                    f.close();
-                } else {
-                    // The current Orca version does not have any OTA updates, delete the cache file
-                    if (fs::exists(cache_profile_path / "profiles"))
-                        fs::remove_all(cache_profile_path / "profiles");
-                    if (fs::exists(cache_profile_update_file))
-                        fs::remove(cache_profile_update_file);
-                }
-
-            } catch (...) {}
-        })
-        .perform_sync();
 }
 
 void PresetUpdater::priv::sync_tooltip(std::string http_url, std::string language)
@@ -1370,25 +1248,16 @@ void PresetUpdater::sync(std::string http_url, std::string language, std::string
 		this->p->prune_tmps();
 		if (p->cancel)
 			return;
-		this->p->sync_version();
-		if (p->cancel)
-			return;
-        if (!vendors.empty()) {
-		    this->p->sync_config();
-		    if (p->cancel)
-			    return;
-            GUI::wxGetApp().CallAfter([] {
-                GUI::wxGetApp().check_config_updates_from_updater();
-            });
-        }
-		if (p->cancel)
-			return;
-        this->p->sync_plugins(http_url, plugin_version);
-        this->p->sync_printer_config(http_url);
-		//if (p->cancel)
-		//	return;
-		//remove the tooltip currently
-		//this->p->sync_tooltip(http_url, language);
+		this->p->sync_version(); // 本體在 #if 0 裡，不連網
+		// PING(2026-11-26)：開機不連網（客戶資安問卷；Eric 2026-11-26 裁）。V3.6.5 開機時這條執行緒會連三處，
+		// 已用記錄型 proxy 實測確認：raw.githubusercontent.com（版本檢查，在 GUI_App::check_new_version_sf，另由
+		// ping_check_update_on_startup 管）、api.github.com（下面第 1 項）、api.bambulab.com（下面第 2 項）。
+		// 1) 上游 OrcaSlicer 參數 OTA（原 sync_config＋check_config_updates_from_updater）整段拿掉：查的是上游
+		//    orcaslicer-profiles 的版本 tag，對本 fork 永遠查不到東西。內建 PING 參數的更新走建構時的
+		//    check_installed_vendor_profiles()（離線），不受影響。
+		// 2) Bambu 雲端的印表機設定 OTA（sync_printer_config，打 api.bambulab.com）與網路外掛同步（sync_plugins）
+		//    不再於開機呼叫：PING 機台用不到 Bambu 雲端資源，網路外掛也已強制不載入。
+		(void) vendors;
 	});
 }
 
