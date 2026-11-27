@@ -137,7 +137,7 @@
         "0"
     ],
     "machine_pause_gcode": "PAUSE",
-    "machine_start_gcode": "G21 \n G90 \n M82 \n M107 T0 \n M140 S[bed_temperature_initial_layer_single] \n M104 S[nozzle_temperature_initial_layer] T0 \n M190 S[bed_temperature_initial_layer_single] \n M109 S[nozzle_temperature_initial_layer] T0 \n  \n G28 ;Home \n T0; \n G0 F8000 X-100 Y-359 Z0.25 ; \n G92 E0 \n G1 F800 X100 Y-359 E100 ; \n G92 E0 \n  \n T1; \n G0 F800 X100 Y-357 Z0.25 ; \n G92 E0 \n G1 F800 X-100 Y-357 E100 ; \n G92 E0 \n  \n T2; \n G0 F800 X-100 Y-355 Z0.25 ; \n G92 E0 \n G1 F800 X100 Y-355 E100 ; \n G92 E0 \n  \n T3; \n G0 F800 X100 Y-353 Z0.25  \n G92 E0 \n G1 F800 X-100 Y-353 E100 ; \n G1 Z1 E99; \n G92 E0 \n ",
+    "machine_start_gcode": "G21 \n G90 \n M82 \n M107 T0 \n M140 S[bed_temperature_initial_layer_single] \n M104 S[nozzle_temperature_initial_layer] T0 \n M190 S[bed_temperature_initial_layer_single] \n M109 S[nozzle_temperature_initial_layer] T0 \n  \n G28 ;Home \n T0; \n G0 F5000 X-100 Y-359 Z0.25 ; \n G92 E0 \n G1 F800 X100 Y-359 E100 ; \n G92 E0 \n  \n T1; \n G0 F800 X100 Y-357 Z0.25 ; \n G92 E0 \n G1 F800 X-100 Y-357 E100 ; \n G92 E0 \n  \n T2; \n G0 F800 X-100 Y-355 Z0.25 ; \n G92 E0 \n G1 F800 X100 Y-355 E100 ; \n G92 E0 \n  \n T3; \n G0 F800 X100 Y-353 Z0.25  \n G92 E0 \n G1 F800 X-100 Y-353 E100 ; \n G1 Z1 E99; \n G92 E0 \n ",
     "machine_tool_change_time": "0",
     "machine_unload_filament_time": "0",
     "manual_filament_change": "0",

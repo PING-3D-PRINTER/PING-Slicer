@@ -81,7 +81,7 @@ def start_gcode(R, z, E, feeds):
         a, b = ("X-50", "X50") if k % 2 == 0 else ("X50", "X-50")
         if feeds > 1:
             L.append("T%d" % k)
-        L += ["G0 F8000 %s Y%g Z%g" % (a, yy, z), "G92 E0",
+        L += ["G0 F%d %s Y%g Z%g" % (5000 if k == 0 else 800, a, yy, z), "G92 E0",  # 11-27 c-1127-F8K-01
               "G1 F800 %s Y%g E%d" % (b, yy, E), "G92 E0"]
     L += ["G1 Z1 E%d" % (E - 1), "G92 E0"]
     return "\n".join(L)

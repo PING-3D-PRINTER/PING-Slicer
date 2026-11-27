@@ -705,12 +705,18 @@ CLASSIC_MODELS = [s["name"] for s in CLASSIC_SPECS]
 #   位置（Eric 2026-10-26）：DUAL 300／450／600／800 分別是 FD300／450／600／800 Pro 的前身、
 #   同一套機構 ⇒ 預擠位置照抄 FD Pro（正前方、不撞門）；赤兔板吃開印前的 M6050（Eric 同日確認）。
 #   形狀照 FD Pro 直線：Y 起點往內每條 +2、X ±50 來回、Z＝首層高、每條 E 照 FD 同口徑；
-#   第一個接近 travel F8000、其餘 F800（07-12）；末條 `G1 Z1 E(E−1)` 抬升兼回抽 1 mm。
+#   第一個接近 travel F5000（11-27 由 F8000 降，見 PRIME_APPROACH_F）、其餘 F800（07-12）；末條 `G1 Z1 E(E−1)` 抬升兼回抽 1 mm。
 #   不寫裸 T（07-29 Classic 出檔鐵律）、不用 G2/G3（赤兔吃不吃弧線沒驗過）。
 #   ⚠ 本表＝白名單：先只開 DUAL 300（九台）；2026-10-29 Eric「Classic 的機器 300 的預擠料已經測試通過，
 #     那請幫我把 450 跟 600、800 也加上」⇒ 加 DUAL 450／600／800（Y 照 FD450／600／800 Pro＝−215／−280／−359，牌 c-1029-P193-04）。
 #     DUAL 是標準噴頭（FD450+ Pro 出廠高流量）：E 仍照 FD 同口徑，1.0 口徑 E75 擠不擠得出來看實印。
 #     不在表上的 Classic 機照舊原地擠 `G1 F200 E<n>`（EDU 200／PING 200／270／300+ 依 Q1 不做）。
+# ★ 預擠段兩個速度（全機型共用的唯一來源；2026-11-27 牌 c-1127-F8K-01，口徑同 Klipper 票 #40）：
+#   PRIME_APPROACH_F＝G28 之後從頂點斜降到預擠起點那一行；PRIME_TRAVEL_F＝噴頭已貼床（Z≤1）時的平移。
+#   貼床平移寫成 F8000 會讓噴頭拖著熱料急衝、刮到剛擠的線（FD300 高度校正檔錯位的真因）。
+PRIME_APPROACH_F = 5000
+PRIME_TRAVEL_F = 800
+_PRIME_APPROACH_RE = re.compile(r"G0 F(?:8000|5000) ")
 CLASSIC_PRIME_LINE_Y = {"DUAL 300": -140, "DUAL 450": -215, "DUAL 600": -280, "DUAL 800": -359}
 CLASSIC_PRIME_LINE_E = {"0.2": 16, "0.25": 20, "0.4": 30, "0.6": 45, "1.0": 75}
 CLASSIC_PRIME_LINE_Z = {"0.2": "0.15", "0.25": "0.15", "0.4": "0.25", "0.6": "0.35", "1.0": "0.55"}
@@ -729,7 +735,7 @@ def classic_prime_lines(model, nz, mode):
         x0, x1 = (-50, 50) if i % 2 == 0 else (50, -50)
         if head:
             out.append(head)
-        out += ["%s X%d Y%d Z%s" % ("G0 F8000" if i == 0 else "G0 F800", x0, y, z),
+        out += ["G0 F%d X%d Y%d Z%s" % (PRIME_APPROACH_F if i == 0 else PRIME_TRAVEL_F, x0, y, z),
                 "G92 E0", "G1 F800 X%d Y%d E%d" % (x1, y, e)]
         if i < len(heads) - 1:
             out.append("G92 E0")
@@ -909,7 +915,7 @@ def _fd300_arc_block(radii_tools, z, e):
         start, end, cmd = (a, b, "G3") if i % 2 == 0 else (b, a, "G2")
         if tool is not None:
             lines.append(tool)
-        lines.append("G0 F%d X%.2f Y%.2f Z%s" % (8000 if i == 0 else 800, start[0], start[1], z))
+        lines.append("G0 F%d X%.2f Y%.2f Z%s" % (PRIME_APPROACH_F if i == 0 else PRIME_TRAVEL_F, start[0], start[1], z))
         lines.append("G92 E0")
         lines.append("%s F800 X%.2f Y%.2f I%.2f J%.2f E%s" % (cmd, end[0], end[1], -start[0], -start[1], e))
         if i < len(radii_tools) - 1:
@@ -919,7 +925,10 @@ def _fd300_arc_block(radii_tools, z, e):
     return "\n".join(lines)
 
 # ★ 預擠段正規化（2026-07-12 Eric 抓錯）：①預擠段「中途」travel 誤植 F8000（多一個 0，
-# 熱料拖行過快）→ 除第一個接近 travel 保留 F8000 外，其餘 G0 F8000 一律改 F800。
+# 熱料拖行過快）→ 除第一個接近 travel 外，其餘一律改 F800。
+#   🆕 2026-11-27（牌 c-1127-F8K-01；口徑同 Klipper 票 #40 與同日 SD 卡修正）：第一個接近 travel
+#   ＝G28 之後從頂點斜降到預擠起點那行，也從 F8000 降成 F5000；交付源與舊產物還是寫 F8000，
+#   這裡兩種都認、輸出一律 PRIME_APPROACH_F。驗收＝verify_profiles〈預擠段 F8000 清零〉。
 # ②T0/T1 交替預擠的最後一條改成 T0（起印主料免多一次換刀）——交替序整組對調
 #（T0,T1,T0,T1 → T1,T0,T1,T0）。僅動獨立成行的 T0/T1（M104/M107 的 T0 參數不受影響）；
 # 3in1 的 T4/T3 與 FF 四色不在此規則（Eric 限定 T0/T1 交替）。
@@ -928,10 +937,11 @@ def normalize_prime_lines(mac):
     sg = mac.get("machine_start_gcode")
     if not isinstance(sg, str) or "G0" not in sg:
         return
-    # ① 中途 travel F8000 → F800（保留第一個）
-    parts = sg.split("G0 F8000")
-    if len(parts) > 2:
-        sg = parts[0] + "G0 F8000" + "G0 F800".join(parts[1:])
+    # ① 第一個接近 travel → F5000、中途 travel → F800
+    parts = _PRIME_APPROACH_RE.split(sg)
+    if len(parts) > 1:
+        sg = (parts[0] + "G0 F%d " % PRIME_APPROACH_F
+              + ("G0 F%d " % PRIME_TRAVEL_F).join(parts[1:]))
     # ② T0/T1 交替 → 對調使結尾為 T0
     tools = _T01_LINE.findall(sg)
     if len(tools) >= 2 and set(tools) == {"T0", "T1"} and tools[-1] == "T1":
@@ -948,7 +958,7 @@ def apply_fd300_prime_arc(model, mac):
     sg = mac.get("machine_start_gcode")
     if not isinstance(sg, str) or "G28 ;Home" not in sg or "Y-140" not in sg:
         return
-    m_z = re.search(r"G0 F8000 [^\n]*?Z([\d.]+)", sg)
+    m_z = re.search(r"G0 F(?:8000|5000) [^\n]*?Z([\d.]+)", sg)
     m_e = re.search(r"G1 F800 [^\n]*?E([\d.]+)", sg)
     if not m_z or not m_e:
         return
@@ -982,7 +992,7 @@ def apply_deferred_heating(mac):
     # 交付源 gcode 髒空白（FF 四色：行尾/行首空白＋空行）→ 先逐行 strip 統一（乾淨檔＝零變化）
     sg = "\n".join(l.strip() for l in sg.split("\n") if l.strip())
     m109 = re.search(r"^M109 S\[nozzle_temperature_initial_layer\][^\n]*$", sg, re.M)
-    if not m109 or not re.search(r"^G0 F8000 ", sg, re.M):
+    if not m109 or not re.search(r"^G0 F(?:8000|5000) ", sg, re.M):
         return False
     m109_line = m109.group(0)
     sg = _HEAT_HEAD.sub("", sg)                                      # header 去 M104/M109
@@ -991,7 +1001,7 @@ def apply_deferred_heating(mac):
     for s in range(60, 0, -1):                                       # 到溫後 60 秒恆溫，每秒倒數
         heat += ["M117 恆溫等待 %d 秒" % s, "G4 P1000"]
     heat.append("M117 預擠中")
-    trav = re.search(r"^G0 F8000 [^\n]*$", sg, re.M)                 # 預擠第一點的接近 travel
+    trav = re.search(r"^G0 F(?:8000|5000) [^\n]*$", sg, re.M)        # 預擠第一點的接近 travel
     sg = sg[:trav.end()] + "\n" + "\n".join(heat) + sg[trav.end():]
     mac["machine_start_gcode"] = sg.rstrip("\n") + "\nM117"          # 收尾清空面板提示
     return True
