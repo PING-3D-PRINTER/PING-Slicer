@@ -1316,7 +1316,7 @@ for model, nzs in CLASSIC_VARIANT_NOZZLES.items():
 # ★ #193 Classic 床邊預擠線（Eric 2026-10-24 條數裁示；2026-10-26 確認 DUAL＝FD Pro 前身、預擠位置照抄、
 #   赤兔吃開印前 M6050）。逐台鎖「G28 之後」那一段＝期望值逐行相等：
 #   雙料本體 3 條（S0.5 → S0 P0 → S1 P0）／同進 2 條（前置 M6050 S0.5、中間不切路）／單料頭 1 條；
-#   Y 起點每條 +2、X ±50 來回、Z＝首層高、E 照 FD 同口徑、第一個 travel F8000 其餘 F800、末行 G1 Z1 E(E−1)。
+#   Y 起點每條 +2、X ±50 來回、Z＝首層高、E 照 FD 同口徑、第一個 travel F5000（11-27 由 F8000 降，牌 c-1127-F8K-01）其餘 F800、末行 G1 Z1 E(E−1)。
 #   白名單外的 Classic 機 ⇒ 必須仍是原地擠（防預擠線靜默外溢到還沒實印過的機型）。
 def _p193_expect(model, nz, mode):
     y0, e, z = _P193_Y[model], _P193_E[nz], _P193_Z[nz]
@@ -1328,7 +1328,7 @@ def _p193_expect(model, nz, mode):
         xa, xb = (-50, 50) if i % 2 == 0 else (50, -50)
         if mode == "dual":
             out.append(cut[i])
-        out.append(f"{'G0 F8000' if i == 0 else 'G0 F800'} X{xa} Y{y} Z{z}")
+        out.append(f"{'G0 F5000' if i == 0 else 'G0 F800'} X{xa} Y{y} Z{z}")
         out += ["G92 E0", f"G1 F800 X{xb} Y{y} E{e}"]
         if i < n - 1:
             out.append("G92 E0")
@@ -1363,6 +1363,26 @@ for _mn, (_k, _d) in presets.items():
 if _p193_census["預擠線"] != 45:
     err(f"[Classic 預擠線 #193] DUAL 300／450／600／800 應恰 45 台（300＝9；450／600／800 各 12＝本體／同進／單料頭 × 4 口徑），實得 {_p193_census['預擠線']}")
 print(f"Classic 預擠線（#193）：床邊預擠線 {_p193_census['預擠線']} 台｜原地擠 {_p193_census['原地擠']} 台")
+
+# ★ 預擠段 F8000 清零（2026-11-27 牌 c-1127-F8K-01；口徑同 Klipper 票 #40／同日 SD 卡修正）：
+#   G28 之後斜降到預擠起點＝F5000、噴頭已貼床（Z≤1）的平移＝F800；任何 G0／G1 F8000 都不准出現在
+#   machine_start_gcode（貼床 F8000＝熱料急衝刮線，FD300 高度校正檔錯位真因）。
+#   ⚠ 界線：本檢查只看 machine_start_gcode 裡「行首 G0/G1 F8000」這個字面形狀；別的鍵、別的寫法
+#   （如 G0 X.. F8000 把 F 放後面）它看不到——綠燈＝沒有這個形狀，不等於所有預擠移動都慢下來了。
+_f8k_bad, _f8k_ok = [], 0
+for _mn, (_k, _d) in presets.items():
+    if _k != "machine":
+        continue
+    _sg = _d.get("machine_start_gcode", "")
+    if not isinstance(_sg, str) or not _sg:
+        continue
+    if re.search(r"(?m)^\s*G[01] F8000\b", _sg):
+        _f8k_bad.append(_mn)
+    else:
+        _f8k_ok += 1
+for _mn in _f8k_bad:
+    err(f"[預擠段 F8000 清零 c-1127-F8K-01] {_mn}: machine_start_gcode 還有 G0/G1 F8000（斜降應 F5000、貼床應 F800）")
+print(f"預擠段 F8000 清零：乾淨 {_f8k_ok} 支｜殘留 {len(_f8k_bad)} 支")
 
 # 檢查 10-b 射程（c-1109-FDA-01）：鈑金框 FD300 系＝本體／同進／單料頭／關門 各 3 口徑＋同進照片磚 2 口徑＝14 支。
 #   數字不對＝有人改名或加刪變體，判準可能已經沒射到該擋的機型（0 支時檢查 10-b 等於不存在）。
